@@ -1,0 +1,79 @@
+@import "tailwindcss";
+
+@plugin "tailwindcss-animate";
+
+/* Completely disable dark mode even if OS is in dark mode */
+@custom-variant dark (&:is(.kill-dark-mode));
+
+@theme {
+  --font-sans: var(--font-inter);
+  --font-mono: var(--font-geist-mono);
+}
+
+:root {
+  --background: #F8FAFC;
+  --foreground: #0A1A2F;
+  --card: #FFFFFF;
+  --card-foreground: #0A1A2F;
+  --popover: #FFFFFF;
+  --popover-foreground: #0A1A2F;
+  --primary: #0066FF;
+  --primary-foreground: #FFFFFF;
+  --secondary: #E2E8F0;
+  --secondary-foreground: #0A1A2F;
+  --muted: #F1F5F9;
+  --muted-foreground: #64748B;
+  --accent: #00D4FF;
+  --accent-foreground: #0A1A2F;
+  --destructive: #EF4444;
+  --destructive-foreground: #FFFFFF;
+  --border: #E2E8F0;
+  --input: #E2E8F0;
+  --ring: #0066FF;
+  --chart-1: #0066FF;
+  --chart-2: #00D4FF;
+  --chart-3: #0A1A2F;
+  --chart-4: #4338ca;
+  --chart-5: #e11d48;
+  --radius: 0.75rem;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
