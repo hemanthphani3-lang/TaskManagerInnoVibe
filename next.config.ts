@@ -8,7 +8,6 @@ const withSerwist = withSerwistInit({
 });
 
 const nextConfig: NextConfig = {
-  srcDir: "src",
   eslint: {
     ignoreDuringBuilds: true,
   },
