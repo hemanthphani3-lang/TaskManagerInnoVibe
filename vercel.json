@@ -1,0 +1,5 @@
+{
+  "rootDirectory": "innovibe-tms",
+  "buildCommand": "npm run vercel-build",
+  "framework": "nextjs"
+}

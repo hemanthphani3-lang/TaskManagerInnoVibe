@@ -1,0 +1,9 @@
+{
+  "private": true,
+  "scripts": {
+    "vercel-build": "npm run build --prefix innovibe-tms"
+  },
+  "dependencies": {
+    "next": "^15.5.18"
+  }
+}
