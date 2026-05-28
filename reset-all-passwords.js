@@ -6,8 +6,11 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
-const DEFAULT_PASSWORD = 'Innovibe@123';
-
+const DEFAULT_PASSWORD = process.env.RESET_PASSWORD;
+if (!DEFAULT_PASSWORD) {
+  console.error("Error: Please define RESET_PASSWORD in your .env.local file.");
+  process.exit(1);
+}
 async function resetAllPasswords() {
   console.log("Fetching all auth users...");
   const { data: { users }, error: listError } = await supabase.auth.admin.listUsers();

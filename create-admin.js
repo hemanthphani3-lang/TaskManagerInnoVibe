@@ -9,10 +9,16 @@ const supabase = createClient(
 async function createAdmin() {
   console.log("Creating admin user...");
   
+  const password = process.env.ADMIN_PASSWORD;
+  if (!password) {
+    console.error("Error: Please define ADMIN_PASSWORD in your .env.local file.");
+    return;
+  }
+
   // 1. Create auth user
   const { data: authData, error: authError } = await supabase.auth.admin.createUser({
     email: 'admin@innovibe',
-    password: 'admin@123',
+    password: password,
     email_confirm: true
   });
 

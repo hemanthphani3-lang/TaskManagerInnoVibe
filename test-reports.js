@@ -13,9 +13,17 @@ const puppeteer = require('puppeteer');
     console.log("Navigating to login...");
     await page.goto('http://localhost:8080/login', { waitUntil: 'networkidle0' });
     
+    require('dotenv').config({ path: '.env.local' });
+    const testEmail = process.env.TEST_EMAIL || 'hemanthphani3@gmail.com';
+    const testPassword = process.env.TEST_PASSWORD;
+    if (!testPassword) {
+      console.error("Error: TEST_PASSWORD is not defined in .env.local");
+      process.exit(1);
+    }
+
     console.log("Logging in...");
-    await page.type('input[type="email"]', 'hemanthphani3@gmail.com');
-    await page.type('input[type="password"]', 'Innovibe@123');
+    await page.type('input[id="email"]', testEmail);
+    await page.type('input[id="password"]', testPassword);
     
     await Promise.all([
       page.waitForNavigation({ waitUntil: 'networkidle0' }),
