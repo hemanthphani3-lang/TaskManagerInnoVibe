@@ -42,7 +42,7 @@ export default async function DepartmentDashboard() {
   const [
     { data: employees },
     { data: attendance },
-    { count: pendingLogouts },
+    { count: logoutReportsToday },
     { count: pendingLeaves },
     { data: tasks },
     { data: activityFeed },
@@ -51,7 +51,7 @@ export default async function DepartmentDashboard() {
   ] = await Promise.all([
     supabase.from('employees').select('id, employee_name, designation, profile_photo').eq('department_id', user!.id),
     supabase.from('attendance').select('employee_id, attendance_status, check_in_time, work_status, working_hours, created_at').eq('department_id', user!.id).gte('created_at', `${last7Days[0]}T00:00:00Z`).lte('created_at', `${today}T23:59:59Z`),
-    supabase.from('logout_requests').select('*', { count: 'exact', head: true }).eq('department_id', user!.id).eq('approval_status', 'PENDING'),
+    supabase.from('logout_requests').select('*', { count: 'exact', head: true }).eq('department_id', user!.id).eq('attendance_date', today),
     supabase.from('leave_requests').select('*', { count: 'exact', head: true }).eq('department_id', user!.id).eq('approval_status', 'PENDING'),
     supabase.from('tasks').select('id, task_status, assigned_employee_id').eq('department_id', user!.id),
     supabase.from('activity_feed').select('*').eq('department_id', user!.id).order('created_at', { ascending: false }).limit(10),
@@ -69,7 +69,7 @@ export default async function DepartmentDashboard() {
   const lateCount = todayAttendance.filter(a => a.attendance_status === 'LATE').length || 0
   const totalCheckedIn = presentCount + lateCount
   const absentCount = totalEmployees - totalCheckedIn
-  const activeCount = todayAttendance.filter(a => a.work_status === 'ACTIVE' || a.work_status === 'LOGOUT_REQUESTED').length || 0
+  const activeCount = todayAttendance.filter(a => a.work_status === 'ACTIVE').length || 0
   const attendancePercentage = totalEmployees > 0 ? Math.round((totalCheckedIn / totalEmployees) * 100) : 0
 
   const totalTasks = tasks?.length || 0
@@ -164,7 +164,7 @@ export default async function DepartmentDashboard() {
         <AnalyticsCard title="Avg Working Hours" value={avgHoursDisplay} icon={Clock} colorClass="text-purple-600" bgClass="bg-purple-50" delay={1} />
         <AnalyticsCard title="Absent Today" value={absentCount} icon={XCircle} colorClass="text-red-600" bgClass="bg-red-50" />
         <AnalyticsCard title="Active Now" value={activeCount} icon={Activity} colorClass="text-blue-600" bgClass="bg-blue-50" />
-        <AnalyticsCard title="Pending Logouts" value={pendingLogouts || 0} icon={Target} colorClass="text-amber-600" bgClass="bg-amber-50" />
+        <AnalyticsCard title="Logged Out Today" value={logoutReportsToday || 0} icon={Target} colorClass="text-amber-600" bgClass="bg-amber-50" />
         <AnalyticsCard title="Total Tasks" value={totalTasks} icon={Target} colorClass="text-slate-600" bgClass="bg-slate-100" />
         <AnalyticsCard title="Completed Tasks" value={completedTasks} icon={CheckCircle2} colorClass="text-emerald-600" bgClass="bg-emerald-50" delay={2} />
         <AnalyticsCard title="Delayed Tasks" value={delayedTasks} icon={Clock} colorClass="text-amber-600" bgClass="bg-amber-50" delay={3} />

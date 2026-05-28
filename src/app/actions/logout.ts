@@ -110,16 +110,15 @@ export async function requestLogoutAndSubmitWork(formData: FormData) {
   let logoutRequestId: string
 
   if (existingRequest) {
-    // Update existing to PENDING directly using admin client to bypass RLS (resubmission)
+    // Update existing to APPROVED directly using admin client to bypass RLS
     const { error: updateError } = await supabaseAdmin
       .from('logout_requests')
       .update({ 
-        approval_status: 'PENDING',
+        approval_status: 'APPROVED',
         logout_request_time: logoutDate.toISOString(),
-        approval_time: null,
-        logout_time: null,
-        total_working_hours: null,
-        rejection_reason: null
+        approval_time: logoutDate.toISOString(),
+        logout_time: logoutDate.toISOString(),
+        total_working_hours: workingHoursText
       })
       .eq('id', existingRequest.id)
     
@@ -129,15 +128,18 @@ export async function requestLogoutAndSubmitWork(formData: FormData) {
     // Delete old work submissions to replace them
     await supabaseAdmin.from('work_submissions').delete().eq('logout_request_id', logoutRequestId)
   } else {
-    // Insert new as PENDING for manager approval
+    // Insert new directly as APPROVED
     const { data: newRequest, error: insertError } = await supabaseAdmin
       .from('logout_requests')
       .insert({
         employee_id: user.id,
         department_id: employee.department_id,
         attendance_date: today,
-        approval_status: 'PENDING',
-        logout_request_time: logoutDate.toISOString()
+        approval_status: 'APPROVED',
+        logout_request_time: logoutDate.toISOString(),
+        approval_time: logoutDate.toISOString(),
+        logout_time: logoutDate.toISOString(),
+        total_working_hours: workingHoursText
       })
       .select()
       .single()
@@ -160,23 +162,25 @@ export async function requestLogoutAndSubmitWork(formData: FormData) {
 
   if (wsError) return { success: false, error: wsError.message }
 
-  // Immediately update employee's attendance status to LOGOUT_REQUESTED
+  // Immediately update employee's attendance status to LOGGED_OUT
   const { error: attUpdateErr } = await supabaseAdmin
     .from('attendance')
     .update({
-      work_status: 'LOGOUT_REQUESTED'
+      logout_time: logoutTimeStr,
+      working_hours: workingHoursText,
+      work_status: 'LOGGED_OUT'
     })
     .eq('id', attendance.id)
 
   if (attUpdateErr) {
-    console.error("Failed to update attendance to LOGOUT_REQUESTED:", attUpdateErr)
+    console.error("Failed to update attendance to LOGGED_OUT:", attUpdateErr)
   }
 
   // Send Notification to Department Head about the completed logout
   await supabase.from('notifications').insert({
     user_id: employee.department_id,
-    title: 'Logout Report Submitted',
-    message: `${employee.employee_name || 'An employee'} has submitted their daily work report and requested a logout.`,
+    title: 'Employee Logged Out',
+    message: `${employee.employee_name || 'An employee'} has logged out for the day and submitted their work summary.`,
     type: 'SYSTEM'
   })
 
