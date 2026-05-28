@@ -6,6 +6,7 @@ const adminLinks = [
   { label: "Tasks", href: "/admin/tasks", iconName: "tasks" },
   { label: "Departments", href: "/admin/departments", iconName: "departments" },
   { label: "Employees", href: "/admin/employees", iconName: "employees" },
+  { label: "Logout reports", href: "/admin/logouts", iconName: "identity" },
   { label: "Holidays", href: "/admin/holidays", iconName: "calendar" },
   { label: "Announcements", href: "/admin/announcements", iconName: "megaphone" },
   { label: "Notifications", href: "/admin/notifications", iconName: "bell" },

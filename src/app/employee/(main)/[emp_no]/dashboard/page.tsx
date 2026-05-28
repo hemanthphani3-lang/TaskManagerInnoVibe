@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
-import { Clock, Calendar, CheckCircle2, UserCircle2, AlertCircle, Target, FileText, LogOut, Trophy, ShieldAlert } from "lucide-react"
+import { Clock, Calendar, CheckCircle2, UserCircle2, AlertCircle, Target, FileText, LogOut, Trophy, ShieldAlert, DownloadCloud } from "lucide-react"
 import { AnalyticsCard } from "@/components/dashboard/AnalyticsCard"
 import { ActivityFeed } from "@/components/dashboard/ActivityFeed"
 import { ScoreProgressBar } from "@/components/productivity/ScoreProgressBar"
@@ -59,7 +59,7 @@ export default async function EmployeeDashboard({ params }: { params: Promise<{ 
     { data: reminders }
   ] = await Promise.all([
     supabase.from('attendance').select('*').eq('employee_id', user.id).gte('created_at', startUTC).lte('created_at', endUTC).order('created_at', { ascending: false }).limit(1).maybeSingle(),
-    supabase.from('logout_requests').select('*').eq('employee_id', user.id).order('created_at', { ascending: false }).limit(5),
+    supabase.from('logout_requests').select('*, work_submissions(work_comment, attachment_url, attachment_type)').eq('employee_id', user.id).order('created_at', { ascending: false }).limit(5),
     supabase.from('tasks').select('*').eq('assigned_employee_id', user.id),
     supabase.from('activity_feed').select('*').eq('department_id', employee?.department_id).order('created_at', { ascending: false }).limit(10),
     supabase.from('productivity_scores').select('*').eq('employee_id', user.id).maybeSingle(),
@@ -231,27 +231,35 @@ export default async function EmployeeDashboard({ params }: { params: Promise<{ 
               <h3 className="text-lg font-bold text-[#0A1A2F] mb-6">Uploaded Work History</h3>
               <div className="space-y-4">
                 {logoutRequests && logoutRequests.length > 0 ? (
-                  logoutRequests.map(request => (
-                    <div key={request.id} className="flex items-start gap-4 p-4 bg-slate-50 rounded-xl border border-slate-100">
-                      <div className="p-2 bg-blue-100 text-blue-600 rounded-lg shrink-0">
-                        <FileText className="w-5 h-5" />
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex justify-between items-start">
-                          <p className="font-semibold text-slate-900">
-                            {request.attendance_date === today ? "Today's Submission" : new Date(request.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'Asia/Kolkata' })}
-                          </p>
-                          <span className={`text-[10px] font-bold px-2 py-1 rounded uppercase ${request.approval_status === 'APPROVED' ? 'bg-emerald-100 text-emerald-700' : request.approval_status === 'REJECTED' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
-                            {request.approval_status}
-                          </span>
+                  logoutRequests.map(request => {
+                    const submission = (request as any).work_submissions?.[0]
+                    return (
+                      <div key={request.id} className="flex items-start gap-4 p-4 bg-slate-50 rounded-xl border border-slate-100">
+                        <div className="p-2 bg-blue-100 text-blue-600 rounded-lg shrink-0">
+                          <FileText className="w-5 h-5" />
                         </div>
-                        <p className="text-sm text-slate-600 mt-1 line-clamp-2">{request.work_summary}</p>
-                        <a href={request.file_url} target="_blank" rel="noreferrer" className="text-xs font-semibold text-[#0066FF] hover:underline mt-2 inline-block">
-                          View Attached File
-                        </a>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex justify-between items-start flex-wrap gap-2">
+                            <p className="font-semibold text-slate-900">
+                              {request.attendance_date === today ? "Today's Submission" : new Date(request.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'Asia/Kolkata' })}
+                            </p>
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase ${request.approval_status === 'APPROVED' ? 'bg-emerald-100 text-emerald-700' : request.approval_status === 'REJECTED' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
+                              {request.approval_status}
+                            </span>
+                          </div>
+                          <p className="text-sm text-slate-600 mt-1.5 leading-relaxed">
+                            {submission?.work_comment || <span className="italic text-slate-400">No report description provided.</span>}
+                          </p>
+                          {submission?.attachment_url && (
+                            <a href={submission.attachment_url} target="_blank" rel="noreferrer" className="text-xs font-bold text-[#0066FF] hover:underline mt-2 inline-flex items-center gap-1">
+                              <DownloadCloud className="w-3.5 h-3.5" />
+                              View Attached Deliverable
+                            </a>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ))
+                    )
+                  })
                 ) : (
                   <p className="text-slate-500 text-center py-6 text-sm">No work submitted yet.</p>
                 )}
