@@ -72,47 +72,58 @@ export default function LoginPage() {
     setLoading(true)
     setError(null)
 
-    // Step 1: Sign in with Supabase Auth
-    const { data: authData, error: signInError } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    })
+    try {
+      // Step 1: Sign in with Supabase Auth
+      const { data: authData, error: signInError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      })
 
-    if (signInError || !authData?.user) {
-      const msg = signInError?.message || 'default'
-      setError(errorMessages[msg] || errorMessages['default'])
+      if (signInError || !authData?.user) {
+        const msg = signInError?.message || 'default'
+        setError(errorMessages[msg] || errorMessages['default'])
+        setLoading(false)
+        return
+      }
+
+      const userId = authData.user.id
+
+      // Step 2: Verify the user exists in the selected role's table
+      const tableName = getRoleTable(selectedRole)
+      const { data: roleData, error: roleError } = await supabase
+        .from(tableName)
+        .select('id')
+        .eq('id', userId)
+        .single()
+
+      if (roleError || !roleData) {
+        // User exists in auth but NOT in the selected role table → wrong portal
+        await supabase.auth.signOut()
+        setError(`You are not registered as a ${selectedRole.charAt(0) + selectedRole.slice(1).toLowerCase()}. Please select the correct portal.`)
+        setLoading(false)
+        return
+      }
+
+      // Step 3: Route to the correct dashboard
+      if (selectedRole === 'ADMIN') {
+        router.push('/admin/dashboard')
+      } else if (selectedRole === 'DEPARTMENT') {
+        router.push('/department/dashboard')
+      } else {
+        router.push('/employee/identity-check')
+      }
+
+      router.refresh()
+    } catch (err: any) {
+      console.error("Login request error:", err)
+      const errMsg = err?.message || String(err)
+      if (errMsg.includes("Failed to fetch") || errMsg.includes("fetch")) {
+        setError("Network Connection Failed: Could not reach the authentication server. Please check your internet connection or disable any Adblockers / Brave Shields that might be blocking requests to 'supabase.co'.")
+      } else {
+        setError(errMsg || "An unexpected error occurred. Please try again.")
+      }
       setLoading(false)
-      return
     }
-
-    const userId = authData.user.id
-
-    // Step 2: Verify the user exists in the selected role's table
-    const tableName = getRoleTable(selectedRole)
-    const { data: roleData, error: roleError } = await supabase
-      .from(tableName)
-      .select('id')
-      .eq('id', userId)
-      .single()
-
-    if (roleError || !roleData) {
-      // User exists in auth but NOT in the selected role table → wrong portal
-      await supabase.auth.signOut()
-      setError(`You are not registered as a ${selectedRole.charAt(0) + selectedRole.slice(1).toLowerCase()}. Please select the correct portal.`)
-      setLoading(false)
-      return
-    }
-
-    // Step 3: Route to the correct dashboard
-    if (selectedRole === 'ADMIN') {
-      router.push('/admin/dashboard')
-    } else if (selectedRole === 'DEPARTMENT') {
-      router.push('/department/dashboard')
-    } else {
-      router.push('/employee/identity-check')
-    }
-
-    router.refresh()
   }
 
   return (
