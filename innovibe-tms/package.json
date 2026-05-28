@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev --turbopack -p 3001",
     "build": "next build",
+    "vercel-build": "next build",
     "start": "next start",
     "lint": "eslint"
   },
@@ -40,6 +41,7 @@
     "zustand": "^5.0.13"
   },
   "devDependencies": {
+    "next": "^15.5.18",
     "@eslint/eslintrc": "^3",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
