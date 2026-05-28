@@ -12,7 +12,7 @@ import { DashboardProfileCompletionCard } from "@/components/dashboard/Dashboard
 import { calculateCompletionPercentage } from "@/lib/onboarding-utils"
 import Link from "next/link"
 import { DashboardLockScreen } from "@/components/employee/DashboardLockScreen"
-import { StatusActions } from "@/components/employee/StatusActions"
+import { LogoutReportCard } from "@/components/employee/LogoutReportCard"
 
 export default async function EmployeeDashboard({ params }: { params: Promise<{ emp_no: string }> }) {
   const { emp_no } = await params
@@ -120,74 +120,78 @@ export default async function EmployeeDashboard({ params }: { params: Promise<{ 
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
           {/* Status Card */}
-          <div className="col-span-1 lg:col-span-2 bg-white rounded-2xl p-6 border border-slate-100 shadow-sm relative overflow-hidden">
+          <div className="col-span-1 bg-white rounded-2xl p-6 border border-slate-100 shadow-sm relative overflow-hidden">
             <div className="absolute top-0 right-0 w-64 h-64 bg-blue-50 rounded-full blur-3xl -mr-32 -mt-32 opacity-50 pointer-events-none" />
             
-            <div className="flex flex-col md:flex-row items-center justify-between gap-6 relative z-10">
+            <div className="flex flex-col items-start justify-between h-full min-h-[170px] relative z-10">
               <div className="flex items-center gap-4">
                 <div className={`p-4 rounded-2xl ${attendance?.work_status === 'LOGGED_OUT' ? 'bg-slate-50 text-slate-600 shadow-slate-500/20' : isCheckedIn ? 'bg-emerald-50 text-emerald-600 shadow-emerald-500/20' : 'bg-amber-50 text-amber-600 shadow-amber-500/20'} shadow-lg`}>
                   {attendance?.work_status === 'LOGGED_OUT' ? <LogOut className="w-8 h-8" /> : isCheckedIn ? <CheckCircle2 className="w-8 h-8" /> : <Clock className="w-8 h-8" />}
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-slate-500 uppercase tracking-wider">Current Status</p>
-                  <h3 className="text-2xl font-black text-[#0A1A2F]">
+                  <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Current Status</p>
+                  <h3 className="text-xl font-black text-slate-800">
                     {isCheckedIn ? (isLogoutPending ? 'PENDING LOGOUT' : attendance.work_status.replace(/_/g, ' ')) : 'NOT CHECKED IN'}
                   </h3>
                 </div>
               </div>
-              <div className="flex flex-col md:flex-row items-center gap-6">
-                <div className="text-right">
-                  {isCheckedIn && (
-                    <>
-                      <p className="text-sm text-slate-500">Check-in Time</p>
-                      <p className="font-mono text-lg font-bold text-slate-900">
-                        {new Date(attendance.check_in_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' })}
-                      </p>
-                    </>
-                  )}
-                  {attendance?.work_status === 'LOGGED_OUT' && attendance?.working_hours && (
-                    <div className="mt-2 flex flex-col items-end">
-                      <span className="text-xs text-slate-500 uppercase font-bold tracking-wider mb-1">Total Hours</span>
-                      <span className="font-bold text-blue-700 bg-blue-100 px-3 py-1 rounded-full text-sm">
-                        {attendance.working_hours}
-                      </span>
-                    </div>
-                  )}
-                </div>
-
-                {attendance && attendance.work_status === 'ACTIVE' && (
-                  <StatusActions />
+              <div className="w-full flex items-center justify-between mt-4 pt-4 border-t border-slate-100">
+                {isCheckedIn && (
+                  <div>
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Check-in Time</p>
+                    <p className="font-mono text-sm font-bold text-slate-700 mt-0.5">
+                      {new Date(attendance.check_in_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' })}
+                    </p>
+                  </div>
+                )}
+                {attendance?.work_status === 'LOGGED_OUT' && attendance?.working_hours && (
+                  <div className="flex flex-col items-end w-full">
+                    <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider mb-0.5">Total Hours</span>
+                    <span className="font-bold text-blue-700 bg-blue-50 px-3 py-1 rounded-full text-xs">
+                      {attendance.working_hours}
+                    </span>
+                  </div>
                 )}
               </div>
             </div>
           </div>
 
           {/* Productivity Score Card */}
-          <div className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-base font-bold text-[#0A1A2F]">Productivity Score</h3>
-              {employeeRank && (
-                <div className="flex items-center gap-1.5 text-amber-600 bg-amber-50 px-3 py-1 rounded-full border border-amber-100">
-                  <Trophy className="w-4 h-4" />
-                  <span className="text-xs font-bold">Rank #{employeeRank}</span>
-                </div>
-              )}
-            </div>
-            <ScoreProgressBar score={productivityScore} />
-            <div className="mt-4">
-              <ProductivityBadge score={productivityScore} />
+          <div className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm flex flex-col justify-between h-full">
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-base font-bold text-[#0A1A2F]">Productivity Score</h3>
+                {employeeRank && (
+                  <div className="flex items-center gap-1.5 text-amber-600 bg-amber-50 px-2.5 py-1 rounded-full border border-amber-100">
+                    <Trophy className="w-3.5 h-3.5" />
+                    <span className="text-[10px] font-bold">Rank #{employeeRank}</span>
+                  </div>
+                )}
+              </div>
+              <ScoreProgressBar score={productivityScore} />
+              <div className="mt-3">
+                <ProductivityBadge score={productivityScore} />
+              </div>
             </div>
             <div className="mt-4 grid grid-cols-2 gap-3">
-              <div className="bg-slate-50 rounded-xl p-3 border border-slate-100">
-                <p className="text-xs text-slate-500 font-medium">Attendance</p>
-                <p className="text-lg font-black text-slate-900">{attendanceRate.toFixed(0)}%</p>
+              <div className="bg-slate-50 rounded-xl p-2.5 border border-slate-100 text-center">
+                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Attendance</p>
+                <p className="text-base font-black text-slate-800 mt-0.5">{attendanceRate.toFixed(0)}%</p>
               </div>
-              <div className="bg-slate-50 rounded-xl p-3 border border-slate-100">
-                <p className="text-xs text-slate-500 font-medium">Completion</p>
-                <p className="text-lg font-black text-slate-900">{completionRate.toFixed(0)}%</p>
+              <div className="bg-slate-50 rounded-xl p-2.5 border border-slate-100 text-center">
+                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Completion</p>
+                <p className="text-base font-black text-slate-800 mt-0.5">{completionRate.toFixed(0)}%</p>
               </div>
             </div>
           </div>
+
+          {/* Logout Report Card */}
+          <LogoutReportCard 
+            employeeId={user.id} 
+            departmentId={employee.department_id} 
+            todayRequest={todayRequest}
+            isCheckedIn={isCheckedIn}
+          />
         </div>
 
         {/* KPI Stats Row */}
