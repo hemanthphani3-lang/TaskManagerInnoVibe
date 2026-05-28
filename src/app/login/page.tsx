@@ -63,6 +63,7 @@ export default function LoginPage() {
   const [rememberMe, setRememberMe] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [successMsg, setSuccessMsg] = useState<string | null>(null)
 
   const router = useRouter()
 
@@ -122,6 +123,35 @@ export default function LoginPage() {
       } else {
         setError(errMsg || "An unexpected error occurred. Please try again.")
       }
+      setLoading(false)
+    }
+  }
+
+  const handleForgotPassword = async (e: React.MouseEvent) => {
+    e.preventDefault()
+    setError(null)
+    setSuccessMsg(null)
+
+    if (!email.trim()) {
+      setError("Please enter your Corporate Email ID first, then click Forgot Password again.")
+      return
+    }
+
+    try {
+      setLoading(true)
+      // Call the server action to notify the admin
+      const { sendForgotPasswordRequest } = await import("@/app/actions/auth")
+      const res = await sendForgotPasswordRequest(email)
+      
+      if (res.success) {
+        setSuccessMsg("Request is sent to the admin, Please contact for the password.")
+        alert("Request is sent to the admin, Please contact for the password.")
+      } else {
+        setError(res.error || "Failed to notify the admin. Please try again.")
+      }
+    } catch (err: any) {
+      setError(err?.message || "An error occurred. Please contact the administrator.")
+    } finally {
       setLoading(false)
     }
   }
@@ -192,8 +222,21 @@ export default function LoginPage() {
                   exit={{ opacity: 0, height: 0 }}
                   className="overflow-hidden"
                 >
-                  <div className="p-2.5 text-[12px] text-red-600 bg-red-50 rounded-lg border border-red-100 text-center">
+                  <div className="p-2.5 text-[12px] text-red-600 bg-red-50 rounded-lg border border-red-100 text-center font-medium">
                     {error}
+                  </div>
+                </motion.div>
+              )}
+              {successMsg && (
+                <motion.div
+                  key="success"
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="overflow-hidden"
+                >
+                  <div className="p-2.5 text-[12px] text-emerald-600 bg-emerald-50 rounded-lg border border-emerald-100 text-center font-semibold leading-relaxed">
+                    {successMsg}
                   </div>
                 </motion.div>
               )}
@@ -260,9 +303,13 @@ export default function LoginPage() {
                 </div>
                 <span className="text-[12px] font-medium text-slate-600 group-hover:text-slate-800 transition-colors">Remember me</span>
               </label>
-              <a href="#" className="text-[12px] font-semibold text-blue-600 hover:text-blue-700 transition-colors">
+              <button
+                type="button"
+                onClick={handleForgotPassword}
+                className="text-[12px] font-semibold text-blue-600 hover:text-blue-700 transition-colors bg-transparent border-none cursor-pointer p-0 outline-none"
+              >
                 Forgot Password?
-              </a>
+              </button>
             </div>
 
             {/* Submit */}

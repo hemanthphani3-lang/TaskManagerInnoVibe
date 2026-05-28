@@ -6,6 +6,7 @@ import { Bell, Check, CheckCircle2, Circle, Clock, Info, ShieldAlert } from 'luc
 import { Card } from '@/components/ui/card'
 import { toast } from 'sonner'
 import { formatDistanceToNow } from 'date-fns'
+import { useRouter } from 'next/navigation'
 
 interface Notification {
   id: string
@@ -21,6 +22,7 @@ export function NotificationsView() {
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const supabase = createClient()
+  const router = useRouter()
 
   useEffect(() => {
     let isMounted = true;
@@ -112,6 +114,22 @@ export function NotificationsView() {
     }
   }
 
+  const handleNotificationClick = async (notif: Notification) => {
+    try {
+      // 1. Mark as read if unread
+      if (!notif.is_read) {
+        await markAsRead(notif.id)
+      }
+      
+      // 2. Navigate to link_url if present
+      if (notif.link_url) {
+        router.push(notif.link_url)
+      }
+    } catch (err) {
+      console.error("Error handling notification click:", err)
+    }
+  }
+
   const getIcon = (type: string, isRead: boolean) => {
     const color = isRead ? "text-slate-400" : "text-[#0066FF]"
     switch (type) {
@@ -166,8 +184,8 @@ export function NotificationsView() {
           notifications.map((notif) => (
             <div 
               key={notif.id} 
-              className={`p-5 transition-colors flex gap-4 ${notif.is_read ? 'bg-white hover:bg-slate-50' : 'bg-blue-50/50 hover:bg-blue-50'}`}
-              onClick={() => !notif.is_read && markAsRead(notif.id)}
+              className={`p-5 transition-colors flex gap-4 cursor-pointer ${notif.is_read ? 'bg-white hover:bg-slate-50' : 'bg-blue-50/50 hover:bg-blue-50'}`}
+              onClick={() => handleNotificationClick(notif)}
             >
               <div className="mt-1">
                 {getIcon(notif.type, notif.is_read)}

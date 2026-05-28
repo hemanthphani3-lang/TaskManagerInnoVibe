@@ -144,3 +144,34 @@ export async function deleteEmployeeAccount(employeeId: string) {
     return { success: false, error: message }
   }
 }
+
+export async function sendForgotPasswordRequest(email: string) {
+  try {
+    const supabaseAdmin = getSupabaseAdmin()
+    
+    // Fetch all admins
+    const { data: admins, error: fetchError } = await supabaseAdmin
+      .from('admins')
+      .select('id')
+      
+    if (fetchError) throw fetchError
+
+    if (admins && admins.length > 0) {
+      // Send a notification to each admin
+      for (const admin of admins) {
+        await supabaseAdmin.from('notifications').insert({
+          user_id: admin.id,
+          title: '🔑 Forgot Password Request',
+          message: `A user has requested a password reset. Email ID: ${email || 'Unknown User'}`,
+          type: 'SYSTEM',
+          link_url: '/admin/dashboard'
+        })
+      }
+    }
+    
+    return { success: true }
+  } catch (error: any) {
+    console.error("Forgot password request error:", error)
+    return { success: false, error: error.message || String(error) }
+  }
+}
