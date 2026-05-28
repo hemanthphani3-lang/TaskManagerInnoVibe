@@ -616,8 +616,8 @@ export function TaskDetailsModal({
                       <div key={idx} className="flex gap-2.5 text-xs">
                         <div className="w-1.5 h-1.5 rounded-full bg-[#0066FF] mt-1 shrink-0" />
                         <div>
-                          <p className="text-slate-350">{log.action_description}</p>
-                          <span className="text-[9px] text-slate-500 font-bold block mt-0.5 uppercase tracking-wider">
+                          <p className="text-white">{log.action_description}</p>
+                          <span className="text-[9px] text-white/70 font-bold block mt-0.5 uppercase tracking-wider">
                             {log.actorName} ✦ {new Date(log.created_at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', timeStyle: 'short', dateStyle: 'short' })}
                           </span>
                         </div>
