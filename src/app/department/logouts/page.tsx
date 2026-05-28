@@ -32,8 +32,8 @@ export default async function LogoutApprovalsPage() {
   return (
     <div className="p-4 sm:p-8">
       <PageHeader 
-        title="Pending Logout Requests" 
-        description="Review work submissions and approve employee sign-outs."
+        title="Pending Logout Reports" 
+        description="Review submitted daily work reports, timestamps, and files to approve employee logouts."
       />
 
       <div className="mt-8 space-y-6">
@@ -43,11 +43,12 @@ export default async function LogoutApprovalsPage() {
               <CheckCircle2 className="w-8 h-8" />
             </div>
             <h3 className="text-lg font-bold text-slate-900">All clear!</h3>
-            <p className="text-slate-500 mt-1">No pending logout requests.</p>
+            <p className="text-slate-500 mt-1">No pending logout reports.</p>
           </div>
         ) : (
           requests?.map((req) => {
             const submission = req.work_submissions?.[0]
+            const requestDate = new Date(req.logout_request_time).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' })
             const requestTime = new Date(req.logout_request_time).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata' })
 
             return (
@@ -56,30 +57,44 @@ export default async function LogoutApprovalsPage() {
                   
                   {/* Info */}
                   <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-2">
+                    <div className="flex items-center gap-3 mb-2 flex-wrap">
                       <h3 className="text-lg font-bold text-slate-900">{req.employees?.employee_name}</h3>
-                      <span className="px-3 py-1 bg-amber-50 text-amber-700 text-xs font-bold rounded-full">
-                        Requested at {requestTime}
+                      <span className="px-3 py-1 bg-blue-50 text-[#0066FF] text-xs font-bold rounded-full">
+                        Reported on {requestDate} at {requestTime}
                       </span>
                     </div>
                     <p className="text-sm font-medium text-slate-500 mb-4">{req.employees?.designation}</p>
 
                     <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
-                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Work Submission</h4>
-                      <p className="text-sm text-slate-700 whitespace-pre-wrap">
+                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Work Summary Report</h4>
+                      <p className="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed">
                         {submission?.work_comment || <span className="italic text-slate-400">No comment provided.</span>}
                       </p>
                       
                       {submission?.attachment_url && (
-                        <a 
-                          href={submission.attachment_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-2 mt-4 text-sm font-semibold text-[#0066FF] bg-blue-50 hover:bg-blue-100 px-4 py-2 rounded-lg transition-colors"
-                        >
-                          <DownloadCloud className="w-4 h-4" />
-                          View Attached Work File
-                        </a>
+                        <div className="mt-4 pt-4 border-t border-slate-200/60">
+                          <h5 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2.5">Attached Deliverables</h5>
+                          <div className="p-3 bg-white border border-slate-200 rounded-xl flex items-center justify-between gap-3 text-xs max-w-md shadow-sm">
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <FileText className="w-5 h-5 text-[#0066FF] shrink-0" />
+                              <div className="min-w-0">
+                                <p className="font-bold text-slate-700 truncate">
+                                  {submission.attachment_type === 'PDF' ? 'Daily_Report.pdf' : 'Attachment_File'}
+                                </p>
+                                <span className="text-[10px] text-slate-400 font-semibold block uppercase">Type: {submission.attachment_type || 'Unknown'}</span>
+                              </div>
+                            </div>
+                            <a 
+                              href={submission.attachment_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1.5 font-bold text-[#0066FF] hover:text-[#0052CC] transition-colors"
+                            >
+                              <DownloadCloud className="w-4.5 h-4.5" />
+                              View / Download
+                            </a>
+                          </div>
+                        </div>
                       )}
                     </div>
                   </div>
