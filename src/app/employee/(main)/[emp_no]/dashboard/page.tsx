@@ -12,6 +12,7 @@ import { DashboardProfileCompletionCard } from "@/components/dashboard/Dashboard
 import { calculateCompletionPercentage } from "@/lib/onboarding-utils"
 import Link from "next/link"
 import { DashboardLockScreen } from "@/components/employee/DashboardLockScreen"
+import { StatusActions } from "@/components/employee/StatusActions"
 
 export default async function EmployeeDashboard({ params }: { params: Promise<{ emp_no: string }> }) {
   const { emp_no } = await params
@@ -134,22 +135,28 @@ export default async function EmployeeDashboard({ params }: { params: Promise<{ 
                   </h3>
                 </div>
               </div>
-              <div className="text-right">
-                {isCheckedIn && (
-                  <>
-                    <p className="text-sm text-slate-500">Check-in Time</p>
-                    <p className="font-mono text-lg font-bold text-slate-900">
-                      {new Date(attendance.check_in_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' })}
-                    </p>
-                  </>
-                )}
-                {attendance?.work_status === 'LOGGED_OUT' && attendance?.working_hours && (
-                  <div className="mt-2 flex flex-col items-end">
-                    <span className="text-xs text-slate-500 uppercase font-bold tracking-wider mb-1">Total Hours</span>
-                    <span className="font-bold text-blue-700 bg-blue-100 px-3 py-1 rounded-full text-sm">
-                      {attendance.working_hours}
-                    </span>
-                  </div>
+              <div className="flex flex-col md:flex-row items-center gap-6">
+                <div className="text-right">
+                  {isCheckedIn && (
+                    <>
+                      <p className="text-sm text-slate-500">Check-in Time</p>
+                      <p className="font-mono text-lg font-bold text-slate-900">
+                        {new Date(attendance.check_in_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' })}
+                      </p>
+                    </>
+                  )}
+                  {attendance?.work_status === 'LOGGED_OUT' && attendance?.working_hours && (
+                    <div className="mt-2 flex flex-col items-end">
+                      <span className="text-xs text-slate-500 uppercase font-bold tracking-wider mb-1">Total Hours</span>
+                      <span className="font-bold text-blue-700 bg-blue-100 px-3 py-1 rounded-full text-sm">
+                        {attendance.working_hours}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                {attendance && attendance.work_status === 'ACTIVE' && (
+                  <StatusActions />
                 )}
               </div>
             </div>
