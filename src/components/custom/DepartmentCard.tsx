@@ -6,6 +6,7 @@ import { StatusBadge } from "./StatusBadge"
 import { UserAvatar } from "./UserAvatar"
 import Link from "next/link"
 import { ResetPasswordButton } from "@/components/settings/ResetPasswordButton"
+import { DeleteDepartmentButton } from "@/components/admin/DeleteDepartmentButton"
 
 interface DepartmentCardProps {
   id: string
@@ -50,6 +51,10 @@ export function DepartmentCard({ id, name, code, email, headName, status, photo 
           <div className="flex items-center gap-2 text-sm text-slate-600">
             <Mail className="w-4 h-4 text-slate-400" />
             <span className="truncate">{email}</span>
+          </div>
+          
+          <div onClick={(e) => { e.preventDefault(); e.stopPropagation(); }} className="pt-2">
+            <DeleteDepartmentButton departmentId={id} departmentName={name} />
           </div>
         </div>
       </Card>

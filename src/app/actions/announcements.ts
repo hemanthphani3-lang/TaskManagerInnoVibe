@@ -76,3 +76,41 @@ export async function broadcastAnnouncement(formData: FormData) {
   
   return { success: true }
 }
+
+export async function deleteAnnouncement(announcementId: string) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { success: false, error: "Unauthorized" }
+
+  // Check if announcement exists
+  const { data: announcement, error: fetchErr } = await supabase
+    .from('announcements')
+    .select('*')
+    .eq('id', announcementId)
+    .single()
+
+  if (fetchErr || !announcement) return { success: false, error: "Announcement not found" }
+
+  // Authorization: Admins can delete anything. Department heads can delete their own announcements.
+  const { data: adminCheck } = await supabase.from('admins').select('id').eq('id', user.id).maybeSingle()
+  const isAdmin = !!adminCheck
+
+  const isOwner = announcement.sender_id === user.id
+
+  if (!isAdmin && !isOwner) {
+    return { success: false, error: "Unauthorized: You do not have permission to unsend this announcement." }
+  }
+
+  const { error: deleteErr } = await supabase
+    .from('announcements')
+    .delete()
+    .eq('id', announcementId)
+
+  if (deleteErr) return { success: false, error: deleteErr.message }
+
+  revalidatePath('/admin/announcements')
+  revalidatePath('/department/announcements')
+  revalidatePath('/employee/announcements')
+
+  return { success: true }
+}

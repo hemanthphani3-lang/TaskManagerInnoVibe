@@ -1,7 +1,11 @@
 "use client"
 
-import { Megaphone, Calendar, FileText, Image as ImageIcon, FileSpreadsheet, FileArchive, Download, Volume2 } from "lucide-react"
+import { useState, useEffect } from "react"
+import { Megaphone, Calendar, FileText, Image as ImageIcon, FileSpreadsheet, FileArchive, Download, Volume2, Trash2, Loader2 } from "lucide-react"
 import { formatDistanceToNow } from "date-fns"
+import { createClient } from "@/lib/supabase/client"
+import { deleteAnnouncement } from "@/app/actions/announcements"
+import { toast } from "sonner"
 
 interface Attachment {
   name: string
@@ -15,6 +19,7 @@ interface Announcement {
   title: string
   message: string
   sender_role: string
+  sender_id: string
   target_audience: string
   created_at: string
   department_name?: string
@@ -29,6 +34,40 @@ interface AnnouncementsListProps {
 }
 
 export function AnnouncementsList({ announcements, viewerRole }: AnnouncementsListProps) {
+  const supabase = createClient()
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+
+  useEffect(() => {
+    const fetchUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        setCurrentUserId(user.id)
+      }
+    }
+    fetchUser()
+  }, [supabase])
+
+  const handleDelete = async (id: string, title: string) => {
+    const confirm = window.confirm(`🚨 WARNING: Are you sure you want to unsend / permanently delete the announcement "${title}"?\n\nThis will completely remove it from all portals and employee dashboard streams. This action CANNOT be undone.`)
+    if (!confirm) return
+
+    setDeletingId(id)
+    try {
+      const res = await deleteAnnouncement(id)
+      if (res.success) {
+        toast.success(`Announcement "${title}" has been successfully unsent.`)
+        window.location.reload()
+      } else {
+        toast.error(res.error || "Failed to unsend announcement.")
+      }
+    } catch (err: any) {
+      toast.error(err.message || "An unexpected error occurred during deletion.")
+    } finally {
+      setDeletingId(null)
+    }
+  }
+
   if (announcements.length === 0) {
     return (
       <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-sm border border-slate-200 dark:border-slate-800 p-12 text-center">
@@ -123,6 +162,22 @@ export function AnnouncementsList({ announcements, viewerRole }: AnnouncementsLi
                 </div>
               </div>
             </div>
+
+            {/* Unsend Announcement Button */}
+            {((viewerRole === 'ADMIN') || (viewerRole === 'DEPARTMENT' && currentUserId && announcement.sender_id === currentUserId)) && (
+              <button
+                onClick={() => handleDelete(announcement.id, announcement.title)}
+                disabled={deletingId === announcement.id}
+                className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 rounded-xl transition-all border border-transparent active:scale-95 shrink-0"
+                title="Unsend Announcement"
+              >
+                {deletingId === announcement.id ? (
+                  <Loader2 className="w-4 h-4 animate-spin text-red-500" />
+                ) : (
+                  <Trash2 className="w-4 h-4" />
+                )}
+              </button>
+            )}
           </div>
           
           <div className="pl-13 space-y-4">

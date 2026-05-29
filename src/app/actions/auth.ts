@@ -175,3 +175,70 @@ export async function sendForgotPasswordRequest(email: string) {
     return { success: false, error: error.message || String(error) }
   }
 }
+
+export async function deleteDepartmentAccount(departmentId: string) {
+  try {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { success: false, error: "Unauthorized" }
+
+    // Verify user is an Admin
+    const { data: adminCheck } = await getSupabaseAdmin()
+      .from('admins')
+      .select('id')
+      .eq('id', user.id)
+      .maybeSingle()
+
+    if (!adminCheck) {
+      return { success: false, error: "Unauthorized: Only administrators can delete departments." }
+    }
+
+    // 1. Delete all tasks belonging to this department
+    const { error: taskError } = await getSupabaseAdmin()
+      .from('tasks')
+      .delete()
+      .eq('department_id', departmentId)
+    if (taskError) console.error("Tasks deletion warning:", taskError)
+
+    // 2. Fetch all employees in this department to delete their auth users
+    const { data: emps } = await getSupabaseAdmin()
+      .from('employees')
+      .select('id')
+      .eq('department_id', departmentId)
+
+    if (emps && emps.length > 0) {
+      for (const emp of emps) {
+        // Delete employee from DB
+        await getSupabaseAdmin().from('employees').delete().eq('id', emp.id)
+        // Delete employee auth user
+        try {
+          await getSupabaseAdmin().auth.admin.deleteUser(emp.id)
+        } catch (e) {
+          console.error("Auth delete employee warning:", e)
+        }
+      }
+    }
+
+    // 3. Delete department from DB
+    const { error: dbError } = await getSupabaseAdmin()
+      .from('departments')
+      .delete()
+      .eq('id', departmentId)
+
+    if (dbError) throw new Error(dbError.message)
+
+    // 4. Delete department head auth user from Supabase Auth
+    const { error: authError } = await getSupabaseAdmin().auth.admin.deleteUser(departmentId)
+    if (authError) {
+      console.warn("Auth delete dept head warning (might not have auth user):", authError)
+    }
+
+    const { revalidatePath } = require("next/cache")
+    revalidatePath('/admin/departments')
+
+    return { success: true }
+  } catch (err: any) {
+    console.error("Delete department error:", err)
+    return { success: false, error: err.message || String(err) }
+  }
+}

@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button"
 import { TaskCommentBox } from "@/components/tasks/TaskCommentBox"
 import { AlertOctagon } from "lucide-react"
 import { DeescalateTaskButton } from "@/components/tasks/DeescalateTaskButton"
+import { DeleteTaskButton } from "@/components/admin/DeleteTaskButton"
 
 export default async function AdminTaskDetailsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: taskId } = await params
@@ -115,9 +116,12 @@ export default async function AdminTaskDetailsPage({ params }: { params: Promise
             <ArrowLeft className="w-4 h-4" />
             Back to Tasks
           </Link>
-          {task.is_escalated && (
-            <DeescalateTaskButton taskId={task.id} />
-          )}
+          <div className="flex items-center gap-3">
+            {task.is_escalated && (
+              <DeescalateTaskButton taskId={task.id} />
+            )}
+            <DeleteTaskButton taskId={task.id} taskTitle={task.task_title} />
+          </div>
         </div>
 
         {task.is_escalated && (
