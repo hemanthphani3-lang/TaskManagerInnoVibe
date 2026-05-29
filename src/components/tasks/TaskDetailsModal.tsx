@@ -630,7 +630,7 @@ export function TaskDetailsModal({
             </div>
 
             {/* Right side: Live discussion chat */}
-            <div className="w-full lg:w-[380px] shrink-0 bg-slate-950/20 flex flex-col h-full overflow-hidden">
+            <div className="w-full lg:w-[380px] shrink-0 bg-slate-950/20 flex flex-col h-[350px] lg:h-full border-t border-slate-800 lg:border-t-0 overflow-hidden">
               
               {/* Chat Header */}
               <div className="p-4 border-b border-slate-800 flex items-center gap-2 bg-slate-950/40">
