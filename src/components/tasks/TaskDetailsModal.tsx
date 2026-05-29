@@ -24,7 +24,9 @@ import {
   Trash2,
   Loader2,
   FileText,
-  ChevronRight
+  ChevronRight,
+  ChevronUp,
+  ChevronDown
 } from "lucide-react"
 
 interface TaskDetailsModalProps {
@@ -45,6 +47,7 @@ export function TaskDetailsModal({
   currentUserRole
 }: TaskDetailsModalProps) {
   const supabase = createClient()
+  const [isChatExpanded, setIsChatExpanded] = useState(false)
   const [task, setTask] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [comments, setComments] = useState<any[]>([])
@@ -704,12 +707,34 @@ export function TaskDetailsModal({
             </div>
 
             {/* Right side: Live discussion chat */}
-            <div className="w-full lg:w-[380px] shrink-0 bg-slate-950/20 flex flex-col h-[350px] lg:h-full border-t border-slate-800 lg:border-t-0 overflow-hidden">
+            <div className={`w-full lg:w-[380px] shrink-0 bg-slate-950/20 flex flex-col border-t border-slate-800 lg:border-t-0 overflow-hidden transition-all duration-300 ${
+              isChatExpanded 
+                ? 'h-[420px] lg:h-full' 
+                : 'h-[52px] lg:h-full'
+            }`}>
               
               {/* Chat Header */}
-              <div className="p-4 border-b border-slate-800 flex items-center gap-2 bg-slate-950/40">
-                <MessageSquare className="w-4.5 h-4.5 text-[#0066FF]" />
-                <h4 className="font-extrabold text-white text-sm">Ecosystem Discussion</h4>
+              <div 
+                onClick={() => {
+                  if (window.innerWidth < 1024) {
+                    setIsChatExpanded(!isChatExpanded)
+                  }
+                }}
+                className="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/40 cursor-pointer lg:cursor-default hover:bg-slate-950/60 lg:hover:bg-slate-950/40 select-none shrink-0"
+              >
+                <div className="flex items-center gap-2">
+                  <MessageSquare className="w-4.5 h-4.5 text-[#0066FF]" />
+                  <h4 className="font-extrabold text-white text-sm">Ecosystem Discussion</h4>
+                </div>
+                
+                {/* Mobile Toggle Icon */}
+                <div className="lg:hidden p-1 hover:bg-slate-800 rounded-lg transition-colors">
+                  {isChatExpanded ? (
+                    <ChevronDown className="w-5 h-5 text-slate-400" />
+                  ) : (
+                    <ChevronUp className="w-5 h-5 text-slate-400 animate-bounce" />
+                  )}
+                </div>
               </div>
 
               {/* Message scroll list */}
