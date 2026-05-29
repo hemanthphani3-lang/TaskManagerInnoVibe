@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from "react"
 import { Send, Loader2 } from "lucide-react"
 import { addComment } from "@/app/actions/tasks"
+import { createClient } from "@/lib/supabase/client"
 
 interface Comment {
   id: string
@@ -46,6 +47,90 @@ export function TaskCommentBox({
   const [text, setText] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
+  const supabase = createClient()
+
+  useEffect(() => {
+    const channelName = `realtime_task_comments_${taskId}_${Math.random().toString(36).substring(7)}`
+    const channel = supabase
+      .channel(channelName)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'task_comments',
+          filter: `task_id=eq.${taskId}`
+        },
+        async (payload) => {
+          const newComment = payload.new
+          
+          setComments(prev => {
+            // Check if comment is already in the list
+            if (prev.some(c => c.id === newComment.id || (c.id.startsWith('optimistic-') && c.comment_text === newComment.comment_text))) {
+              return prev.map(c => {
+                if (c.id.startsWith('optimistic-') && c.comment_text === newComment.comment_text) {
+                  return {
+                    ...c,
+                    id: newComment.id,
+                    created_at: newComment.created_at
+                  }
+                }
+                return c
+              })
+            }
+
+            // Fetch sender profile details in background
+            const fetchSender = async () => {
+              let senderName = "System User"
+              let senderRole = "User"
+              let senderAvatar = undefined
+
+              const { data: emp } = await supabase.from('employees').select('employee_name, profile_photo, designation').eq('id', newComment.user_id).maybeSingle()
+              if (emp) {
+                senderName = emp.employee_name
+                senderRole = emp.designation || "Employee"
+                senderAvatar = emp.profile_photo || undefined
+              } else {
+                const { data: dept } = await supabase.from('departments').select('department_head_name, leadership_role').eq('id', newComment.user_id).maybeSingle()
+                if (dept) {
+                  senderName = dept.department_head_name
+                  senderRole = dept.leadership_role || "Dept Head"
+                } else {
+                  const { data: adm } = await supabase.from('admins').select('full_name, organization_role').eq('id', newComment.user_id).maybeSingle()
+                  if (adm) {
+                    senderName = adm.full_name
+                    senderRole = adm.organization_role || "Admin"
+                  }
+                }
+              }
+
+              const formatted: Comment = {
+                id: newComment.id,
+                comment_text: newComment.comment_text,
+                created_at: newComment.created_at,
+                user_id: newComment.user_id,
+                sender_name: senderName,
+                sender_role: senderRole,
+                sender_avatar: senderAvatar
+              }
+
+              setComments(current => {
+                if (current.some(c => c.id === formatted.id)) return current
+                return [...current, formatted]
+              })
+            }
+
+            fetchSender()
+            return prev
+          })
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [taskId, supabase])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" })
