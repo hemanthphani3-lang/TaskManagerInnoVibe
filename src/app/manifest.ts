@@ -2,7 +2,7 @@ import type { MetadataRoute } from 'next'
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'InnoVibe TMS & HRMS',
+    name: 'InnoVibe TMS',
     short_name: 'InnoVibe',
     description: 'Next Generation Team Management System',
     start_url: '/',

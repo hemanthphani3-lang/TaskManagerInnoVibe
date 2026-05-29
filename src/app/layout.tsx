@@ -17,7 +17,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "InnoVibe | TMS & HRMS",
+  title: "InnoVibe | TMS",
   description: "Next Generation Team Management System",
   manifest: "/manifest.ts",
 };
