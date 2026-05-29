@@ -441,7 +441,7 @@ export default function OnboardingPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0A1128] text-white selection:bg-[#0066FF] selection:text-white pb-20">
+    <div className="min-h-screen bg-[#0A1128] text-white selection:bg-[#0066FF] selection:text-white pb-20 w-full overflow-x-hidden">
       <Toaster position="top-right" theme="dark" />
       
       {/* Decorative gradients */}
@@ -449,18 +449,18 @@ export default function OnboardingPage() {
       <div className="absolute bottom-0 right-1/4 w-[600px] h-[600px] bg-[#00D4FF]/5 rounded-full blur-[150px] pointer-events-none" />
 
       {/* Top Header Navigation */}
-      <header className="sticky top-0 z-40 bg-slate-950/80 backdrop-blur-md border-b border-slate-800 px-6 py-4 flex justify-between items-center">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-[#0066FF] to-[#00D4FF] flex items-center justify-center font-bold text-lg text-white shadow-lg shadow-[#0066FF]/35">
+      <header className="sticky top-0 z-40 bg-slate-950/80 backdrop-blur-md border-b border-slate-800 px-4 sm:px-6 py-3.5 sm:py-4 flex justify-between items-center w-full">
+        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+          <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-tr from-[#0066FF] to-[#00D4FF] flex items-center justify-center font-bold text-sm sm:text-lg text-white shadow-lg shadow-[#0066FF]/35 shrink-0">
             IV
           </div>
-          <div>
-            <h1 className="text-base font-bold tracking-wide">InnoVibe TMS</h1>
-            <p className="text-[10px] text-slate-400 uppercase tracking-widest font-bold">Onboarding Center</p>
+          <div className="shrink-0">
+            <h1 className="text-sm sm:text-base font-bold tracking-wide">InnoVibe TMS</h1>
+            <p className="text-[9px] sm:text-[10px] text-slate-400 uppercase tracking-widest font-bold">Onboarding Center</p>
           </div>
         </div>
 
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-1.5 sm:gap-3">
           {alreadyOnboarded && (
             <button 
               type="button"
@@ -474,28 +474,30 @@ export default function OnboardingPage() {
                   router.push('/employee/dashboard')
                 }
               }}
-              className="px-4 py-2 text-xs font-bold rounded-lg bg-emerald-950/40 text-emerald-400 hover:bg-emerald-950/70 border border-emerald-900/50 transition flex items-center gap-1.5 active:scale-95 mr-2"
+              className="px-2.5 sm:px-4 py-2 text-xs font-bold rounded-lg bg-emerald-950/40 text-emerald-400 hover:bg-emerald-950/70 border border-emerald-900/50 transition flex items-center gap-1.5 active:scale-95 shrink-0"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
-              Back to Dashboard
+              <span className="hidden sm:inline">Back to Dashboard</span>
+              <span className="sm:hidden">Back</span>
             </button>
           )}
 
           <button 
             onClick={() => saveDraft(true)}
             disabled={saving}
-            className="px-4 py-2 text-xs font-semibold rounded-lg bg-slate-800 hover:bg-slate-700 active:scale-95 transition text-slate-300 border border-slate-700 flex items-center gap-1.5"
+            className="px-2.5 sm:px-4 py-2 text-xs font-semibold rounded-lg bg-slate-800 hover:bg-slate-700 active:scale-95 transition text-slate-300 border border-slate-700 flex items-center gap-1.5 shrink-0"
           >
             {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
-            Save Draft
+            <span className="hidden sm:inline">Save Draft</span>
+            <span className="sm:hidden">Save</span>
           </button>
           
           <button 
             onClick={handleLogout}
-            className="px-3.5 py-2 text-xs font-semibold rounded-lg bg-red-950/30 text-red-400 hover:bg-red-950/60 transition border border-red-900/40 flex items-center gap-1.5"
+            className="px-2.5 sm:px-3.5 py-2 text-xs font-semibold rounded-lg bg-red-950/30 text-red-400 hover:bg-red-950/60 transition border border-red-900/40 flex items-center gap-1.5 shrink-0"
           >
             <LogOut className="w-3.5 h-3.5" />
-            Logout
+            <span className="hidden sm:inline">Logout</span>
           </button>
         </div>
       </header>
