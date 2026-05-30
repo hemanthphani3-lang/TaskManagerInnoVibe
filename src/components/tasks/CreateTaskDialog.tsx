@@ -31,6 +31,7 @@ export function CreateTaskDialog({ isOpen, onClose, onSuccess, currentUserId }: 
   const [directoryUsers, setDirectoryUsers] = useState<any[]>([])
   
   // Fields
+  const [validationErrors, setValidationErrors] = useState<string[]>([])
   const [title, setTitle] = useState("")
   const [description, setDescription] = useState("")
   const [assigneeRole, setAssigneeRole] = useState<"ADMIN" | "DEPARTMENT" | "EMPLOYEE">("EMPLOYEE")
@@ -57,6 +58,7 @@ export function CreateTaskDialog({ isOpen, onClose, onSuccess, currentUserId }: 
     }
     if (isOpen) {
       fetchUsers()
+      setValidationErrors([])
     }
   }, [isOpen, currentUserId])
 
@@ -133,11 +135,19 @@ export function CreateTaskDialog({ isOpen, onClose, onSuccess, currentUserId }: 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (!title.trim()) return toast.error("Please enter a task title.")
-    if (!description.trim()) return toast.error("Please provide a task description.")
-    if (!assigneeId) return toast.error("Please select an assignee.")
-    if (!dueDate) return toast.error("Please select a target deadline.")
+    const errors: string[] = []
+    if (!title.trim()) errors.push("Please enter a task title.")
+    if (!description.trim()) errors.push("Please provide a task description.")
+    if (!assigneeId) errors.push("Please select an assignee user.")
+    if (!dueDate) errors.push("Please select a target deadline date.")
 
+    if (errors.length > 0) {
+      setValidationErrors(errors)
+      toast.error("Form validation failed. Please review mandatory fields.")
+      return
+    }
+
+    setValidationErrors([])
     setLoading(true)
 
     try {
@@ -201,6 +211,21 @@ export function CreateTaskDialog({ isOpen, onClose, onSuccess, currentUserId }: 
         {/* Form Body */}
         <form onSubmit={handleSubmit} className="p-6 overflow-y-auto space-y-6 flex-1 text-slate-300">
           
+          {/* Validation Alert */}
+          {validationErrors.length > 0 && (
+            <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-2xl flex items-start gap-3 text-xs text-red-400">
+              <AlertCircle className="w-5 h-5 shrink-0 mt-0.5 text-red-500 animate-pulse" />
+              <div>
+                <p className="font-extrabold uppercase tracking-wider text-[10px] text-red-505">Form Submission Blocked</p>
+                <ul className="list-disc list-inside mt-1.5 space-y-1 font-semibold">
+                  {validationErrors.map((err, idx) => (
+                    <li key={idx}>{err}</li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          )}
+          
           {/* Title */}
           <div className="space-y-2">
             <label className="text-xs font-bold uppercase tracking-wider text-slate-400">Task Title</label>
@@ -210,7 +235,7 @@ export function CreateTaskDialog({ isOpen, onClose, onSuccess, currentUserId }: 
               placeholder="e.g. Implement real-time notifications framework"
               value={title}
               onChange={e => setTitle(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 focus:border-[#0066FF] focus:ring-1 focus:ring-[#0066FF] rounded-xl px-4 py-3 text-sm text-white placeholder-slate-600 outline-none transition"
+              className={`w-full bg-slate-950 border focus:ring-1 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-600 outline-none transition ${validationErrors.some(e => e.includes("title")) ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : 'border-slate-800 focus:border-[#0066FF] focus:ring-[#0066FF]'}`}
             />
           </div>
 
@@ -223,7 +248,7 @@ export function CreateTaskDialog({ isOpen, onClose, onSuccess, currentUserId }: 
               placeholder="Detail the scope of work, technical requirements, or expected deliverables..."
               value={description}
               onChange={e => setDescription(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 focus:border-[#0066FF] focus:ring-1 focus:ring-[#0066FF] rounded-xl px-4 py-3 text-sm text-white placeholder-slate-600 outline-none transition resize-none"
+              className={`w-full bg-slate-950 border focus:ring-1 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-600 outline-none transition resize-none ${validationErrors.some(e => e.includes("description")) ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : 'border-slate-800 focus:border-[#0066FF] focus:ring-[#0066FF]'}`}
             />
           </div>
 
@@ -252,7 +277,7 @@ export function CreateTaskDialog({ isOpen, onClose, onSuccess, currentUserId }: 
                 required
                 onChange={e => setAssigneeId(e.target.value)}
                 disabled={usersLoading}
-                className="w-full bg-slate-950 border border-slate-800 focus:border-[#0066FF] focus:ring-1 focus:ring-[#0066FF] rounded-xl px-4 py-3 text-sm text-white outline-none transition disabled:opacity-50"
+                className={`w-full bg-slate-950 border focus:ring-1 rounded-xl px-4 py-3 text-sm text-white outline-none transition disabled:opacity-50 ${validationErrors.some(e => e.includes("assignee")) ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : 'border-slate-800 focus:border-[#0066FF] focus:ring-[#0066FF]'}`}
               >
                 <option value="" disabled>
                   {usersLoading ? "Retrieving active workforce..." : `-- Select ${assigneeRole} --`}
@@ -314,7 +339,7 @@ export function CreateTaskDialog({ isOpen, onClose, onSuccess, currentUserId }: 
                   min={new Date().toISOString().split('T')[0]}
                   value={dueDate}
                   onChange={e => setDueDate(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 focus:border-[#0066FF] focus:ring-1 focus:ring-[#0066FF] rounded-xl px-4 py-3 text-sm text-white outline-none transition"
+                  className={`w-full bg-slate-950 border focus:ring-1 rounded-xl px-4 py-3 text-sm text-white outline-none transition ${validationErrors.some(e => e.includes("deadline")) ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : 'border-slate-800 focus:border-[#0066FF] focus:ring-[#0066FF]'}`}
                 />
               </div>
             </div>

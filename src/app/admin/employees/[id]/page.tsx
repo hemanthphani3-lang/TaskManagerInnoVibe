@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client"
 import { calculateCompletionPercentage } from "@/lib/onboarding-utils"
 import { verifyDocumentAction } from "@/app/actions/onboarding"
 import { toast, Toaster } from "sonner"
+import { AttendanceSessionHistorySection } from "@/components/employee/AttendanceSessionHistorySection"
 import { 
   ArrowLeft, 
   Calendar, 
@@ -422,6 +423,11 @@ export default function AdminWorkforceProfileViewer() {
                 </div>
               </div>
             </div>
+
+            {/* Attendance & Session History */}
+            {role === 'EMPLOYEE' && (
+              <AttendanceSessionHistorySection employeeId={id} />
+            )}
 
           </div>
 

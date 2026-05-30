@@ -115,6 +115,9 @@ export function Sidebar({ title, links, onLogoutClick }: SidebarProps) {
   }, [])
 
   const handleLogout = async () => {
+    if (typeof window !== "undefined") {
+      (window as any).__isLoggingOut = true
+    }
     if (onLogoutClick) {
       onLogoutClick()
     } else {

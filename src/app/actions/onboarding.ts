@@ -97,10 +97,64 @@ export async function saveOnboardingProfile({ role, formData, isSubmit = false }
     updateData.onboarding_completed_at = new Date().toISOString()
   }
 
+  // Define allowed fields for each table to avoid updating non-existent columns (schema cache errors)
+  const adminAllowedKeys = [
+    'full_name', 'email', 'profile_photo', 'profile_completion_percentage',
+    'onboarding_completed', 'onboarding_started_at', 'onboarding_completed_at',
+    'mandatory_fields_completed', 'uploaded_documents', 'phone_number',
+    'aadhaar_number', 'pan_number', 'dob', 'gender', 'address', 'city', 'state',
+    'pin_code', 'emergency_contact', 'joining_date', 'organization_role',
+    'access_authority_level', 'office_location', 'administrative_responsibility',
+    'marital_status', 'blood_group', 'languages_known', 'certifications',
+    'experience', 'education', 'linkedin', 'resume', 'biography', 'alternate_phone',
+    'bank_details'
+  ]
+
+  const departmentAllowedKeys = [
+    'department_name', 'department_email', 'department_head_name', 'password_hash',
+    'department_code', 'profile_photo', 'status', 'created_by_admin',
+    'profile_completion_percentage', 'onboarding_completed', 'onboarding_started_at',
+    'onboarding_completed_at', 'mandatory_fields_completed', 'uploaded_documents',
+    'phone_number', 'aadhaar_number', 'pan_number', 'dob', 'gender', 'address',
+    'city', 'state', 'pin_code', 'emergency_contact', 'joining_date',
+    'department_managed', 'team_size', 'leadership_role', 'managerial_level',
+    'reporting_structure', 'marital_status', 'blood_group', 'languages_known',
+    'certifications', 'experience', 'education', 'linkedin', 'resume', 'biography',
+    'alternate_phone', 'bank_details'
+  ]
+
+  const employeeAllowedKeys = [
+    'department_id', 'profile_photo', 'designation', 'employee_name', 'employee_email',
+    'password_hash', 'phone_number', 'employee_code', 'joining_date', 'account_status',
+    'created_by_department', 'profile_completion_percentage', 'onboarding_completed',
+    'onboarding_started_at', 'onboarding_completed_at', 'mandatory_fields_completed',
+    'uploaded_documents', 'aadhaar_number', 'pan_number', 'dob', 'gender', 'address',
+    'city', 'state', 'pin_code', 'emergency_contact', 'reporting_manager', 'skills',
+    'employment_type', 'work_mode', 'marital_status', 'blood_group', 'languages_known',
+    'certifications', 'experience', 'education', 'linkedin', 'resume', 'biography',
+    'alternate_phone', 'bank_details'
+  ]
+
+  let allowedKeys: string[] = []
+  if (role === 'ADMIN') {
+    allowedKeys = adminAllowedKeys
+  } else if (role === 'DEPARTMENT') {
+    allowedKeys = departmentAllowedKeys
+  } else {
+    allowedKeys = employeeAllowedKeys
+  }
+
+  const filteredUpdateData: Record<string, any> = {}
+  for (const key of allowedKeys) {
+    if (key in updateData) {
+      filteredUpdateData[key] = updateData[key]
+    }
+  }
+
   // Save to database
   const { error: updateErr } = await supabase
     .from(tableName)
-    .update(updateData)
+    .update(filteredUpdateData)
     .eq('id', user.id)
 
   if (updateErr) {

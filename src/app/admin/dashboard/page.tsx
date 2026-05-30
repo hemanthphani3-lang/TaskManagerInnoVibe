@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
-import { Building2, Users, CheckCircle2, Clock, Activity, Target, XCircle, ArrowLeft, TrendingUp } from "lucide-react"
+import { Building2, Users, CheckCircle2, Clock, Activity, Target, XCircle, ArrowLeft, TrendingUp, LogOut, FileText } from "lucide-react"
 import { AnalyticsCard } from "@/components/dashboard/AnalyticsCard"
 import { ActivityFeed } from "@/components/dashboard/ActivityFeed"
 import { AttendanceChart, TaskChart } from "@/components/dashboard/charts/DynamicCharts"
@@ -29,14 +29,24 @@ export default async function AdminDashboard(props: { searchParams: Promise<{ [k
 
     const today = new Date().toISOString().split('T')[0]
     const last7Days = Array.from({ length: 7 }).map((_, i) => {
-    const d = new Date()
-    d.setDate(d.getDate() - i)
-    return d.toISOString().split('T')[0]
-  }).reverse()
+      const d = new Date()
+      d.setDate(d.getDate() - i)
+      return d.toISOString().split('T')[0]
+    }).reverse()
+
+    // IST-aware dates for work sessions
+    const now = new Date()
+    const istOffset = 5.5 * 60 * 60 * 1000
+    const todayIST = new Date(now.getTime() + istOffset).toISOString().split('T')[0]
+    const startUTC = new Date(`${todayIST}T00:00:00+05:30`).toISOString()
+    const endUTC = new Date(`${todayIST}T23:59:59+05:30`).toISOString()
 
   // Build dynamic queries based on dept_id filter
   let logoutsQuery = supabase.from('logout_requests').select('*', { count: 'exact', head: true }).eq('approval_status', 'PENDING')
   if (dept_id) logoutsQuery = logoutsQuery.eq('department_id', dept_id)
+
+  let sessionsQuery = supabase.from('work_sessions').select('*').gte('login_time', startUTC).lte('login_time', endUTC)
+  if (dept_id) sessionsQuery = sessionsQuery.eq('department_id', dept_id)
 
   let tasksQuery = supabase.from('tasks').select('id, department_id, assigned_employee_id, task_status')
   if (dept_id) tasksQuery = tasksQuery.eq('department_id', dept_id)
@@ -59,7 +69,8 @@ export default async function AdminDashboard(props: { searchParams: Promise<{ [k
     { count: pendingLogouts },
     { data: tasks },
     { data: activityFeed },
-    { data: productivityScores }
+    { data: productivityScores },
+    { data: todaySessions }
   ] = await Promise.all([
     supabase.from('departments').select('id, department_name, department_head_name'),
     supabase.from('employees').select('id, department_id, employee_name, designation, profile_photo'),
@@ -67,8 +78,15 @@ export default async function AdminDashboard(props: { searchParams: Promise<{ [k
     logoutsQuery,
     tasksQuery,
     activityQuery,
-    productivityQuery
+    productivityQuery,
+    sessionsQuery
   ])
+
+  // Calculate work session statistics for today
+  const activeUsersToday = (todaySessions || []).filter(s => s.logout_time === null).length
+  const loggedInUsersToday = new Set((todaySessions || []).map(s => s.user_id)).size
+  const loggedOutUsersToday = (todaySessions || []).filter(s => s.logout_time !== null).length
+  const reportsSubmittedToday = (todaySessions || []).filter(s => s.report_submitted).length
 
   let onboardingAdmins: any[] = []
   let onboardingDepts: any[] = []
@@ -217,7 +235,18 @@ export default async function AdminDashboard(props: { searchParams: Promise<{ [k
               <p className="text-3xl font-black text-[#0A1A2F]">{orgProductivity.toFixed(0)}</p>
               <ProductivityBadge score={orgProductivity} className="mt-2" />
             </div>
-            <AnalyticsCard title="Pending Logouts" value={pendingLogouts || 0} icon={Target} colorClass="text-amber-600" bgClass="bg-amber-50" />
+            <AnalyticsCard title="Active Users Today" value={activeUsersToday} icon={Activity} colorClass="text-emerald-600" bgClass="bg-emerald-50" />
+          </div>
+
+          {/* Today's Shift Activity Cards */}
+          <div className="mb-4">
+            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 px-1">Today's Shift Activity</h3>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+              <AnalyticsCard title="Active Users" value={activeUsersToday} icon={Activity} colorClass="text-emerald-600" bgClass="bg-emerald-50" delay={0} />
+              <AnalyticsCard title="Logged In" value={loggedInUsersToday} icon={Users} colorClass="text-blue-600" bgClass="bg-blue-50" delay={1} />
+              <AnalyticsCard title="Logged Out" value={loggedOutUsersToday} icon={LogOut} colorClass="text-slate-500" bgClass="bg-slate-50" delay={2} />
+              <AnalyticsCard title="Reports Submitted" value={reportsSubmittedToday} icon={FileText} colorClass="text-purple-600" bgClass="bg-purple-50" delay={3} />
+            </div>
           </div>
 
           {/* Global Leaderboard + Department breakdown */}
@@ -390,7 +419,7 @@ export default async function AdminDashboard(props: { searchParams: Promise<{ [k
             <AnalyticsCard title="Present Today" value={presentCount} icon={CheckCircle2} colorClass="text-emerald-600" bgClass="bg-emerald-50" />
             <AnalyticsCard title="Absent Today" value={absentCount} icon={XCircle} colorClass="text-red-600" bgClass="bg-red-50" />
             <AnalyticsCard title="Active Sessions" value={activeSessions} icon={Activity} colorClass="text-blue-600" bgClass="bg-blue-50" />
-            <AnalyticsCard title="Pending Logouts" value={pendingLogouts || 0} icon={Target} colorClass="text-amber-600" bgClass="bg-amber-50" />
+            <AnalyticsCard title="Reports Submitted" value={reportsSubmittedToday} icon={FileText} colorClass="text-purple-600" bgClass="bg-purple-50" />
             <AnalyticsCard title="Total Tasks" value={totalTasks} icon={Building2} colorClass="text-slate-600" bgClass="bg-slate-100" />
             <AnalyticsCard title="Tasks Completed" value={completedTasks} icon={CheckCircle2} colorClass="text-emerald-600" bgClass="bg-emerald-50" delay={2} />
             <AnalyticsCard title="Tasks Delayed" value={delayedTasks} icon={Clock} colorClass="text-amber-600" bgClass="bg-amber-50" delay={3} />

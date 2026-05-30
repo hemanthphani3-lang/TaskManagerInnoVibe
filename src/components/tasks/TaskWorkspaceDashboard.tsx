@@ -452,12 +452,12 @@ export function TaskWorkspaceDashboard({
             </div>
 
             {/* Quick tips card */}
-            <div className="bg-slate-900 border border-slate-800 p-5 rounded-3xl text-xs space-y-3">
-              <h5 className="font-extrabold text-white flex items-center gap-1.5">
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 rounded-3xl text-xs space-y-3 shadow-sm">
+              <h5 className="font-extrabold text-slate-900 dark:text-white flex items-center gap-1.5">
                 <ShieldAlert className="w-4 h-4 text-[#0066FF]" />
                 Cross-Role Guidelines
               </h5>
-              <p className="text-slate-400 leading-relaxed">
+              <p className="text-slate-500 dark:text-slate-400 leading-relaxed font-medium">
                 TMS Collaborative Hub supports fluid hierarchy delegation. Employees can assign tasks to Department managers or Admins, who in turn can accept or discuss deliverables in real-time.
               </p>
             </div>

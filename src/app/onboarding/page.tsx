@@ -218,12 +218,12 @@ export default function OnboardingPage() {
 
   const getInputClassName = (fieldName: string, isNested = false, nestedParent = '') => {
     const missing = isFieldMissing(fieldName, isNested, nestedParent)
-    const baseClass = "w-full bg-slate-950 border rounded-xl px-4 py-3 text-sm outline-none transition text-white placeholder-slate-600 focus:ring-1"
+    const baseClass = "w-full bg-white dark:bg-slate-950 border rounded-xl px-4 py-3 text-sm outline-none transition text-slate-900 dark:text-white placeholder-slate-450 dark:placeholder-slate-650 focus:ring-1"
     
     if (missing) {
       return `${baseClass} border-red-500/50 hover:border-red-500/70 focus:border-red-500 focus:ring-red-500/20 shadow-sm shadow-red-500/5`
     }
-    return `${baseClass} border-slate-800 focus:border-[#0066FF] focus:ring-[#0066FF]`
+    return `${baseClass} border-slate-200 dark:border-slate-800 focus:border-[#0066FF] focus:ring-[#0066FF]`
   }
 
   const handleFieldChange = (field: string, value: any) => {
@@ -420,9 +420,9 @@ export default function OnboardingPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center flex-col">
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex items-center justify-center flex-col">
         <Loader2 className="w-12 h-12 text-[#0066FF] animate-spin mb-4" />
-        <p className="text-slate-400 text-sm font-semibold tracking-wide">Loading secure onboarding center...</p>
+        <p className="text-slate-500 dark:text-slate-400 text-sm font-semibold tracking-wide">Loading secure onboarding center...</p>
       </div>
     )
   }
@@ -435,28 +435,28 @@ export default function OnboardingPage() {
   }
 
   const getPercentageTextColor = () => {
-    if (progress < 40) return 'text-red-400'
-    if (progress < 70) return 'text-yellow-400'
-    return 'text-emerald-400'
+    if (progress < 40) return 'text-red-500 dark:text-red-400'
+    if (progress < 70) return 'text-yellow-550 dark:text-yellow-400'
+    return 'text-emerald-600 dark:text-emerald-400'
   }
 
   return (
-    <div className="min-h-screen bg-[#0A1128] text-white selection:bg-[#0066FF] selection:text-white pb-20 w-full overflow-x-hidden">
+    <div className="min-h-screen bg-[#F8FAFC] dark:bg-[#0A1128] text-slate-800 dark:text-white selection:bg-[#0066FF] selection:text-white pb-20 w-full overflow-x-hidden">
       <Toaster position="top-right" theme="dark" />
       
       {/* Decorative gradients */}
-      <div className="absolute top-0 left-1/4 w-[500px] h-[500px] bg-[#0066FF]/10 rounded-full blur-[120px] pointer-events-none" />
-      <div className="absolute bottom-0 right-1/4 w-[600px] h-[600px] bg-[#00D4FF]/5 rounded-full blur-[150px] pointer-events-none" />
+      <div className="absolute top-0 left-1/4 w-[500px] h-[500px] bg-[#0066FF]/5 dark:bg-[#0066FF]/10 rounded-full blur-[120px] pointer-events-none" />
+      <div className="absolute bottom-0 right-1/4 w-[600px] h-[600px] bg-[#00D4FF]/3 dark:bg-[#00D4FF]/5 rounded-full blur-[150px] pointer-events-none" />
 
       {/* Top Header Navigation */}
-      <header className="sticky top-0 z-40 bg-slate-950/80 backdrop-blur-md border-b border-slate-800 px-4 sm:px-6 py-3.5 sm:py-4 flex justify-between items-center w-full">
+      <header className="sticky top-0 z-40 bg-white/80 dark:bg-slate-950/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 px-4 sm:px-6 py-3.5 sm:py-4 flex justify-between items-center w-full text-slate-900 dark:text-white">
         <div className="flex items-center gap-2 sm:gap-3 shrink-0">
           <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-tr from-[#0066FF] to-[#00D4FF] flex items-center justify-center font-bold text-sm sm:text-lg text-white shadow-lg shadow-[#0066FF]/35 shrink-0">
             IV
           </div>
           <div className="shrink-0">
             <h1 className="text-sm sm:text-base font-bold tracking-wide">InnoVibe TMS</h1>
-            <p className="text-[9px] sm:text-[10px] text-slate-400 uppercase tracking-widest font-bold">Onboarding Center</p>
+            <p className="text-[9px] sm:text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-widest font-bold">Onboarding Center</p>
           </div>
         </div>
 
@@ -474,7 +474,7 @@ export default function OnboardingPage() {
                   router.push('/employee/dashboard')
                 }
               }}
-              className="px-2.5 sm:px-4 py-2 text-xs font-bold rounded-lg bg-emerald-950/40 text-emerald-400 hover:bg-emerald-950/70 border border-emerald-900/50 transition flex items-center gap-1.5 active:scale-95 shrink-0"
+              className="px-2.5 sm:px-4 py-2 text-xs font-bold rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 hover:dark:bg-emerald-950/70 border border-emerald-200 dark:border-emerald-900/50 transition flex items-center gap-1.5 active:scale-95 shrink-0"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Back to Dashboard</span>
@@ -483,9 +483,10 @@ export default function OnboardingPage() {
           )}
 
           <button 
+            type="button"
             onClick={() => saveDraft(true)}
             disabled={saving}
-            className="px-2.5 sm:px-4 py-2 text-xs font-semibold rounded-lg bg-slate-800 hover:bg-slate-700 active:scale-95 transition text-slate-300 border border-slate-700 flex items-center gap-1.5 shrink-0"
+            className="px-2.5 sm:px-4 py-2 text-xs font-semibold rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 hover:dark:bg-slate-700 active:scale-95 transition text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 flex items-center gap-1.5 shrink-0"
           >
             {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
             <span className="hidden sm:inline">Save Draft</span>
@@ -493,8 +494,9 @@ export default function OnboardingPage() {
           </button>
           
           <button 
+            type="button"
             onClick={handleLogout}
-            className="px-2.5 sm:px-3.5 py-2 text-xs font-semibold rounded-lg bg-red-950/30 text-red-400 hover:bg-red-950/60 transition border border-red-900/40 flex items-center gap-1.5 shrink-0"
+            className="px-2.5 sm:px-3.5 py-2 text-xs font-semibold rounded-lg bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400 hover:bg-red-100 hover:dark:bg-red-950/60 transition border border-red-200 dark:border-red-900/40 flex items-center gap-1.5 shrink-0"
           >
             <LogOut className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">Logout</span>
@@ -505,7 +507,7 @@ export default function OnboardingPage() {
       <main className="max-w-4xl mx-auto px-4 mt-8">
         
         {/* Profile Completion Panel */}
-        <section className="bg-slate-900/60 border border-slate-800 rounded-3xl p-6 backdrop-blur-md shadow-2xl mb-8">
+        <section className="bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 backdrop-blur-md shadow-sm dark:shadow-2xl mb-8 text-slate-800 dark:text-white">
           <div className="flex flex-col md:flex-row justify-between md:items-center gap-6 mb-6">
             
             <div className="flex gap-4 items-center">
@@ -513,8 +515,8 @@ export default function OnboardingPage() {
                 {role === 'ADMIN' ? <User className="w-6 h-6" /> : role === 'DEPARTMENT' ? <Award className="w-6 h-6" /> : <Briefcase className="w-6 h-6" />}
               </div>
               <div>
-                <span className="text-slate-400 text-xs uppercase tracking-wider font-bold">Logged In Account</span>
-                <h2 className="text-lg font-bold flex items-center gap-2">
+                <span className="text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wider font-bold">Logged In Account</span>
+                <h2 className="text-lg font-bold flex items-center gap-2 text-slate-900 dark:text-white">
                   {role === 'ADMIN' ? 'Administrator' : role === 'DEPARTMENT' ? 'Department Head' : 'Employee'} Profile Setup
                   <span className="text-[10px] px-2 py-0.5 bg-[#0066FF]/20 text-[#0066FF] border border-[#0066FF]/30 font-bold rounded-full uppercase">
                     {role}
@@ -525,33 +527,33 @@ export default function OnboardingPage() {
 
             <div className="text-right">
               <div className="flex items-center gap-2 md:justify-end">
-                <span className="text-slate-400 text-xs font-semibold">Profile Completion:</span>
+                <span className="text-slate-500 dark:text-slate-400 text-xs font-semibold">Profile Completion:</span>
                 <span className={`text-xl font-black ${getPercentageTextColor()}`}>
                   {progress}%
                 </span>
                 {isFullyCompleted && (
-                  <span className="inline-flex items-center gap-1 bg-amber-500/10 text-amber-400 border border-amber-500/20 px-2 py-0.5 rounded text-[10px] font-bold shadow-md shadow-amber-500/5 animate-pulse">
+                  <span className="inline-flex items-center gap-1 bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 px-2 py-0.5 rounded text-[10px] font-bold shadow-md shadow-amber-500/5 animate-pulse">
                     <Award className="w-3 h-3" /> Fully Completed
                   </span>
                 )}
               </div>
-              <p className="text-[10px] text-slate-500 mt-1">Unlock Portal at 70% (Mandatory Fields)</p>
+              <p className="text-[10px] text-slate-500 dark:text-slate-450 mt-1">Unlock Portal at 70% (Mandatory Fields)</p>
             </div>
 
           </div>
 
           {/* Animated Progress Bar */}
-          <div className="relative w-full h-3 bg-slate-950 rounded-full overflow-hidden border border-slate-800">
+          <div className="relative w-full h-3 bg-slate-100 dark:bg-slate-950 rounded-full overflow-hidden border border-slate-200 dark:border-slate-800">
             <div 
               className={`absolute top-0 left-0 h-full bg-gradient-to-r ${getProgressColor()} transition-all duration-500 ease-out`}
               style={{ width: `${progress}%` }}
             />
             {/* Threshold target line */}
-            <div className="absolute top-0 bottom-0 left-[70%] w-0.5 bg-red-400/80 z-10" />
+            <div className="absolute top-0 bottom-0 left-[70%] w-0.5 bg-red-400/85 z-10" />
           </div>
           <div className="flex justify-between text-[10px] text-slate-500 mt-2 px-1">
             <span>0% Starts</span>
-            <span className="text-red-400 font-bold">70% Required Threshold</span>
+            <span className="text-red-500 dark:text-red-400 font-bold">70% Required Threshold</span>
             <span>100% Full Completion</span>
           </div>
         </section>
@@ -576,35 +578,35 @@ export default function OnboardingPage() {
                     step === s.num
                       ? 'bg-gradient-to-tr from-[#0066FF] to-[#00D4FF] border-[#0066FF] text-white shadow-lg shadow-[#0066FF]/20 scale-105'
                       : step > s.num
-                      ? 'bg-slate-900 border-emerald-500/30 text-emerald-400'
-                      : 'bg-slate-900/40 border-slate-800 text-slate-400 hover:bg-slate-900'
+                      ? 'bg-emerald-50 dark:bg-slate-900 border-emerald-500/30 text-emerald-600 dark:text-emerald-400'
+                      : 'bg-white dark:bg-slate-900/40 border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-900'
                   }`}
                 >
                   <s.icon className="w-3.5 h-3.5" />
                   <span className="hidden sm:inline">{s.label}</span>
                 </button>
-                {idx < 3 && <div className={`flex-1 h-0.5 mx-2 ${step > s.num ? 'bg-emerald-500/20' : 'bg-slate-800'}`} />}
+                {idx < 3 && <div className={`flex-1 h-0.5 mx-2 ${step > s.num ? 'bg-emerald-500/20' : 'bg-slate-200 dark:bg-slate-800'}`} />}
               </div>
             ))}
           </div>
         </nav>
 
         {/* Stepper Form Content */}
-        <form onSubmit={handleSubmit} className="bg-slate-900/40 border border-slate-800/80 rounded-3xl p-8 backdrop-blur-sm shadow-xl space-y-8">
+        <form onSubmit={handleSubmit} className="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800/80 rounded-3xl p-8 backdrop-blur-sm shadow-sm dark:shadow-xl space-y-8">
           
           {/* STEP 1: PERSONAL DETAILS */}
           {step === 1 && (
             <div className="space-y-6 animate-fadeIn">
               <div>
-                <h3 className="text-lg font-bold text-white mb-1">Personal Profile Details</h3>
-                <p className="text-xs text-slate-400">Provide basic identification parameters and bio.</p>
+                <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-1">Personal Profile Details</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Provide basic identification parameters and bio.</p>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 
                  {/* Full Name */}
                 <div className="space-y-2">
-                  <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                  <label className="text-xs font-semibold text-slate-600 dark:text-slate-300 flex items-center gap-1.5">
                     Full Legal Name <span className="text-red-400">*</span>
                   </label>
                   <input
@@ -619,7 +621,7 @@ export default function OnboardingPage() {
 
                 {/* Email Address */}
                 <div className="space-y-2">
-                  <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                  <label className="text-xs font-semibold text-slate-600 dark:text-slate-300 flex items-center gap-1.5">
                     Email Address <span className="text-red-400">*</span>
                   </label>
                   <input
@@ -634,7 +636,7 @@ export default function OnboardingPage() {
 
                 {/* Mobile Phone Number */}
                 <div className="space-y-2">
-                  <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                  <label className="text-xs font-semibold text-slate-600 dark:text-slate-300 flex items-center gap-1.5">
                     Phone Number <span className="text-red-400">*</span>
                   </label>
                   <input
@@ -650,7 +652,7 @@ export default function OnboardingPage() {
 
                 {/* Alternate Phone Number */}
                 <div className="space-y-2">
-                  <label className="text-xs font-semibold text-slate-300">
+                  <label className="text-xs font-semibold text-slate-600 dark:text-slate-300">
                     Alternate Phone Number (Optional)
                   </label>
                   <input
@@ -659,13 +661,13 @@ export default function OnboardingPage() {
                     maxLength={10}
                     value={formData.alternate_phone || ""}
                     onChange={(e) => handleFieldChange('alternate_phone', e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm focus:border-[#0066FF] focus:ring-1 focus:ring-[#0066FF] outline-none transition text-white placeholder-slate-600"
+                    className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-sm focus:border-[#0066FF] focus:ring-1 focus:ring-[#0066FF] outline-none transition text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-600"
                   />
                 </div>
 
                 {/* Father's Name */}
                 <div className="space-y-2">
-                  <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                  <label className="text-xs font-semibold text-slate-600 dark:text-slate-300 flex items-center gap-1.5">
                     Father&apos;s Name <span className="text-red-400">*</span>
                   </label>
                   <input
@@ -680,7 +682,7 @@ export default function OnboardingPage() {
 
                 {/* Mother's Name */}
                 <div className="space-y-2">
-                  <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                  <label className="text-xs font-semibold text-slate-600 dark:text-slate-300 flex items-center gap-1.5">
                     Mother&apos;s Name <span className="text-red-400">*</span>
                   </label>
                   <input
@@ -695,7 +697,7 @@ export default function OnboardingPage() {
 
                 {/* Date of Birth */}
                 <div className="space-y-2">
-                  <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                  <label className="text-xs font-semibold text-slate-600 dark:text-slate-300 flex items-center gap-1.5">
                     Date of Birth <span className="text-red-400">*</span>
                   </label>
                   <input
@@ -709,7 +711,7 @@ export default function OnboardingPage() {
 
                 {/* Gender */}
                 <div className="space-y-2">
-                  <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                  <label className="text-xs font-semibold text-slate-600 dark:text-slate-300 flex items-center gap-1.5">
                     Gender <span className="text-red-400">*</span>
                   </label>
                   <select
@@ -718,51 +720,51 @@ export default function OnboardingPage() {
                     onChange={(e) => handleFieldChange('gender', e.target.value)}
                     className={getInputClassName('gender')}
                   >
-                    <option value="" disabled>Select Gender</option>
-                    <option value="Male">Male</option>
-                    <option value="Female">Female</option>
-                    <option value="Other">Other</option>
-                    <option value="Prefer not to say">Prefer not to say</option>
+                    <option value="" disabled className="text-slate-400">Select Gender</option>
+                    <option value="Male" className="text-slate-900 dark:text-white bg-white dark:bg-slate-950">Male</option>
+                    <option value="Female" className="text-slate-900 dark:text-white bg-white dark:bg-slate-950">Female</option>
+                    <option value="Other" className="text-slate-900 dark:text-white bg-white dark:bg-slate-950">Other</option>
+                    <option value="Prefer not to say" className="text-slate-900 dark:text-white bg-white dark:bg-slate-950">Prefer not to say</option>
                   </select>
                 </div>
 
                 {/* Marital Status */}
                 <div className="space-y-2">
-                  <label className="text-xs font-semibold text-slate-300">
+                  <label className="text-xs font-semibold text-slate-600 dark:text-slate-300">
                     Marital Status (Optional)
                   </label>
                   <select
                     value={formData.marital_status || ""}
                     onChange={(e) => handleFieldChange('marital_status', e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm focus:border-[#0066FF] focus:ring-1 focus:ring-[#0066FF] outline-none transition text-white"
+                    className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-sm focus:border-[#0066FF] focus:ring-1 focus:ring-[#0066FF] outline-none transition text-slate-900 dark:text-white"
                   >
-                    <option value="">Select Status</option>
-                    <option value="Single">Single</option>
-                    <option value="Married">Married</option>
-                    <option value="Divorced">Divorced</option>
-                    <option value="Widowed">Widowed</option>
+                    <option value="" className="text-slate-400">Select Status</option>
+                    <option value="Single" className="text-slate-900 dark:text-white bg-white dark:bg-slate-950">Single</option>
+                    <option value="Married" className="text-slate-900 dark:text-white bg-white dark:bg-slate-950">Married</option>
+                    <option value="Divorced" className="text-slate-900 dark:text-white bg-white dark:bg-slate-950">Divorced</option>
+                    <option value="Widowed" className="text-slate-900 dark:text-white bg-white dark:bg-slate-950">Widowed</option>
                   </select>
                 </div>
 
                 {/* Blood Group */}
                 <div className="space-y-2">
-                  <label className="text-xs font-semibold text-slate-300">
+                  <label className="text-xs font-semibold text-slate-600 dark:text-slate-300">
                     Blood Group (Optional)
                   </label>
                   <select
                     value={formData.blood_group || ""}
                     onChange={(e) => handleFieldChange('blood_group', e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm focus:border-[#0066FF] focus:ring-1 focus:ring-[#0066FF] outline-none transition text-white"
+                    className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-sm focus:border-[#0066FF] focus:ring-1 focus:ring-[#0066FF] outline-none transition text-slate-900 dark:text-white"
                   >
-                    <option value="">Select Blood Group</option>
-                    <option value="A+">A+</option>
-                    <option value="A-">A-</option>
-                    <option value="B+">B+</option>
-                    <option value="B-">B-</option>
-                    <option value="O+">O+</option>
-                    <option value="O-">O-</option>
-                    <option value="AB+">AB+</option>
-                    <option value="AB-">AB-</option>
+                    <option value="" className="text-slate-400">Select Blood Group</option>
+                    <option value="A+" className="text-slate-900 dark:text-white bg-white dark:bg-slate-950">A+</option>
+                    <option value="A-" className="text-slate-900 dark:text-white bg-white dark:bg-slate-950">A-</option>
+                    <option value="B+" className="text-slate-900 dark:text-white bg-white dark:bg-slate-950">B+</option>
+                    <option value="B-" className="text-slate-900 dark:text-white bg-white dark:bg-slate-950">B-</option>
+                    <option value="O+" className="text-slate-900 dark:text-white bg-white dark:bg-slate-950">O+</option>
+                    <option value="O-" className="text-slate-900 dark:text-white bg-white dark:bg-slate-950">O-</option>
+                    <option value="AB+" className="text-slate-900 dark:text-white bg-white dark:bg-slate-950">AB+</option>
+                    <option value="AB-" className="text-slate-900 dark:text-white bg-white dark:bg-slate-950">AB-</option>
                   </select>
                 </div>
 
@@ -770,7 +772,7 @@ export default function OnboardingPage() {
 
               {/* Professional Biography */}
               <div className="space-y-2">
-                <label className="text-xs font-semibold text-slate-300">
+                <label className="text-xs font-semibold text-slate-600 dark:text-slate-300">
                   Brief Professional Biography (Optional)
                 </label>
                 <textarea
@@ -778,7 +780,7 @@ export default function OnboardingPage() {
                   value={formData.biography || ""}
                   onChange={(e) => handleFieldChange('biography', e.target.value)}
                   rows={4}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm focus:border-[#0066FF] focus:ring-1 focus:ring-[#0066FF] outline-none transition text-white placeholder-slate-700 resize-none"
+                  className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-sm focus:border-[#0066FF] focus:ring-1 focus:ring-[#0066FF] outline-none transition text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-600 resize-none"
                 />
               </div>
 
@@ -789,15 +791,15 @@ export default function OnboardingPage() {
           {step === 2 && (
             <div className="space-y-6 animate-fadeIn">
               <div>
-                <h3 className="text-lg font-bold text-white mb-1">Professional & Role Information</h3>
-                <p className="text-xs text-slate-400">These fields are dynamically configured based on your corporate role ({role}).</p>
+                <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-1">Professional & Role Information</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">These fields are dynamically configured based on your corporate role ({role}).</p>
               </div>
 
               {/* ADMIN ROLE FIELDS */}
               {role === 'ADMIN' && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                   <div className="space-y-2">
-                    <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                    <label className="text-xs font-semibold text-slate-600 dark:text-slate-300 flex items-center gap-1.5">
                       Organization Role / Title <span className="text-red-400">*</span>
                     </label>
                     <input
@@ -811,7 +813,7 @@ export default function OnboardingPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                    <label className="text-xs font-semibold text-slate-600 dark:text-slate-300 flex items-center gap-1.5">
                       Office Base Location <span className="text-red-400">*</span>
                     </label>
                     <input
@@ -825,24 +827,24 @@ export default function OnboardingPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-xs font-semibold text-slate-300">
+                    <label className="text-xs font-semibold text-slate-600 dark:text-slate-300">
                       Administrative Scope / Access Authority (Optional)
                     </label>
                     <select
                       value={formData.access_authority_level || ""}
                       onChange={(e) => handleFieldChange('access_authority_level', e.target.value)}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm focus:border-[#0066FF] focus:ring-1 focus:ring-[#0066FF] outline-none transition text-white"
+                      className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-sm focus:border-[#0066FF] focus:ring-1 focus:ring-[#0066FF] outline-none transition text-slate-900 dark:text-white"
                     >
-                      <option value="">Select Scope Level</option>
-                      <option value="Super Admin">Super Admin</option>
-                      <option value="Regional Admin">Regional Admin</option>
-                      <option value="Operations Admin">Operations Admin</option>
-                      <option value="HR Admin">HR Admin</option>
+                      <option value="" className="text-slate-400">Select Scope Level</option>
+                      <option value="Super Admin" className="text-slate-900 dark:text-white bg-white dark:bg-slate-950">Super Admin</option>
+                      <option value="Regional Admin" className="text-slate-900 dark:text-white bg-white dark:bg-slate-950">Regional Admin</option>
+                      <option value="Operations Admin" className="text-slate-900 dark:text-white bg-white dark:bg-slate-950">Operations Admin</option>
+                      <option value="HR Admin" className="text-slate-900 dark:text-white bg-white dark:bg-slate-950">HR Admin</option>
                     </select>
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-xs font-semibold text-slate-300">
+                    <label className="text-xs font-semibold text-slate-600 dark:text-slate-300">
                       Primary Administrative Responsibility (Optional)
                     </label>
                     <input
@@ -850,7 +852,7 @@ export default function OnboardingPage() {
                       placeholder="e.g. Core System Ops, Finance Audits"
                       value={formData.administrative_responsibility || ""}
                       onChange={(e) => handleFieldChange('administrative_responsibility', e.target.value)}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm focus:border-[#0066FF] focus:ring-1 focus:ring-[#0066FF] outline-none transition text-white placeholder-slate-650"
+                      className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-sm focus:border-[#0066FF] focus:ring-1 focus:ring-[#0066FF] outline-none transition text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-600"
                     />
                   </div>
                 </div>
@@ -860,7 +862,7 @@ export default function OnboardingPage() {
               {role === 'DEPARTMENT' && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                   <div className="space-y-2">
-                    <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                    <label className="text-xs font-semibold text-slate-600 dark:text-slate-300 flex items-center gap-1.5">
                       Department Managed <span className="text-red-400">*</span>
                     </label>
                     <input
@@ -874,7 +876,7 @@ export default function OnboardingPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                    <label className="text-xs font-semibold text-slate-600 dark:text-slate-300 flex items-center gap-1.5">
                       Managerial Level <span className="text-red-400">*</span>
                     </label>
                     <select
@@ -883,17 +885,17 @@ export default function OnboardingPage() {
                       onChange={(e) => handleFieldChange('managerial_level', e.target.value)}
                       className={getInputClassName('managerial_level')}
                     >
-                      <option value="" disabled>Select Management Tier</option>
-                      <option value="Director">Director</option>
-                      <option value="VP">VP</option>
-                      <option value="General Manager">General Manager</option>
-                      <option value="Team Head">Team Head</option>
-                      <option value="Supervisor">Supervisor</option>
+                      <option value="" disabled className="text-slate-400">Select Management Tier</option>
+                      <option value="Director" className="text-slate-900 dark:text-white bg-white dark:bg-slate-950">Director</option>
+                      <option value="VP" className="text-slate-900 dark:text-white bg-white dark:bg-slate-950">VP</option>
+                      <option value="General Manager" className="text-slate-900 dark:text-white bg-white dark:bg-slate-950">General Manager</option>
+                      <option value="Team Head" className="text-slate-900 dark:text-white bg-white dark:bg-slate-950">Team Head</option>
+                      <option value="Supervisor" className="text-slate-900 dark:text-white bg-white dark:bg-slate-950">Supervisor</option>
                     </select>
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-xs font-semibold text-slate-300">
+                    <label className="text-xs font-semibold text-slate-600 dark:text-slate-300">
                       Leadership Role Description (Optional)
                     </label>
                     <input
@@ -901,12 +903,12 @@ export default function OnboardingPage() {
                       placeholder="e.g. Lead Technologist, Growth Enabler"
                       value={formData.leadership_role || ""}
                       onChange={(e) => handleFieldChange('leadership_role', e.target.value)}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm focus:border-[#0066FF] focus:ring-1 focus:ring-[#0066FF] outline-none transition text-white placeholder-slate-650"
+                      className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-sm focus:border-[#0066FF] focus:ring-1 focus:ring-[#0066FF] outline-none transition text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-600"
                     />
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-xs font-semibold text-slate-300">
+                    <label className="text-xs font-semibold text-slate-600 dark:text-slate-300">
                       Active Managed Team Size (Optional)
                     </label>
                     <input
@@ -914,12 +916,12 @@ export default function OnboardingPage() {
                       min={0}
                       value={formData.team_size || 0}
                       onChange={(e) => handleFieldChange('team_size', parseInt(e.target.value) || 0)}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm focus:border-[#0066FF] focus:ring-1 focus:ring-[#0066FF] outline-none transition text-white"
+                      className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-sm focus:border-[#0066FF] focus:ring-1 focus:ring-[#0066FF] outline-none transition text-slate-900 dark:text-white"
                     />
                   </div>
 
                   <div className="space-y-2 md:col-span-2">
-                    <label className="text-xs font-semibold text-slate-300">
+                    <label className="text-xs font-semibold text-slate-600 dark:text-slate-300">
                       Reporting / Accountability Structure Description (Optional)
                     </label>
                     <input
@@ -927,7 +929,7 @@ export default function OnboardingPage() {
                       placeholder="e.g. Reports directly to HR VP, oversees 4 team leads"
                       value={formData.reporting_structure || ""}
                       onChange={(e) => handleFieldChange('reporting_structure', e.target.value)}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm focus:border-[#0066FF] focus:ring-1 focus:ring-[#0066FF] outline-none transition text-white placeholder-slate-650"
+                      className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-sm focus:border-[#0066FF] focus:ring-1 focus:ring-[#0066FF] outline-none transition text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-600"
                     />
                   </div>
                 </div>
@@ -937,7 +939,7 @@ export default function OnboardingPage() {
               {role === 'EMPLOYEE' && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                   <div className="space-y-2">
-                    <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                    <label className="text-xs font-semibold text-slate-600 dark:text-slate-300 flex items-center gap-1.5">
                       Professional Designation <span className="text-red-400">*</span>
                     </label>
                     <input
@@ -951,7 +953,7 @@ export default function OnboardingPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                    <label className="text-xs font-semibold text-slate-600 dark:text-slate-300 flex items-center gap-1.5">
                       Reporting Manager / Authority <span className="text-red-400">*</span>
                     </label>
                     <input
@@ -965,40 +967,40 @@ export default function OnboardingPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-xs font-semibold text-slate-300">
+                    <label className="text-xs font-semibold text-slate-600 dark:text-slate-300">
                       Employment Type (Optional)
                     </label>
                     <select
                       value={formData.employment_type || ""}
                       onChange={(e) => handleFieldChange('employment_type', e.target.value)}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm focus:border-[#0066FF] focus:ring-1 focus:ring-[#0066FF] outline-none transition text-white"
+                      className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-sm focus:border-[#0066FF] focus:ring-1 focus:ring-[#0066FF] outline-none transition text-slate-900 dark:text-white"
                     >
-                      <option value="">Select Employment Type</option>
-                      <option value="Full-time">Full-time</option>
-                      <option value="Part-time">Part-time</option>
-                      <option value="Contract">Contract</option>
-                      <option value="Internship">Internship</option>
+                      <option value="" className="text-slate-400">Select Employment Type</option>
+                      <option value="Full-time" className="text-slate-900 dark:text-white bg-white dark:bg-slate-950">Full-time</option>
+                      <option value="Part-time" className="text-slate-900 dark:text-white bg-white dark:bg-slate-950">Part-time</option>
+                      <option value="Contract" className="text-slate-900 dark:text-white bg-white dark:bg-slate-950">Contract</option>
+                      <option value="Internship" className="text-slate-900 dark:text-white bg-white dark:bg-slate-950">Internship</option>
                     </select>
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-xs font-semibold text-slate-300">
+                    <label className="text-xs font-semibold text-slate-600 dark:text-slate-300">
                       Work Mode Setup (Optional)
                     </label>
                     <select
                       value={formData.work_mode || ""}
                       onChange={(e) => handleFieldChange('work_mode', e.target.value)}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm focus:border-[#0066FF] focus:ring-1 focus:ring-[#0066FF] outline-none transition text-white"
+                      className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-sm focus:border-[#0066FF] focus:ring-1 focus:ring-[#0066FF] outline-none transition text-slate-900 dark:text-white"
                     >
-                      <option value="">Select Work Setup</option>
-                      <option value="Office-bound">Office-bound</option>
-                      <option value="Remote Work">Remote Work</option>
-                      <option value="Hybrid Model">Hybrid Model</option>
+                      <option value="" className="text-slate-400">Select Work Setup</option>
+                      <option value="Office-bound" className="text-slate-900 dark:text-white bg-white dark:bg-slate-950">Office-bound</option>
+                      <option value="Remote Work" className="text-slate-900 dark:text-white bg-white dark:bg-slate-950">Remote Work</option>
+                      <option value="Hybrid Model" className="text-slate-900 dark:text-white bg-white dark:bg-slate-950">Hybrid Model</option>
                     </select>
                   </div>
 
                   <div className="space-y-2 md:col-span-2">
-                    <label className="text-xs font-semibold text-slate-300">
+                    <label className="text-xs font-semibold text-slate-600 dark:text-slate-300">
                       Core Professional Skills (Comma separated, Optional)
                     </label>
                     <input
@@ -1006,16 +1008,16 @@ export default function OnboardingPage() {
                       placeholder="e.g. React, Next.js, Node.js, SQL, TypeSafety"
                       value={formData.skills || ""}
                       onChange={(e) => handleFieldChange('skills', e.target.value)}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm focus:border-[#0066FF] focus:ring-1 focus:ring-[#0066FF] outline-none transition text-white placeholder-slate-650"
+                      className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-sm focus:border-[#0066FF] focus:ring-1 focus:ring-[#0066FF] outline-none transition text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-600"
                     />
                   </div>
                 </div>
               )}
 
               {/* General Work fields */}
-              <div className="border-t border-slate-800/80 pt-6 grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div className="border-t border-slate-200 dark:border-slate-800/80 pt-6 grid grid-cols-1 md:grid-cols-2 gap-5">
                 <div className="space-y-2">
-                  <label className="text-xs font-semibold text-slate-300">
+                  <label className="text-xs font-semibold text-slate-600 dark:text-slate-300">
                     Prior Work Experience Description (Optional)
                   </label>
                   <input
@@ -1023,12 +1025,12 @@ export default function OnboardingPage() {
                     placeholder="e.g. 5+ years at Acme Inc as Sr Developer"
                     value={formData.experience || ""}
                     onChange={(e) => handleFieldChange('experience', e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm focus:border-[#0066FF] focus:ring-1 focus:ring-[#0066FF] outline-none transition text-white placeholder-slate-650"
+                    className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-sm focus:border-[#0066FF] focus:ring-1 focus:ring-[#0066FF] outline-none transition text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-600"
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-xs font-semibold text-slate-300">
+                  <label className="text-xs font-semibold text-slate-600 dark:text-slate-300">
                     Highest Level of Education (Optional)
                   </label>
                   <input
@@ -1036,12 +1038,12 @@ export default function OnboardingPage() {
                     placeholder="e.g. Master of Computer Applications (MCA)"
                     value={formData.education || ""}
                     onChange={(e) => handleFieldChange('education', e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm focus:border-[#0066FF] focus:ring-1 focus:ring-[#0066FF] outline-none transition text-white placeholder-slate-650"
+                    className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-sm focus:border-[#0066FF] focus:ring-1 focus:ring-[#0066FF] outline-none transition text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-600"
                   />
                 </div>
 
                 <div className="space-y-2 md:col-span-2">
-                  <label className="text-xs font-semibold text-slate-300">
+                  <label className="text-xs font-semibold text-slate-600 dark:text-slate-300">
                     LinkedIn URL (Optional)
                   </label>
                   <input
@@ -1049,7 +1051,7 @@ export default function OnboardingPage() {
                     placeholder="https://linkedin.com/in/username"
                     value={formData.linkedin || ""}
                     onChange={(e) => handleFieldChange('linkedin', e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm focus:border-[#0066FF] focus:ring-1 focus:ring-[#0066FF] outline-none transition text-white placeholder-slate-650"
+                    className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-sm focus:border-[#0066FF] focus:ring-1 focus:ring-[#0066FF] outline-none transition text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-600"
                   />
                 </div>
               </div>
@@ -1061,15 +1063,15 @@ export default function OnboardingPage() {
           {step === 3 && (
             <div className="space-y-6 animate-fadeIn">
               <div>
-                <h3 className="text-lg font-bold text-white mb-1">Residential Address & Contacts</h3>
-                <p className="text-xs text-slate-400">Please supply residential coordinates and an emergency anchor contact.</p>
+                <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-1">Residential Address & Contacts</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Please supply residential coordinates and an emergency anchor contact.</p>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
                 
                 {/* Street Address */}
                 <div className="space-y-2 md:col-span-3">
-                  <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                  <label className="text-xs font-semibold text-slate-650 dark:text-slate-300 flex items-center gap-1.5">
                     Street Address / House No <span className="text-red-400">*</span>
                   </label>
                   <input
@@ -1084,7 +1086,7 @@ export default function OnboardingPage() {
 
                 {/* City */}
                 <div className="space-y-2">
-                  <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                  <label className="text-xs font-semibold text-slate-650 dark:text-slate-300 flex items-center gap-1.5">
                     City <span className="text-red-400">*</span>
                   </label>
                   <input
@@ -1099,7 +1101,7 @@ export default function OnboardingPage() {
 
                 {/* State */}
                 <div className="space-y-2">
-                  <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                  <label className="text-xs font-semibold text-slate-650 dark:text-slate-300 flex items-center gap-1.5">
                     State <span className="text-red-400">*</span>
                   </label>
                   <input
@@ -1114,7 +1116,7 @@ export default function OnboardingPage() {
 
                 {/* Pincode */}
                 <div className="space-y-2">
-                  <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                  <label className="text-xs font-semibold text-slate-650 dark:text-slate-300 flex items-center gap-1.5">
                     Postal / Pin Code <span className="text-red-400">*</span>
                   </label>
                   <input
@@ -1131,14 +1133,14 @@ export default function OnboardingPage() {
               </div>
 
               {/* Emergency Contact Group */}
-              <div className="border-t border-slate-800/80 pt-6">
-                <h4 className="text-sm font-bold text-slate-300 mb-4 flex items-center gap-2">
+              <div className="border-t border-slate-200 dark:border-slate-800/80 pt-6">
+                <h4 className="text-sm font-bold text-slate-800 dark:text-slate-300 mb-4 flex items-center gap-2">
                   <AlertCircle className="w-4 h-4 text-amber-500" /> Primary Emergency Contact Details (Mandatory)
                 </h4>
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                   <div className="space-y-2">
-                    <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                    <label className="text-xs font-semibold text-slate-650 dark:text-slate-300 flex items-center gap-1.5">
                       Contact Person Full Name <span className="text-red-400">*</span>
                     </label>
                     <input
@@ -1152,7 +1154,7 @@ export default function OnboardingPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                    <label className="text-xs font-semibold text-slate-650 dark:text-slate-300 flex items-center gap-1.5">
                       Contact Person Mobile Number <span className="text-red-400">*</span>
                     </label>
                     <input
@@ -1175,15 +1177,15 @@ export default function OnboardingPage() {
           {step === 4 && (
             <div className="space-y-6 animate-fadeIn">
               <div>
-                <h3 className="text-lg font-bold text-white mb-1">Government ID Details & Document Uploads</h3>
-                <p className="text-xs text-slate-400">Validate official identification markers and submit digital copies.</p>
+                <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-1">Government ID Details & Document Uploads</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Validate official identification markers and submit digital copies.</p>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 
                 {/* Aadhaar Number */}
                 <div className="space-y-2">
-                  <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                  <label className="text-xs font-semibold text-slate-650 dark:text-slate-300 flex items-center gap-1.5">
                     Aadhaar Card Number <span className="text-red-400">*</span>
                   </label>
                   <input
@@ -1204,7 +1206,7 @@ export default function OnboardingPage() {
 
                 {/* PAN Number */}
                 <div className="space-y-2">
-                  <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                  <label className="text-xs font-semibold text-slate-650 dark:text-slate-300 flex items-center gap-1.5">
                     Permanent Account Number (PAN) <span className="text-red-400">*</span>
                   </label>
                   <input
@@ -1226,8 +1228,8 @@ export default function OnboardingPage() {
               </div>
 
               {/* Upload sections */}
-              <div className="border-t border-slate-800/80 pt-6">
-                <h4 className="text-sm font-bold text-slate-300 mb-4 flex items-center gap-2">
+              <div className="border-t border-slate-200 dark:border-slate-800/80 pt-6">
+                <h4 className="text-sm font-bold text-slate-850 dark:text-slate-300 mb-4 flex items-center gap-2">
                   <UploadCloud className="w-4 h-4 text-[#0066FF]" /> Verified Document Attachments
                 </h4>
                 
@@ -1236,19 +1238,19 @@ export default function OnboardingPage() {
                   {/* Upload 1: Aadhaar Card */}
                   <div className={`p-5 rounded-2xl border transition ${
                     isFieldMissing('uploaded_aadhaar')
-                      ? 'bg-red-500/5 border-red-500/20 hover:border-red-500/35'
-                      : 'bg-slate-950/60 border-slate-800/80 hover:border-slate-700'
+                      ? 'bg-red-50/5 border-red-500/20 hover:border-red-500/35'
+                      : 'bg-slate-50 dark:bg-slate-950/60 border-slate-200 dark:border-slate-800/80 hover:border-slate-300 dark:hover:border-slate-700'
                   }`}>
-                    <span className="text-xs font-bold text-slate-300 block mb-2">Aadhaar Card copy (Mandatory upload, PDF/Image)</span>
+                    <span className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-2">Aadhaar Card copy (Mandatory upload, PDF/Image)</span>
                     
                     {formData.uploaded_documents?.find((d: any) => d.type === 'aadhaar') ? (
-                      <div className="flex items-center justify-between bg-emerald-950/30 border border-emerald-900/40 p-3 rounded-xl text-emerald-400">
+                      <div className="flex items-center justify-between bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-100 dark:border-emerald-900/40 p-3 rounded-xl text-emerald-600 dark:text-emerald-400">
                         <span className="text-xs truncate max-w-[200px] font-semibold">✓ Aadhaar Card uploaded</span>
                         <a 
                           href={formData.uploaded_documents.find((d: any) => d.type === 'aadhaar').url}
                           target="_blank" 
                           rel="noreferrer" 
-                          className="text-[10px] underline font-bold text-[#00D4FF] hover:text-white"
+                          className="text-[10px] underline font-bold text-[#00D4FF] hover:text-slate-800 dark:hover:text-white"
                         >
                           View File
                         </a>
@@ -1265,7 +1267,7 @@ export default function OnboardingPage() {
                       />
                       <label 
                         htmlFor="upload-aadhaar"
-                        className="w-full py-2.5 rounded-xl border border-dashed border-slate-800 hover:border-[#0066FF] hover:bg-slate-900/40 text-xs font-semibold text-slate-400 hover:text-white flex items-center justify-center gap-2 cursor-pointer transition active:scale-98"
+                        className="w-full py-2.5 rounded-xl border border-dashed border-slate-200 dark:border-slate-800 hover:border-[#0066FF] hover:bg-slate-50 dark:hover:bg-slate-900/40 text-xs font-semibold text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white flex items-center justify-center gap-2 cursor-pointer transition active:scale-98"
                       >
                         {uploadingField === 'aadhaar' ? (
                           <div className="flex items-center gap-2">
@@ -1284,19 +1286,19 @@ export default function OnboardingPage() {
                   {/* Upload 2: PAN Card */}
                   <div className={`p-5 rounded-2xl border transition ${
                     isFieldMissing('uploaded_pan')
-                      ? 'bg-red-500/5 border-red-500/20 hover:border-red-500/35'
-                      : 'bg-slate-950/60 border-slate-800/80 hover:border-slate-700'
+                      ? 'bg-red-50/5 border-red-500/20 hover:border-red-500/35'
+                      : 'bg-slate-50 dark:bg-slate-950/60 border-slate-200 dark:border-slate-800/80 hover:border-slate-300 dark:hover:border-slate-700'
                   }`}>
-                    <span className="text-xs font-bold text-slate-300 block mb-2">PAN Card copy (Mandatory upload, PDF/Image)</span>
+                    <span className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-2">PAN Card copy (Mandatory upload, PDF/Image)</span>
                     
                     {formData.uploaded_documents?.find((d: any) => d.type === 'pan') ? (
-                      <div className="flex items-center justify-between bg-emerald-950/30 border border-emerald-900/40 p-3 rounded-xl text-emerald-400">
+                      <div className="flex items-center justify-between bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-100 dark:border-emerald-900/40 p-3 rounded-xl text-emerald-600 dark:text-emerald-400">
                         <span className="text-xs truncate max-w-[200px] font-semibold">✓ PAN Card uploaded</span>
                         <a 
                           href={formData.uploaded_documents.find((d: any) => d.type === 'pan').url}
                           target="_blank" 
                           rel="noreferrer" 
-                          className="text-[10px] underline font-bold text-[#00D4FF] hover:text-white"
+                          className="text-[10px] underline font-bold text-[#00D4FF] hover:text-slate-800 dark:hover:text-white"
                         >
                           View File
                         </a>
@@ -1313,7 +1315,7 @@ export default function OnboardingPage() {
                       />
                       <label 
                         htmlFor="upload-pan"
-                        className="w-full py-2.5 rounded-xl border border-dashed border-slate-800 hover:border-[#0066FF] hover:bg-slate-900/40 text-xs font-semibold text-slate-400 hover:text-white flex items-center justify-center gap-2 cursor-pointer transition active:scale-98"
+                        className="w-full py-2.5 rounded-xl border border-dashed border-slate-200 dark:border-slate-800 hover:border-[#0066FF] hover:bg-slate-50 dark:hover:bg-slate-900/40 text-xs font-semibold text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white flex items-center justify-center gap-2 cursor-pointer transition active:scale-98"
                       >
                         {uploadingField === 'pan' ? (
                           <div className="flex items-center gap-2">
@@ -1330,17 +1332,17 @@ export default function OnboardingPage() {
                   </div>
 
                   {/* Upload 3: Resume */}
-                  <div className="bg-slate-950/60 p-5 rounded-2xl border border-slate-800/80 hover:border-slate-700 transition">
-                    <span className="text-xs font-bold text-slate-300 block mb-2">Resume / CV (Optional, PDF only)</span>
+                  <div className="bg-slate-50 dark:bg-slate-950/60 p-5 rounded-2xl border border-slate-200 dark:border-slate-800/80 hover:border-slate-300 dark:hover:border-slate-700 transition">
+                    <span className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-2">Resume / CV (Optional, PDF only)</span>
                     
                     {formData.uploaded_documents?.find((d: any) => d.type === 'resume') ? (
-                      <div className="flex items-center justify-between bg-emerald-950/30 border border-emerald-900/40 p-3 rounded-xl text-emerald-400">
+                      <div className="flex items-center justify-between bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-100 dark:border-emerald-900/40 p-3 rounded-xl text-emerald-600 dark:text-emerald-400">
                         <span className="text-xs truncate max-w-[200px] font-semibold">✓ Resume uploaded</span>
                         <a 
                           href={formData.uploaded_documents.find((d: any) => d.type === 'resume').url}
                           target="_blank" 
                           rel="noreferrer" 
-                          className="text-[10px] underline font-bold text-[#00D4FF] hover:text-white"
+                          className="text-[10px] underline font-bold text-[#00D4FF] hover:text-slate-800 dark:hover:text-white"
                         >
                           View File
                         </a>
@@ -1357,7 +1359,7 @@ export default function OnboardingPage() {
                       />
                       <label 
                         htmlFor="upload-resume"
-                        className="w-full py-2.5 rounded-xl border border-dashed border-slate-800 hover:border-[#0066FF] hover:bg-slate-900/40 text-xs font-semibold text-slate-400 hover:text-white flex items-center justify-center gap-2 cursor-pointer transition active:scale-98"
+                        className="w-full py-2.5 rounded-xl border border-dashed border-slate-200 dark:border-slate-800 hover:border-[#0066FF] hover:bg-slate-50 dark:hover:bg-slate-900/40 text-xs font-semibold text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white flex items-center justify-center gap-2 cursor-pointer transition active:scale-98"
                       >
                         {uploadingField === 'resume' ? (
                           <div className="flex items-center gap-2">
@@ -1374,17 +1376,17 @@ export default function OnboardingPage() {
                   </div>
 
                   {/* Upload 4: Certifications */}
-                  <div className="bg-slate-950/60 p-5 rounded-2xl border border-slate-800/80 hover:border-slate-700 transition">
-                    <span className="text-xs font-bold text-slate-300 block mb-2">Degree Certificates (Optional, PDF/Image)</span>
+                  <div className="bg-slate-50 dark:bg-slate-950/60 p-5 rounded-2xl border border-slate-200 dark:border-slate-800/80 hover:border-slate-300 dark:hover:border-slate-700 transition">
+                    <span className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-2">Degree Certificates (Optional, PDF/Image)</span>
                     
                     {formData.uploaded_documents?.find((d: any) => d.type === 'certificate') ? (
-                      <div className="flex items-center justify-between bg-emerald-950/30 border border-emerald-900/40 p-3 rounded-xl text-emerald-400">
+                      <div className="flex items-center justify-between bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-100 dark:border-emerald-900/40 p-3 rounded-xl text-emerald-600 dark:text-emerald-400">
                         <span className="text-xs truncate max-w-[200px] font-semibold">✓ Certificate uploaded</span>
                         <a 
                           href={formData.uploaded_documents.find((d: any) => d.type === 'certificate').url}
                           target="_blank" 
                           rel="noreferrer" 
-                          className="text-[10px] underline font-bold text-[#00D4FF] hover:text-white"
+                          className="text-[10px] underline font-bold text-[#00D4FF] hover:text-slate-800 dark:hover:text-white"
                         >
                           View File
                         </a>
@@ -1401,7 +1403,7 @@ export default function OnboardingPage() {
                       />
                       <label 
                         htmlFor="upload-certificate"
-                        className="w-full py-2.5 rounded-xl border border-dashed border-slate-800 hover:border-[#0066FF] hover:bg-slate-900/40 text-xs font-semibold text-slate-400 hover:text-white flex items-center justify-center gap-2 cursor-pointer transition active:scale-98"
+                        className="w-full py-2.5 rounded-xl border border-dashed border-slate-200 dark:border-slate-800 hover:border-[#0066FF] hover:bg-slate-50 dark:hover:bg-slate-900/40 text-xs font-semibold text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white flex items-center justify-center gap-2 cursor-pointer transition active:scale-98"
                       >
                         {uploadingField === 'certificate' ? (
                           <div className="flex items-center gap-2">
@@ -1424,12 +1426,12 @@ export default function OnboardingPage() {
           )}
 
           {/* Stepper Footer Action Controls */}
-          <footer className="border-t border-slate-850 pt-6 flex justify-between items-center">
+          <footer className="border-t border-slate-200 dark:border-slate-800 pt-6 flex justify-between items-center">
             <button
               type="button"
               disabled={step === 1}
               onClick={prevStep}
-              className="px-5 py-3 text-xs font-bold rounded-xl bg-slate-950 hover:bg-slate-900 active:scale-95 transition text-slate-400 border border-slate-800 flex items-center gap-2 disabled:opacity-40 disabled:pointer-events-none"
+              className="px-5 py-3 text-xs font-bold rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-950 hover:dark:bg-slate-900 active:scale-95 transition text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-800 flex items-center gap-2 disabled:opacity-40 disabled:pointer-events-none"
             >
               <ArrowLeft className="w-4 h-4" /> Previous Step
             </button>
@@ -1465,13 +1467,13 @@ export default function OnboardingPage() {
 
         {/* Warning card when progress < 70% */}
         {progress < 70 && (
-          <div className="mt-6 bg-amber-500/10 border border-amber-500/20 rounded-2xl p-4 flex gap-3 text-amber-300">
+          <div className="mt-6 bg-amber-50 dark:bg-amber-500/10 border border-amber-250 dark:border-amber-500/20 rounded-2xl p-4 flex gap-3 text-amber-800 dark:text-amber-300">
             <AlertCircle className="w-5 h-5 flex-shrink-0 text-amber-500" />
             <div>
               <span className="text-xs font-bold block mb-1">Portal Access Locked</span>
-              <p className="text-[11px] leading-relaxed text-amber-400/90">
-                You must complete all mandatory fields across Steps 1-4 to reach at least <strong className="text-white">70%</strong> completion. 
-                Currently you are at <strong className="text-white">{progress}%</strong>. Completing Aadhaar, PAN, and emergency contacts will boost your progress.
+              <p className="text-[11px] leading-relaxed text-amber-700 dark:text-amber-450/90">
+                You must complete all mandatory fields across Steps 1-4 to reach at least <strong className="text-slate-900 dark:text-white">70%</strong> completion. 
+                Currently you are at <strong className="text-slate-900 dark:text-white">{progress}%</strong>. Completing Aadhaar, PAN, and emergency contacts will boost your progress.
               </p>
             </div>
           </div>

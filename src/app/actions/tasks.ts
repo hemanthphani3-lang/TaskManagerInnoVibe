@@ -225,7 +225,7 @@ export async function createCrossRoleTask(data: {
         task_title: data.title,
         task_description: data.description,
         assigned_by_department: creatorRole === 'DEPARTMENT' ? user.id : finalDeptId,
-        assigned_employee_id: data.assigned_to,
+        assigned_employee_id: data.assigned_to_role === 'EMPLOYEE' ? data.assigned_to : null,
         department_id: finalDeptId,
         priority_level: (data.priority || 'MEDIUM') as any,
         task_status: 'PENDING'

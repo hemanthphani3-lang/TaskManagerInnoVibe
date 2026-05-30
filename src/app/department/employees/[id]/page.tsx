@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 import { ArrowLeft, Mail, Phone, Calendar, CheckCircle2, Clock, MapPin } from "lucide-react"
 import Link from "next/link"
+import { AttendanceSessionHistorySection } from "@/components/employee/AttendanceSessionHistorySection"
 
 export default async function EmployeeDetailsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: employeeId } = await params
@@ -102,6 +103,9 @@ export default async function EmployeeDetailsPage({ params }: { params: Promise<
               {totalLeavesApproved}
             </div>
           </div>
+
+          {/* Attendance & Session History */}
+          <AttendanceSessionHistorySection employeeId={employeeId} />
 
           <div className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm">
             <h3 className="text-lg font-bold text-slate-900 mb-6">Approved Leave History</h3>

@@ -5,6 +5,7 @@ import "./globals.css";
 import { RealtimeListener } from "@/components/custom/RealtimeListener";
 import { ThemeProvider } from "@/components/custom/ThemeProvider";
 import NextTopLoader from "nextjs-toploader";
+import { Toaster } from "sonner"
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -45,6 +46,7 @@ export default function RootLayout({
             shadow="0 0 10px #0066FF,0 0 5px #0066FF"
           />
           <RealtimeListener />
+          <Toaster position="top-right" theme="light" richColors />
           {children}
         </ThemeProvider>
       </body>

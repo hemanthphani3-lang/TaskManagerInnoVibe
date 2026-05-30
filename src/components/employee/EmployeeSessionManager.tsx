@@ -1,13 +1,17 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { useRouter } from "next/navigation"
 import { Sidebar } from "@/components/custom/Sidebar"
+import { WorkSubmissionModal } from "@/components/employee/WorkSubmissionModal"
+import { BeforeUnloadPrompt } from "@/components/custom/BeforeUnloadPrompt"
 
 export function EmployeeSessionManager({ children, links }: { children: React.ReactNode; links: { label: string; href: string; iconName: string; badgeCount?: number }[] }) {
   const supabase = createClient()
   const router = useRouter()
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [isCheckedIn, setIsCheckedIn] = useState(false)
 
   useEffect(() => {
     // Listen for backend forceful logout when department approves the request
@@ -31,7 +35,12 @@ export function EmployeeSessionManager({ children, links }: { children: React.Re
         .limit(1)
         .maybeSingle()
 
+      setIsCheckedIn(data?.work_status === 'ACTIVE')
+
       if (data?.work_status === 'LOGGED_OUT') {
+        if (typeof window !== "undefined") {
+          (window as any).__isLoggingOut = true
+        }
         router.push('/employee/identity-check')
         router.refresh()
       }
@@ -40,6 +49,8 @@ export function EmployeeSessionManager({ children, links }: { children: React.Re
     const setupRealtime = async () => {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
+
+      await checkLogoutApproved(user.id)
 
       // Use a unique channel name to prevent Strict Mode race conditions
       const channelName = `employee_session_${user.id}_${Date.now()}`
@@ -51,24 +62,20 @@ export function EmployeeSessionManager({ children, links }: { children: React.Re
           filter: `employee_id=eq.${user.id}`
         }, async (payload: { new: { work_status?: string } }) => {
           if (payload.new.work_status === 'LOGGED_OUT') {
+            if (typeof window !== "undefined") {
+              (window as any).__isLoggingOut = true
+            }
             router.push('/employee/identity-check')
             router.refresh()
-          }
-        })
-        .on('postgres_changes', {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'logout_requests',
-          filter: `employee_id=eq.${user.id}`
-        }, async (payload: { new: { approval_status?: string } }) => {
-          if (payload.new.approval_status === 'APPROVED') {
-            router.push('/employee/identity-check')
-            router.refresh()
+          } else if (payload.new.work_status === 'ACTIVE') {
+            setIsCheckedIn(true)
+          } else {
+            setIsCheckedIn(false)
           }
         })
         .subscribe()
 
-      // Polling fallback: check every 10 seconds for approval
+      // Polling fallback: check every 10 seconds for approval / status
       pollInterval = setInterval(() => checkLogoutApproved(user.id), 10000)
     }
 
@@ -79,15 +86,38 @@ export function EmployeeSessionManager({ children, links }: { children: React.Re
     }
   }, [supabase, router])
 
+  const handleLogoutClick = async () => {
+    if (isCheckedIn) {
+      setIsModalOpen(true)
+    } else {
+      if (typeof window !== "undefined") {
+        (window as any).__isLoggingOut = true
+      }
+      await supabase.auth.signOut()
+      router.push("/login")
+      router.refresh()
+    }
+  }
+
   return (
     <div className="min-h-screen bg-[#F8FAFC]">
-      <Sidebar title="Employee Portal" links={links} />
+      <BeforeUnloadPrompt enabled={isCheckedIn} />
+      <Sidebar 
+        title="Employee Portal" 
+        links={links} 
+        onLogoutClick={handleLogoutClick}
+      />
       
       <div className="md:pl-64 pt-16 md:pt-0 flex flex-col min-h-screen transition-all duration-300">
         <main className="flex-1 w-full">
           {children}
         </main>
       </div>
+
+      <WorkSubmissionModal 
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+      />
     </div>
   )
 }

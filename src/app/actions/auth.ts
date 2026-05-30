@@ -123,17 +123,43 @@ export async function deleteEmployeeAccount(employeeId: string) {
       return { success: false, error: "Unauthorized: Only administrators can delete employee profiles." }
     }
 
-    // 1. Delete employee record from DB
-    const { error: dbError } = await getSupabaseAdmin()
+    const adminClient = getSupabaseAdmin()
+
+    // 1. Clean up dependent records that do not have ON DELETE CASCADE
+    // Delete work submissions
+    const { error: workErr } = await adminClient
+      .from('work_submissions')
+      .delete()
+      .eq('employee_id', employeeId)
+    if (workErr) console.warn("Work submissions deletion warning:", workErr)
+
+    // Delete logout requests
+    const { error: logoutErr } = await adminClient
+      .from('logout_requests')
+      .delete()
+      .eq('employee_id', employeeId)
+    if (logoutErr) console.warn("Logout requests deletion warning:", logoutErr)
+
+    // Delete tasks (this cascades to task comments, attachments, logs)
+    const { error: taskErr } = await adminClient
+      .from('tasks')
+      .delete()
+      .eq('assigned_employee_id', employeeId)
+    if (taskErr) console.warn("Tasks deletion warning:", taskErr)
+
+    // 2. Delete employee record from DB (this cascades to attendance, leave_requests, kpis, etc.)
+    const { error: dbError } = await adminClient
       .from('employees')
       .delete()
       .eq('id', employeeId)
 
     if (dbError) throw new Error(dbError.message)
 
-    // 2. Delete employee auth user from Supabase Auth
-    const { error: authError } = await getSupabaseAdmin().auth.admin.deleteUser(employeeId)
-    if (authError) throw new Error(authError.message)
+    // 3. Delete employee auth user from Supabase Auth
+    const { error: authError } = await adminClient.auth.admin.deleteUser(employeeId)
+    if (authError) {
+      console.warn("Auth delete employee warning (might not have auth user):", authError)
+    }
 
     const { revalidatePath } = require("next/cache")
     revalidatePath('/admin/employees')
@@ -193,34 +219,46 @@ export async function deleteDepartmentAccount(departmentId: string) {
       return { success: false, error: "Unauthorized: Only administrators can delete departments." }
     }
 
-    // 1. Delete all tasks belonging to this department
-    const { error: taskError } = await getSupabaseAdmin()
-      .from('tasks')
-      .delete()
-      .eq('department_id', departmentId)
-    if (taskError) console.error("Tasks deletion warning:", taskError)
+    const adminClient = getSupabaseAdmin()
 
-    // 2. Fetch all employees in this department to delete their auth users
-    const { data: emps } = await getSupabaseAdmin()
+    // 1. Fetch all employees in this department to clean up their dependents and delete them
+    const { data: emps } = await adminClient
       .from('employees')
       .select('id')
       .eq('department_id', departmentId)
 
     if (emps && emps.length > 0) {
-      for (const emp of emps) {
-        // Delete employee from DB
-        await getSupabaseAdmin().from('employees').delete().eq('id', emp.id)
-        // Delete employee auth user
+      const empIds = emps.map(emp => emp.id)
+
+      // Clean up dependents for all employees of the department
+      await adminClient.from('work_submissions').delete().in('employee_id', empIds)
+      await adminClient.from('logout_requests').delete().in('employee_id', empIds)
+      await adminClient.from('tasks').delete().in('assigned_employee_id', empIds)
+
+      // Delete employee records from DB (cascades to attendance, leave_requests, kpi_metrics, etc.)
+      await adminClient.from('employees').delete().in('id', empIds)
+
+      // Delete Auth users for all department employees
+      for (const empId of empIds) {
         try {
-          await getSupabaseAdmin().auth.admin.deleteUser(emp.id)
+          await adminClient.auth.admin.deleteUser(empId)
         } catch (e) {
-          console.error("Auth delete employee warning:", e)
+          console.error("Auth delete department employee warning:", e)
         }
       }
     }
 
+    // 2. Clean up department-level dependents
+    // Delete any remaining tasks created by or assigned to the department directly
+    await adminClient.from('tasks').delete().eq('department_id', departmentId)
+    await adminClient.from('tasks').delete().eq('assigned_by_department', departmentId)
+
+    // Delete work submissions & logout requests of the department directly just in case
+    await adminClient.from('work_submissions').delete().eq('department_id', departmentId)
+    await adminClient.from('logout_requests').delete().eq('department_id', departmentId)
+
     // 3. Delete department from DB
-    const { error: dbError } = await getSupabaseAdmin()
+    const { error: dbError } = await adminClient
       .from('departments')
       .delete()
       .eq('id', departmentId)
@@ -228,7 +266,7 @@ export async function deleteDepartmentAccount(departmentId: string) {
     if (dbError) throw new Error(dbError.message)
 
     // 4. Delete department head auth user from Supabase Auth
-    const { error: authError } = await getSupabaseAdmin().auth.admin.deleteUser(departmentId)
+    const { error: authError } = await adminClient.auth.admin.deleteUser(departmentId)
     if (authError) {
       console.warn("Auth delete dept head warning (might not have auth user):", authError)
     }

@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
-import { Users, Clock, CheckCircle2, XCircle, Target, Activity, AlertCircle, ShieldAlert } from "lucide-react"
+import { Users, Clock, CheckCircle2, XCircle, Target, Activity, AlertCircle, ShieldAlert, FileText } from "lucide-react"
 import { AnalyticsCard } from "@/components/dashboard/AnalyticsCard"
 import { ActivityFeed } from "@/components/dashboard/ActivityFeed"
 import { AttendanceChart } from "@/components/dashboard/charts/DynamicCharts"
@@ -39,6 +39,13 @@ export default async function DepartmentDashboard() {
     return d.toISOString().split('T')[0]
   }).reverse()
 
+  // IST timezone setup
+  const now = new Date()
+  const istOffset = 5.5 * 60 * 60 * 1000
+  const todayIST = new Date(now.getTime() + istOffset).toISOString().split('T')[0]
+  const startUTC = new Date(`${todayIST}T00:00:00+05:30`).toISOString()
+  const endUTC = new Date(`${todayIST}T23:59:59+05:30`).toISOString()
+
   const [
     { data: employees },
     { data: attendance },
@@ -47,7 +54,8 @@ export default async function DepartmentDashboard() {
     { data: tasks },
     { data: activityFeed },
     { data: productivityScores },
-    { data: rankings }
+    { data: rankings },
+    { data: todayTeamSessions }
   ] = await Promise.all([
     supabase.from('employees').select('id, employee_name, designation, profile_photo').eq('department_id', user!.id),
     supabase.from('attendance').select('employee_id, attendance_status, check_in_time, work_status, working_hours, created_at').eq('department_id', user!.id).gte('created_at', `${last7Days[0]}T00:00:00Z`).lte('created_at', `${today}T23:59:59Z`),
@@ -56,8 +64,14 @@ export default async function DepartmentDashboard() {
     supabase.from('tasks').select('id, task_status, assigned_employee_id').eq('department_id', user!.id),
     supabase.from('activity_feed').select('*').eq('department_id', user!.id).order('created_at', { ascending: false }).limit(10),
     supabase.from('productivity_scores').select('employee_id, productivity_score').eq('department_id', user!.id).order('productivity_score', { ascending: false }),
-    supabase.from('rankings').select('employee_id, employee_rank, score').eq('department_id', user!.id)
+    supabase.from('rankings').select('employee_id, employee_rank, score').eq('department_id', user!.id),
+    supabase.from('work_sessions').select('*').eq('department_id', user!.id).gte('login_time', startUTC).lte('login_time', endUTC)
   ])
+
+  // Calculate today's team sessions statistics
+  const teamOnline = (todayTeamSessions || []).filter(s => s.logout_time === null).length
+  const teamReportsSubmitted = (todayTeamSessions || []).filter(s => s.report_submitted).length
+  // Team session hours calculation removed
 
   // ── Computed Stats ────────────────────────────────────────────────────────
   const totalEmployees = employees?.length || 0
@@ -76,18 +90,7 @@ export default async function DepartmentDashboard() {
   const completedTasks = tasks?.filter(t => t.task_status === 'COMPLETED').length || 0
   const delayedTasks = tasks?.filter(t => t.task_status === 'DELAYED').length || 0
 
-  // Avg working hours
-  const loggedOutWithHours = todayAttendance.filter(a => a.work_status === 'LOGGED_OUT' && a.working_hours)
-  let avgHoursDisplay = "0h 0m"
-  if (loggedOutWithHours.length > 0) {
-    let totalMins = 0
-    loggedOutWithHours.forEach(record => {
-      const parts = (record.working_hours as string).match(/(\d+)h\s*(\d+)m/)
-      if (parts) totalMins += parseInt(parts[1]) * 60 + parseInt(parts[2])
-    })
-    const avgMins = Math.floor(totalMins / loggedOutWithHours.length)
-    avgHoursDisplay = `${Math.floor(avgMins / 60)}h ${avgMins % 60}m`
-  }
+  // Average working hours calculation removed
 
   // Chart data
   const attendanceChartData = last7Days.map(date => {
@@ -161,15 +164,24 @@ export default async function DepartmentDashboard() {
       {/* Stats Grid */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 mb-8">
         <AnalyticsCard title="Dept Workforce" value={totalEmployees} icon={Users} colorClass="text-indigo-600" bgClass="bg-indigo-50" delay={0} />
-        <AnalyticsCard title="Avg Working Hours" value={avgHoursDisplay} icon={Clock} colorClass="text-purple-600" bgClass="bg-purple-50" delay={1} />
         <AnalyticsCard title="Absent Today" value={absentCount} icon={XCircle} colorClass="text-red-600" bgClass="bg-red-50" />
         <AnalyticsCard title="Active Now" value={activeCount} icon={Activity} colorClass="text-blue-600" bgClass="bg-blue-50" />
         <AnalyticsCard title="Logged Out Today" value={logoutReportsToday || 0} icon={Target} colorClass="text-amber-600" bgClass="bg-amber-50" />
         <AnalyticsCard title="Total Tasks" value={totalTasks} icon={Target} colorClass="text-slate-600" bgClass="bg-slate-100" />
-        <AnalyticsCard title="Completed Tasks" value={completedTasks} icon={CheckCircle2} colorClass="text-emerald-600" bgClass="bg-emerald-50" delay={2} />
-        <AnalyticsCard title="Delayed Tasks" value={delayedTasks} icon={Clock} colorClass="text-amber-600" bgClass="bg-amber-50" delay={3} />
+        <AnalyticsCard title="Completed Tasks" value={completedTasks} icon={CheckCircle2} colorClass="text-emerald-600" bgClass="bg-emerald-50" delay={1} />
+        <AnalyticsCard title="Delayed Tasks" value={delayedTasks} icon={Clock} colorClass="text-amber-600" bgClass="bg-amber-50" delay={2} />
         <AnalyticsCard title="Pending Leaves" value={pendingLeaves || 0} icon={Clock} colorClass="text-purple-600" bgClass="bg-purple-50" />
         <AnalyticsCard title="Dept Avg Score" value={`${avgScore.toFixed(0)}`} icon={Activity} colorClass="text-teal-600" bgClass="bg-teal-50" />
+      </div>
+
+      {/* Team Shift Activity Cards */}
+      <div className="mb-4">
+        <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 px-1">Today's Team Shift Activity</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+          <AnalyticsCard title="Team Online" value={teamOnline} icon={Activity} colorClass="text-emerald-600" bgClass="bg-emerald-50" delay={0} />
+          <AnalyticsCard title="Team Reports Submitted" value={teamReportsSubmitted} icon={FileText} colorClass="text-[#0066FF]" bgClass="bg-blue-50" delay={1} />
+          <AnalyticsCard title="Total Checked In" value={totalCheckedIn} icon={Users} colorClass="text-purple-600" bgClass="bg-purple-50" delay={2} />
+        </div>
       </div>
 
       {/* Main Content Grid */}

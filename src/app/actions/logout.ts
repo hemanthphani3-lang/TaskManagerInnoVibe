@@ -2,8 +2,6 @@
 
 import { createClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
-import { redirect } from "next/navigation"
-
 import { createClient as createSupabaseClient } from "@supabase/supabase-js"
 
 export async function requestLogoutAndSubmitWork(formData: FormData) {
@@ -16,21 +14,38 @@ export async function requestLogoutAndSubmitWork(formData: FormData) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  const comment = formData.get('work_comment') as string
+  const summary = formData.get('work_summary') as string
+  const completedTasks = formData.get('completed_tasks') as string || ""
+  const pendingTasks = formData.get('pending_tasks') as string || ""
+  const blockers = formData.get('blockers') as string || ""
+  const notes = formData.get('notes') as string || ""
+  const timeSpentNotes = formData.get('time_spent_notes') as string || ""
   const file = formData.get('attachment') as File
 
-  if (!comment && (!file || file.size === 0)) {
-    return { success: false, error: "You must provide either a comment or upload a file representing your work." }
+  if (!summary) {
+    return { success: false, error: "Work Summary is required." }
   }
 
-  // Get employee data to get department_id, employee_code, and employee_name
+  // Get employee data
   const { data: employee } = await supabase
     .from('employees')
-    .select('department_id, employee_code, employee_name')
+    .select('department_id, employee_code, employee_name, departments!department_id(department_name)')
     .eq('id', user.id)
-    .single()
+    .maybeSingle()
 
-  if (!employee) return { success: false, error: "Employee not found." }
+  let departmentHead = null
+  if (!employee) {
+    const { data: dept } = await supabase
+      .from('departments')
+      .select('id, department_name, department_head_name')
+      .eq('id', user.id)
+      .maybeSingle()
+    
+    if (!dept) {
+      return { success: false, error: "User profile not found." }
+    }
+    departmentHead = dept
+  }
 
   // Get today's attendance record (IST-aware)
   const now = new Date()
@@ -38,34 +53,38 @@ export async function requestLogoutAndSubmitWork(formData: FormData) {
   const todayIST = new Date(now.getTime() + istOffset).toISOString().split('T')[0]
   const startUTC = new Date(`${todayIST}T00:00:00+05:30`).toISOString()
   const endUTC = new Date(`${todayIST}T23:59:59+05:30`).toISOString()
-  const today = todayIST
 
-  const { data: attendances } = await supabase
-    .from('attendance')
-    .select('id, check_in_time, work_status')
-    .eq('employee_id', user.id)
-    .gte('created_at', startUTC)
-    .lte('created_at', endUTC)
-    .order('created_at', { ascending: false })
-    .limit(1)
+  let checkInTime = new Date(`${todayIST}T09:00:00+05:30`).toISOString()
+  let attendanceId = null
 
-  const attendance = attendances?.[0]
+  if (employee) {
+    const { data: attendances } = await supabase
+      .from('attendance')
+      .select('id, check_in_time, work_status')
+      .eq('employee_id', user.id)
+      .gte('created_at', startUTC)
+      .lte('created_at', endUTC)
+      .order('created_at', { ascending: false })
+      .limit(1)
 
-  if (!attendance) {
-    return { success: false, error: "You have not checked in today." }
-  }
+    const attendance = attendances?.[0]
 
-  if (attendance.work_status === 'LOGGED_OUT') {
-    return { success: false, error: "You are already logged out." }
-  }
+    if (!attendance) {
+      return { success: false, error: "You have not checked in today." }
+    }
 
-  if (attendance.work_status === 'LOGOUT_REQUESTED') {
-    return { success: false, error: "A logout request is already pending. Please wait for your department to approve." }
+    if (attendance.work_status === 'LOGGED_OUT') {
+      return { success: false, error: "You are already logged out." }
+    }
+
+    if (attendance.check_in_time) {
+      checkInTime = new Date(attendance.check_in_time).toISOString()
+    }
+    attendanceId = attendance.id
   }
 
   // Handle File Upload
-  let fileUrl = null
-  let fileType = null
+  let attachmentsList: any[] = []
 
   if (file && file.size > 0) {
     const fileExt = file.name.split('.').pop()
@@ -81,107 +100,121 @@ export async function requestLogoutAndSubmitWork(formData: FormData) {
       .from('daily-work-submissions')
       .getPublicUrl(fileName)
 
-    fileUrl = publicUrl
-    fileType = file.type || 'application/octet-stream'
+    attachmentsList.push({
+      name: file.name,
+      url: publicUrl,
+      type: file.type || 'application/octet-stream',
+      size: file.size
+    })
   }
 
-  // Calculate working hours immediately
   const logoutDate = new Date()
   const logoutTimeStr = logoutDate.toLocaleTimeString('en-US', { hour12: false })
-  
-  let workingHoursText = "Unknown"
-  if (attendance && attendance.check_in_time) {
-    const inDate = new Date(attendance.check_in_time)
-    const diffMs = logoutDate.getTime() - inDate.getTime()
-    const totalMins = Math.max(0, Math.floor(diffMs / 60000))
-    const h = Math.floor(totalMins / 60)
-    const m = totalMins % 60
-    workingHoursText = `${h}h ${m}m`
-  }
 
-  // Check for existing logout request today
-  const { data: existingRequest } = await supabase
-    .from('logout_requests')
-    .select('id')
-    .eq('employee_id', user.id)
-    .eq('attendance_date', today)
-    .maybeSingle()
-
-  let logoutRequestId: string
-
-  if (existingRequest) {
-    // Update existing to APPROVED directly using admin client to bypass RLS
-    const { error: updateError } = await supabaseAdmin
-      .from('logout_requests')
-      .update({ 
-        approval_status: 'APPROVED',
-        logout_request_time: logoutDate.toISOString(),
-        approval_time: logoutDate.toISOString(),
-        logout_time: logoutDate.toISOString(),
-        total_working_hours: workingHoursText
-      })
-      .eq('id', existingRequest.id)
-    
-    if (updateError) return { success: false, error: updateError.message }
-    logoutRequestId = existingRequest.id
-
-    // Delete old work submissions to replace them
-    await supabaseAdmin.from('work_submissions').delete().eq('logout_request_id', logoutRequestId)
-  } else {
-    // Insert new directly as APPROVED
-    const { data: newRequest, error: insertError } = await supabaseAdmin
-      .from('logout_requests')
-      .insert({
-        employee_id: user.id,
-        department_id: employee.department_id,
-        attendance_date: today,
-        approval_status: 'APPROVED',
-        logout_request_time: logoutDate.toISOString(),
-        approval_time: logoutDate.toISOString(),
-        logout_time: logoutDate.toISOString(),
-        total_working_hours: workingHoursText
-      })
-      .select()
-      .single()
-
-    if (insertError) return { success: false, error: insertError.message }
-    logoutRequestId = newRequest.id
-  }
-
-  // Create Work Submission
-  const { error: wsError } = await supabaseAdmin
-    .from('work_submissions')
+  // 1. Create a work session record on the fly for this checkout
+  const { data: activeSession, error: sessInsertErr } = await supabaseAdmin
+    .from('work_sessions')
     .insert({
-      logout_request_id: logoutRequestId,
-      employee_id: user.id,
-      department_id: employee.department_id,
-      work_comment: comment || null,
-      attachment_url: fileUrl,
-      attachment_type: fileType
+      user_id: user.id,
+      user_name: employee ? (employee.employee_name || 'Employee') : (departmentHead?.department_head_name || 'Department Head'),
+      user_role: employee ? 'EMPLOYEE' : 'DEPARTMENT',
+      department_id: employee ? employee.department_id : (departmentHead?.id || null),
+      department: employee ? ((employee.departments as any)?.department_name || 'Technology') : (departmentHead?.department_name || 'Technology'),
+      login_time: checkInTime,
+      logout_time: logoutDate.toISOString(),
+      report_submitted: true
     })
+    .select('session_id')
+    .single()
 
-  if (wsError) return { success: false, error: wsError.message }
-
-  // Immediately update employee's attendance status to LOGGED_OUT
-  const { error: attUpdateErr } = await supabaseAdmin
-    .from('attendance')
-    .update({
-      logout_time: logoutTimeStr,
-      working_hours: workingHoursText,
-      work_status: 'LOGGED_OUT'
-    })
-    .eq('id', attendance.id)
-
-  if (attUpdateErr) {
-    console.error("Failed to update attendance to LOGGED_OUT:", attUpdateErr)
+  if (sessInsertErr || !activeSession) {
+    console.error("Failed to insert work session:", sessInsertErr)
+    return { success: false, error: sessInsertErr?.message || "Failed to create work session." }
   }
 
-  // Send Notification to Department Head about the completed logout
-  await supabase.from('notifications').insert({
-    user_id: employee.department_id,
-    title: 'Employee Logged Out',
-    message: `${employee.employee_name || 'An employee'} has logged out for the day and submitted their work summary.`,
-    type: 'SYSTEM'
+  // 2. Create Logout Report
+  const { data: newReport, error: reportErr } = await supabaseAdmin
+    .from('logout_reports')
+    .insert({
+      session_id: activeSession.session_id,
+      user_id: user.id,
+      summary: summary,
+      completed_tasks: completedTasks,
+      pending_tasks: pendingTasks,
+      blockers: blockers,
+      notes: notes,
+      attachments: attachmentsList,
+      time_spent_notes: timeSpentNotes,
+      submitted_at: logoutDate.toISOString()
+    })
+    .select('report_id')
+    .single()
+
+  if (reportErr) return { success: false, error: reportErr.message }
+
+  // 3. Link report back to the work session
+  await supabaseAdmin
+    .from('work_sessions')
+    .update({
+      report_id: newReport.report_id
+    })
+    .eq('session_id', activeSession.session_id)
+
+  // 4. Update attendance (only if employee)
+  if (employee && attendanceId) {
+    const { error: attUpdateErr } = await supabaseAdmin
+      .from('attendance')
+      .update({
+        logout_time: logoutTimeStr,
+        work_status: 'LOGGED_OUT'
+      })
+      .eq('id', attendanceId)
+
+    if (attUpdateErr) {
+      console.error("Failed to update attendance to LOGGED_OUT:", attUpdateErr)
+    }
+  }
+
+  // 5. Send Notifications
+  const timeStr = logoutDate.toLocaleTimeString('en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+    timeZone: 'Asia/Kolkata'
+  })
+  const notificationMessage = employee 
+    ? `${employee.employee_name} (Employee) logged out at ${timeStr}`
+    : `${departmentHead?.department_head_name || 'Department Head'} (Department Head) logged out at ${timeStr}`
+
+  // Notify Department Head (only if employee)
+  if (employee) {
+    await supabaseAdmin.from('notifications').insert({
+      user_id: employee.department_id,
+      title: 'Employee Logged Out',
+      message: notificationMessage,
+      type: 'SYSTEM'
+    })
+  }
+
+  // Notify Admins
+  const { data: admins } = await supabaseAdmin.from('admins').select('id')
+  if (admins && admins.length > 0) {
+    const adminNotifications = admins.map(admin => ({
+      user_id: admin.id,
+      title: employee ? 'Employee Logged Out' : 'Department Head Logged Out',
+      message: notificationMessage,
+      type: 'SYSTEM'
+    }))
+    await supabaseAdmin.from('notifications').insert(adminNotifications)
+  }
+
+  // Add to Activity Feed
+  await supabaseAdmin.from('activity_feed').insert({
+    activity_type: 'LOGOUT',
+    activity_user: user.id,
+    activity_user_name: employee ? (employee.employee_name || 'Employee') : (departmentHead?.department_head_name || 'Department Head'),
+    activity_description: `Logged out at ${timeStr}`,
+    department_id: employee ? employee.department_id : (departmentHead?.id || null)
   })
 
   if (employee?.employee_code) {
@@ -189,129 +222,15 @@ export async function requestLogoutAndSubmitWork(formData: FormData) {
   }
   revalidatePath('/employee/dashboard')
   revalidatePath('/department/logouts')
+  revalidatePath('/admin/logouts')
   return { success: true }
 }
 
+// Deprecated approval functions (retained as stubs to prevent compilation errors if referenced externally)
 export async function approveLogout(requestId: string) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { success: false, error: "Unauthorized" }
-
-  const supabaseAdmin = createSupabaseClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
-
-  // Get request details
-  const { data: request } = await supabase
-    .from('logout_requests')
-    .select('*, employees(department_id)')
-    .eq('id', requestId)
-    .single()
-
-  if (!request) return { success: false, error: "Request not found" }
-
-  // Get attendance (IST-aware)
-  const attStart = new Date(`${request.attendance_date}T00:00:00+05:30`).toISOString()
-  const attEnd = new Date(`${request.attendance_date}T23:59:59+05:30`).toISOString()
-  const { data: attendance } = await supabase
-    .from('attendance')
-    .select('id, check_in_time')
-    .eq('employee_id', request.employee_id)
-    .gte('created_at', attStart)
-    .lte('created_at', attEnd)
-    .maybeSingle()
-
-  // Use the time the employee REQUESTED the logout, not the time it was approved!
-  const requestDate = new Date(request.created_at)
-  const approvalDate = new Date() // Time manager actually clicks approve
-  
-  const logoutTime = requestDate.toLocaleTimeString('en-US', { hour12: false })
-  
-  let workingHoursText = "Unknown"
-  if (attendance && attendance.check_in_time) {
-    const inDate = new Date(attendance.check_in_time)
-    const diffMs = requestDate.getTime() - inDate.getTime()
-    
-    // Ensure we don't get negative times if clocks are slightly out of sync
-    const totalMins = Math.max(0, Math.floor(diffMs / 60000))
-    
-    const h = Math.floor(totalMins / 60)
-    const m = totalMins % 60
-    workingHoursText = `${h}h ${m}m`
-  }
-
-  // Update request using Admin to bypass RLS
-  const { error } = await supabaseAdmin
-    .from('logout_requests')
-    .update({
-      approval_status: 'APPROVED',
-      approved_by_department: user.id,
-      approval_time: approvalDate.toISOString(),
-      logout_time: requestDate.toISOString(), // Real logout time
-      total_working_hours: workingHoursText
-    })
-    .eq('id', requestId)
-
-  if (error) return { success: false, error: error.message }
-
-  // Update attendance using Admin to bypass RLS
-  if (attendance) {
-    await supabaseAdmin
-      .from('attendance')
-      .update({
-        logout_time: logoutTime,
-        working_hours: workingHoursText,
-        work_status: 'LOGGED_OUT'
-      })
-      .eq('id', attendance.id)
-  }
-
-  revalidatePath('/department/logouts')
-  return { success: true }
+  return { success: false, error: "Logout approvals are deprecated in the Work Session Reporting System." }
 }
 
 export async function rejectLogout(requestId: string, reason: string) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { success: false, error: "Unauthorized" }
-
-  const supabaseAdmin = createSupabaseClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
-
-  // Get request details
-  const { data: request } = await supabase
-    .from('logout_requests')
-    .select('employee_id, attendance_date')
-    .eq('id', requestId)
-    .single()
-
-  const { error } = await supabaseAdmin
-    .from('logout_requests')
-    .update({
-      approval_status: 'REJECTED',
-      approved_by_department: user.id,
-      approval_time: new Date().toISOString(),
-      rejection_reason: reason
-    })
-    .eq('id', requestId)
-
-  if (error) return { success: false, error: error.message }
-
-  if (request) {
-    // Revert attendance to ACTIVE (IST-aware)
-    const revertStart = new Date(`${request.attendance_date}T00:00:00+05:30`).toISOString()
-    const revertEnd = new Date(`${request.attendance_date}T23:59:59+05:30`).toISOString()
-    await supabase
-      .from('attendance')
-      .update({ work_status: 'ACTIVE' })
-      .eq('employee_id', request.employee_id)
-      .gte('created_at', revertStart)
-      .lte('created_at', revertEnd)
-  }
-
-  revalidatePath('/department/logouts')
-  return { success: true }
+  return { success: false, error: "Logout approvals are deprecated in the Work Session Reporting System." }
 }
