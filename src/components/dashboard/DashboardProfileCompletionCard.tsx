@@ -156,8 +156,8 @@ export function DashboardProfileCompletionCard({ role, profile }: DashboardProfi
             href="/onboarding"
             className={`px-6 py-3.5 text-xs font-bold rounded-2xl shadow-lg transition-all duration-200 hover:-translate-y-0.5 active:scale-95 flex items-center justify-center gap-2 text-white ${
               !isUnlocked 
-                ? 'bg-gradient-to-tr from-amber-500 to-orange-500 hover:brightness-110 shadow-orange-500/15'
-                : 'bg-gradient-to-tr from-[#0066FF] to-[#00D4FF] hover:brightness-110 shadow-blue-500/15'
+                ? 'bg-linear-to-tr from-amber-500 to-orange-500 hover:brightness-110 shadow-orange-500/15'
+                : 'bg-linear-to-tr from-[#0066FF] to-[#00D4FF] hover:brightness-110 shadow-blue-500/15'
             }`}
           >
             {isFullyCompleted ? (
@@ -191,15 +191,15 @@ export function DashboardProfileCompletionCard({ role, profile }: DashboardProfi
             initial={{ width: 0 }}
             animate={{ width: `${progress}%` }}
             transition={{ duration: 0.8, ease: "easeOut" }}
-            className={`absolute top-0 left-0 h-full bg-gradient-to-r ${getProgressColor()} rounded-full`}
+            className={`absolute top-0 left-0 h-full bg-linear-to-r ${getProgressColor()} rounded-full`}
           />
           {/* Threshold Marker indicator line */}
           <div className="absolute top-0 bottom-0 left-[70%] w-0.5 bg-red-400/80 z-10" />
         </div>
-        <div className="flex justify-between text-[9px] font-bold text-slate-400 mt-2 px-1">
-          <span>0%</span>
-          <span className="text-red-500">70% Required Threshold</span>
-          <span>100% Completed</span>
+        <div className="relative w-full h-5 text-[9px] font-bold text-slate-400 mt-2 px-1">
+          <span className="absolute left-1">0%</span>
+          <span className="absolute left-[70%] -translate-x-1/2 text-red-500 whitespace-nowrap">70% Required Threshold</span>
+          <span className="absolute right-1">100% Completed</span>
         </div>
       </div>
 

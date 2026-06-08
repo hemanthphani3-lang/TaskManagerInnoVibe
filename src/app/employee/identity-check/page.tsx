@@ -33,7 +33,7 @@ export default async function EmployeeIdentityCheck() {
       <div className="relative w-full max-w-sm bg-white rounded-2xl shadow-xl shadow-[#0A1A2F]/5 p-8 border border-slate-100 text-center">
 
         {/* Top accent */}
-        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-[#0066FF] to-[#00D4FF] rounded-t-2xl" />
+        <div className="absolute top-0 left-0 w-full h-1 bg-linear-to-r from-[#0066FF] to-[#00D4FF] rounded-t-2xl" />
 
         <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-5">Identity Verification</p>
 
@@ -47,7 +47,7 @@ export default async function EmployeeIdentityCheck() {
               className="w-24 h-24 rounded-full object-cover ring-4 ring-slate-100 shadow-md"
             />
           ) : (
-            <div className="w-24 h-24 rounded-full bg-gradient-to-br from-blue-50 to-slate-100 flex items-center justify-center ring-4 ring-slate-100 shadow-md">
+            <div className="w-24 h-24 rounded-full bg-linear-to-br from-blue-50 to-slate-100 flex items-center justify-center ring-4 ring-slate-100 shadow-md">
               <UserCircle2 className="w-12 h-12 text-slate-300" />
             </div>
           )}

@@ -444,7 +444,7 @@ export default function OnboardingPage() {
       {/* Top Header Navigation */}
       <header className="sticky top-0 z-40 bg-white/80 dark:bg-slate-950/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 px-4 sm:px-6 py-3.5 sm:py-4 flex justify-between items-center w-full text-slate-900 dark:text-white">
         <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-          <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-tr from-[#0066FF] to-[#00D4FF] flex items-center justify-center font-bold text-sm sm:text-lg text-white shadow-lg shadow-[#0066FF]/35 shrink-0">
+          <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-linear-to-tr from-[#0066FF] to-[#00D4FF] flex items-center justify-center font-bold text-sm sm:text-lg text-white shadow-lg shadow-[#0066FF]/35 shrink-0">
             IV
           </div>
           <div className="shrink-0">
@@ -494,7 +494,7 @@ export default function OnboardingPage() {
             className="px-2.5 sm:px-4 py-2 text-xs font-semibold rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 hover:dark:bg-slate-700 active:scale-95 transition text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 flex items-center gap-1.5 shrink-0"
           >
             {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
-            <span className="hidden sm:inline">Save Draft</span>
+            <span className="max-sm:hidden">Save Draft</span>
             <span className="sm:hidden">Save</span>
           </button>
           
@@ -504,7 +504,7 @@ export default function OnboardingPage() {
             className="px-2.5 sm:px-3.5 py-2 text-xs font-semibold rounded-lg bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400 hover:bg-red-100 hover:dark:bg-red-950/60 transition border border-red-200 dark:border-red-900/40 flex items-center gap-1.5 shrink-0"
           >
             <LogOut className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Logout</span>
+            <span className="max-sm:hidden">Logout</span>
           </button>
         </div>
       </header>
@@ -550,16 +550,18 @@ export default function OnboardingPage() {
           {/* Animated Progress Bar */}
           <div className="relative w-full h-3 bg-slate-100 dark:bg-slate-950 rounded-full overflow-hidden border border-slate-200 dark:border-slate-800">
             <div 
-              className={`absolute top-0 left-0 h-full bg-gradient-to-r ${getProgressColor()} transition-all duration-500 ease-out`}
+              className={`absolute top-0 left-0 h-full bg-linear-to-r ${getProgressColor()} transition-all duration-500 ease-out`}
               style={{ width: `${progress}%` }}
             />
             {/* Threshold target line */}
             <div className="absolute top-0 bottom-0 left-[70%] w-0.5 bg-red-400/85 z-10" />
           </div>
-          <div className="flex justify-between text-[10px] text-slate-500 mt-2 px-1">
-            <span>0% Starts</span>
-            <span className="text-red-500 dark:text-red-400 font-bold">70% Required Threshold</span>
-            <span>100% Full Completion</span>
+          <div className="relative w-full h-5 text-[10px] text-slate-500 mt-2 px-1">
+            <span className="absolute left-1">0% Starts</span>
+            <span className="absolute left-[70%] -translate-x-1/2 text-red-500 dark:text-red-400 font-bold whitespace-nowrap">
+              70% Required Threshold
+            </span>
+            <span className="absolute right-1">100% Full Completion</span>
           </div>
         </section>
 
@@ -581,14 +583,14 @@ export default function OnboardingPage() {
                   }}
                   className={`flex items-center gap-2 text-xs font-semibold px-4 py-2.5 rounded-xl border transition-all ${
                     step === s.num
-                      ? 'bg-gradient-to-tr from-[#0066FF] to-[#00D4FF] border-[#0066FF] text-white shadow-lg shadow-[#0066FF]/20 scale-105'
+                      ? 'bg-linear-to-tr from-[#0066FF] to-[#00D4FF] border-[#0066FF] text-white shadow-lg shadow-[#0066FF]/20 scale-105'
                       : step > s.num
                       ? 'bg-emerald-50 dark:bg-slate-900 border-emerald-500/30 text-emerald-600 dark:text-emerald-400'
                       : 'bg-white dark:bg-slate-900/40 border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-900'
                   }`}
                 >
                   <s.icon className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">{s.label}</span>
+                  <span className="max-sm:hidden">{s.label}</span>
                 </button>
                 {idx < 3 && <div className={`flex-1 h-0.5 mx-2 ${step > s.num ? 'bg-emerald-500/20' : 'bg-slate-200 dark:bg-slate-800'}`} />}
               </div>
@@ -1501,7 +1503,7 @@ export default function OnboardingPage() {
               <button
                 type="button"
                 onClick={nextStep}
-                className="px-5 py-3 text-xs font-bold rounded-xl bg-gradient-to-tr from-[#0066FF] to-[#00D4FF] hover:brightness-110 active:scale-95 transition text-white shadow-lg shadow-[#0066FF]/20 flex items-center gap-2"
+                className="px-5 py-3 text-xs font-bold rounded-xl bg-linear-to-tr from-[#0066FF] to-[#00D4FF] hover:brightness-110 active:scale-95 transition text-white shadow-lg shadow-[#0066FF]/20 flex items-center gap-2"
               >
                 Next Step <ArrowRight className="w-4 h-4" />
               </button>
@@ -1509,7 +1511,7 @@ export default function OnboardingPage() {
               <button
                 type="submit"
                 disabled={progress < 70 || saving}
-                className="px-6 py-3.5 text-xs font-extrabold rounded-xl bg-gradient-to-tr from-emerald-500 to-cyan-500 hover:brightness-110 active:scale-95 transition text-white shadow-lg shadow-emerald-500/25 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-6 py-3.5 text-xs font-extrabold rounded-xl bg-linear-to-tr from-emerald-500 to-cyan-500 hover:brightness-110 active:scale-95 transition text-white shadow-lg shadow-emerald-500/25 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {saving ? (
                   <>
