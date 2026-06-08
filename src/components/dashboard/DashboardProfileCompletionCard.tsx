@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client"
 
 import { useEffect, useState } from "react"
@@ -34,7 +35,7 @@ export function DashboardProfileCompletionCard({ role, profile }: DashboardProfi
   const isFullyCompleted = progress === 100
   const isUnlocked = progress >= 70
 
-  // 14 Mandatory Fields mapping
+  // 11 Mandatory Fields mapping
   const mandatoryFieldsKeys = [
     { key: 'name', label: 'Full Name' },
     { key: 'email', label: 'Email Address' },
@@ -45,17 +46,8 @@ export function DashboardProfileCompletionCard({ role, profile }: DashboardProfi
     { key: 'city', label: 'City' },
     { key: 'state', label: 'State' },
     { key: 'pin_code', label: 'Pincode' },
-    { key: 'aadhaar_number', label: 'Aadhaar Number' },
-    { key: 'pan_number', label: 'PAN Card Number' },
     { key: 'emergency_contact', label: 'Emergency Contact' },
-    // Role specific
-    ...(role === 'DEPARTMENT' ? [
-      { key: 'department_managed', label: 'Department Managed' },
-      { key: 'managerial_level', label: 'Managerial Level' }
-    ] : [
-      { key: 'designation', label: 'Designation' },
-      { key: 'reporting_manager', label: 'Reporting Manager' }
-    ])
+    { key: 'profile_photo', label: 'Profile Photo' }
   ]
 
   // Calculate missing mandatory fields

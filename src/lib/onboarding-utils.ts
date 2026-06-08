@@ -1,11 +1,12 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // Onboarding Helper Functions for Client and Server
 
 export function calculateCompletionPercentage(role: 'ADMIN' | 'DEPARTMENT' | 'EMPLOYEE', data: Record<string, any>) {
   let score = 0
   const completedMandatoryFields: string[] = []
 
-  // 14 Common Mandatory Fields (each contributes 5% to the score)
-  const commonMandatory = [
+  // 11 Mandatory Fields (together contribute 70% to the total score)
+  const mandatoryFields = [
     { field: 'name', value: role === 'EMPLOYEE' ? data.employee_name : data.full_name },
     { field: 'email', value: role === 'EMPLOYEE' ? data.employee_email : data.email },
     { field: 'phone_number', value: data.phone_number },
@@ -15,72 +16,58 @@ export function calculateCompletionPercentage(role: 'ADMIN' | 'DEPARTMENT' | 'EM
     { field: 'city', value: data.city },
     { field: 'state', value: data.state },
     { field: 'pin_code', value: data.pin_code },
-    { field: 'aadhaar_number', value: data.aadhaar_number },
-    { field: 'pan_number', value: data.pan_number },
-    { field: 'father_name', value: data.father_name },
-    { field: 'mother_name', value: data.mother_name },
     { 
       field: 'emergency_contact', 
       value: data.emergency_contact?.name && data.emergency_contact?.phone ? 'filled' : null 
-    }
+    },
+    { field: 'profile_photo', value: data.profile_photo }
   ]
 
-  commonMandatory.forEach(item => {
+  let completedMandatoryCount = 0
+  mandatoryFields.forEach(item => {
     if (item.value && String(item.value).trim() !== '') {
-      score += 5
+      completedMandatoryCount++
       completedMandatoryFields.push(item.field)
     }
   })
 
-  // 2 Role-specific Mandatory Fields (each contributes 5% to the score)
-  let roleSpecific: { field: string; value: any }[] = []
-  if (role === 'ADMIN') {
-    roleSpecific = [
-      { field: 'organization_role', value: data.organization_role },
-      { field: 'office_location', value: data.office_location }
-    ]
-  } else if (role === 'DEPARTMENT') {
-    roleSpecific = [
-      { field: 'department_managed', value: data.department_managed },
-      { field: 'managerial_level', value: data.managerial_level }
-    ]
-  } else if (role === 'EMPLOYEE') {
-    roleSpecific = [
-      { field: 'designation', value: data.designation },
-      { field: 'reporting_manager', value: data.reporting_manager }
-    ]
+  const mandatoryScore = (completedMandatoryCount / 11) * 70
+
+  const hasDocType = (type: string) => {
+    return Array.isArray(data.uploaded_documents) && data.uploaded_documents.some((d: any) => d.type === type)
   }
 
-  roleSpecific.forEach(item => {
-    if (item.value && String(item.value).trim() !== '') {
-      score += 5
-      completedMandatoryFields.push(item.field)
-    }
-  })
-
-  // Mandatory fields completed score sum cap is 70% (14 fields * 5%)
-
-  // 6 Optional Fields (each contributes 5% to the score, max 30%)
+  // 10 Optional Fields (each contributes 3%, max 30%)
   const optionalFields = [
+    { field: 'pan', value: data.pan_number || hasDocType('pan') },
+    { field: 'resume', value: data.resume || hasDocType('resume') },
+    { field: 'linkedin', value: data.linkedin },
+    { field: 'certifications', value: data.certifications || hasDocType('certificate') },
+    { field: 'skills', value: data.skills },
     { field: 'marital_status', value: data.marital_status },
     { field: 'blood_group', value: data.blood_group },
-    { field: 'languages_known', value: data.languages_known },
-    { field: 'linkedin', value: data.linkedin },
-    { field: 'experience_or_education', value: data.experience || data.education },
+    { field: 'alternate_phone', value: data.alternate_phone },
+    { field: 'biography', value: data.biography },
     { 
-      field: 'uploaded_documents', 
-      value: (Array.isArray(data.uploaded_documents) && data.uploaded_documents.length > 0) || data.resume ? 'filled' : null 
+      field: 'additional_documents', 
+      value: data.aadhaar_number || hasDocType('aadhaar') || (Array.isArray(data.uploaded_documents) && data.uploaded_documents.some((d: any) => !['pan', 'resume', 'certificate'].includes(d.type)))
     }
   ]
 
+  let completedOptionalCount = 0
   optionalFields.forEach(item => {
-    if (item.value && String(item.value).trim() !== '') {
-      score += 5
+    if (item.value && String(item.value).trim() !== '' && String(item.value) !== 'false') {
+      completedOptionalCount++
     }
   })
+
+  const optionalScore = completedOptionalCount * 3
+
+  score = Math.round(mandatoryScore + optionalScore)
 
   return {
     score: Math.min(100, score),
     completedMandatoryFields
   }
 }
+

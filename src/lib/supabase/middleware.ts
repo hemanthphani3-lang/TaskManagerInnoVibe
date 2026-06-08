@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
@@ -59,8 +60,8 @@ export async function updateSession(request: NextRequest) {
           { data: employee }
         ] = await Promise.all([
           supabase.from('admins').select('id, onboarding_completed').eq('id', user.id).maybeSingle(),
-          supabase.from('departments').select('id, onboarding_completed').eq('id', user.id).maybeSingle(),
-          supabase.from('employees').select('id, onboarding_completed').eq('id', user.id).maybeSingle()
+          supabase.from('departments').select('id, onboarding_completed, profile_completion_percentage').eq('id', user.id).maybeSingle(),
+          supabase.from('employees').select('id, onboarding_completed, profile_completion_percentage').eq('id', user.id).maybeSingle()
         ])
 
         if (admin) {
@@ -68,10 +69,10 @@ export async function updateSession(request: NextRequest) {
           onboardingCompleted = true // Admins are always fully onboarded/exempt
         } else if (dept) {
           role = 'DEPARTMENT'
-          onboardingCompleted = !!dept.onboarding_completed
+          onboardingCompleted = !!dept.onboarding_completed || (typeof dept.profile_completion_percentage === 'number' && dept.profile_completion_percentage >= 70)
         } else if (employee) {
           role = 'EMPLOYEE'
-          onboardingCompleted = !!employee.onboarding_completed
+          onboardingCompleted = !!employee.onboarding_completed || (typeof employee.profile_completion_percentage === 'number' && employee.profile_completion_percentage >= 70)
         }
       } catch (e) {
         console.error('[Middleware] Error fetching role/onboarding:', e)

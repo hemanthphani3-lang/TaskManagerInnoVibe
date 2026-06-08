@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use server"
 
 import { createClient } from "@/lib/supabase/server"
@@ -63,18 +64,20 @@ export async function saveOnboardingProfile({ role, formData, isSubmit = false }
     return { success: false, error: `Security check failed: You are not registered as ${role}.` }
   }
 
-  // Validate critical formats if they are provided
-  if (formData.phone_number && !PHONE_REGEX.test(formData.phone_number)) {
-    return { success: false, error: "Phone number must be exactly 10 digits." }
-  }
-  if (formData.aadhaar_number && !AADHAAR_REGEX.test(formData.aadhaar_number)) {
-    return { success: false, error: "Aadhaar number must be exactly 12 digits." }
-  }
-  if (formData.pan_number && !PAN_REGEX.test(formData.pan_number)) {
-    return { success: false, error: "PAN number must be in standard format (e.g. ABCDE1234F)." }
-  }
-  if (formData.emergency_contact?.phone && !PHONE_REGEX.test(formData.emergency_contact.phone)) {
-    return { success: false, error: "Emergency contact phone must be exactly 10 digits." }
+  // Validate critical formats ONLY on final submission
+  if (isSubmit) {
+    if (formData.phone_number && !PHONE_REGEX.test(formData.phone_number)) {
+      return { success: false, error: "Phone number must be exactly 10 digits." }
+    }
+    if (formData.aadhaar_number && !AADHAAR_REGEX.test(formData.aadhaar_number)) {
+      return { success: false, error: "Aadhaar number must be exactly 12 digits." }
+    }
+    if (formData.pan_number && !PAN_REGEX.test(formData.pan_number)) {
+      return { success: false, error: "PAN number must be in standard format (e.g. ABCDE1234F)." }
+    }
+    if (formData.emergency_contact?.phone && !PHONE_REGEX.test(formData.emergency_contact.phone)) {
+      return { success: false, error: "Emergency contact phone must be exactly 10 digits." }
+    }
   }
 
   // Calculate completion percentage
@@ -84,15 +87,13 @@ export async function saveOnboardingProfile({ role, formData, isSubmit = false }
     ...formData,
     profile_completion_percentage: percentageData.score,
     mandatory_fields_completed: percentageData.completedMandatoryFields,
+    completed_fields: percentageData.completedMandatoryFields,
+    onboarding_draft: formData,
+    last_saved_at: new Date().toISOString()
   }
 
-  if (isSubmit) {
-    if (percentageData.score < 70) {
-      return { 
-        success: false, 
-        error: `Cannot complete onboarding. Current progress is ${percentageData.score}%, but at least 70% is required.` 
-      }
-    }
+  // Onboarding is completed only when profile completion percentage is 100%
+  if (percentageData.score === 100) {
     updateData.onboarding_completed = true
     updateData.onboarding_completed_at = new Date().toISOString()
   }
@@ -107,7 +108,7 @@ export async function saveOnboardingProfile({ role, formData, isSubmit = false }
     'access_authority_level', 'office_location', 'administrative_responsibility',
     'marital_status', 'blood_group', 'languages_known', 'certifications',
     'experience', 'education', 'linkedin', 'resume', 'biography', 'alternate_phone',
-    'bank_details'
+    'bank_details', 'onboarding_draft', 'last_saved_at', 'completed_fields'
   ]
 
   const departmentAllowedKeys = [
@@ -120,7 +121,7 @@ export async function saveOnboardingProfile({ role, formData, isSubmit = false }
     'department_managed', 'team_size', 'leadership_role', 'managerial_level',
     'reporting_structure', 'marital_status', 'blood_group', 'languages_known',
     'certifications', 'experience', 'education', 'linkedin', 'resume', 'biography',
-    'alternate_phone', 'bank_details'
+    'alternate_phone', 'bank_details', 'onboarding_draft', 'last_saved_at', 'completed_fields'
   ]
 
   const employeeAllowedKeys = [
@@ -132,7 +133,7 @@ export async function saveOnboardingProfile({ role, formData, isSubmit = false }
     'city', 'state', 'pin_code', 'emergency_contact', 'reporting_manager', 'skills',
     'employment_type', 'work_mode', 'marital_status', 'blood_group', 'languages_known',
     'certifications', 'experience', 'education', 'linkedin', 'resume', 'biography',
-    'alternate_phone', 'bank_details'
+    'alternate_phone', 'bank_details', 'onboarding_draft', 'last_saved_at', 'completed_fields'
   ]
 
   let allowedKeys: string[] = []
