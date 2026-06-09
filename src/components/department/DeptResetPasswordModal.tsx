@@ -91,7 +91,7 @@ export function DeptResetPasswordModal({ userId, userName, onClose }: DeptResetP
                 <button 
                   type="submit"
                   disabled={loading}
-                  className="flex items-center gap-1.5 px-5 py-2.5 bg-indigo-650 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-colors shadow-sm shadow-indigo-600/10 disabled:opacity-50"
+                  className="flex items-center gap-1.5 px-5 py-2.5 bg-[#0066FF] hover:bg-[#0052CC] text-white rounded-xl text-xs font-bold transition-colors shadow-sm shadow-blue-500/10 disabled:opacity-50"
                 >
                   {loading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                   Change Password
