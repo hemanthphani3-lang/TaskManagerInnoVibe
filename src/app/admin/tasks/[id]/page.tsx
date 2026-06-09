@@ -146,7 +146,7 @@ export default async function AdminTaskDetailsPage({ params }: { params: Promise
               <PriorityBadge priority={task.priority_level} />
               <div className="flex items-center gap-1.5 text-sm font-medium text-slate-600 bg-white px-3 py-1.5 rounded-full border border-slate-200">
                 <Calendar className="w-4 h-4 text-slate-400" />
-                Due: {new Date(task.due_date).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })}
+                Due: {new Date(task.deadline ?? task.due_date).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })}
               </div>
             </div>
           </div>

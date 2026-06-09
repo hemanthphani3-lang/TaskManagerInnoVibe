@@ -49,10 +49,11 @@ export default async function EmployeeTasksPage() {
   const deptName = (emp?.departments as any)?.department_name || ""
 
   // Map tasks to override status with individual collaborator progress for employee view
-  const mappedTasks = tasks?.map(t => {
+  const mappedTasks = (tasks ?? []).filter(Boolean).map(t => {
     const userAssignee = (t.task_assignees as any[])?.find(a => a.user_id === user.id)
     return {
       ...t,
+      description: t.description || t.task_description || '',
       status: userAssignee?.status || t.status || t.task_status || 'PENDING',
       task_status: userAssignee?.status || t.task_status || t.status || 'PENDING',
       assignee_ids: (t.task_assignees as any[])?.map(a => a.user_id) || []

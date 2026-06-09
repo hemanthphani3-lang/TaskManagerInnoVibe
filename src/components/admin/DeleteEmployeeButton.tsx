@@ -1,6 +1,7 @@
 "use client"
 
-import React, { useState } from "react"
+import React, { useState } from "react";
+import { useRouter } from "next/navigation";
 import { deleteEmployeeAccount } from "@/app/actions/auth"
 import { toast } from "sonner"
 import { Trash2, Loader2 } from "lucide-react"
@@ -11,6 +12,7 @@ interface DeleteEmployeeButtonProps {
 }
 
 export function DeleteEmployeeButton({ userId, userName }: DeleteEmployeeButtonProps) {
+  const router = useRouter();
   const [loading, setLoading] = useState(false)
 
   const handleDelete = async () => {
@@ -26,7 +28,7 @@ export function DeleteEmployeeButton({ userId, userName }: DeleteEmployeeButtonP
       if (res.success) {
         toast.success(`Employee "${userName}" and their account have been successfully deleted from the organization.`)
         // Force refresh to update the admin workforce listing
-        window.location.reload()
+        router.refresh();
       } else {
         toast.error(res.error || "Failed to delete employee account.")
       }

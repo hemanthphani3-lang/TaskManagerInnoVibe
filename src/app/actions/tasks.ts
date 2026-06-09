@@ -12,6 +12,30 @@ function getSupabaseAdmin() {
   )
 }
 
+async function broadcastTaskCounts() {
+  try {
+    const adminSupabase = getSupabaseAdmin();
+    const channel = adminSupabase.channel('public:tasks_counts');
+    await new Promise<void>((resolve) => {
+      channel.subscribe(async (status) => {
+        if (status === 'SUBSCRIBED') {
+          await channel.send({
+            type: 'broadcast',
+            event: 'counts_update',
+            payload: {}
+          });
+          resolve();
+        } else {
+          // Resolve anyway on error status to prevent hanging
+          resolve();
+        }
+      });
+    });
+  } catch (err) {
+    console.error('Failed to broadcast task counts:', err);
+  }
+}
+
 // ==========================================
 // 1. GET ALL DIRECTORY USERS CROSS-ROLE
 // ==========================================
@@ -76,6 +100,7 @@ export async function getCrossRoleUsers() {
 
     return { success: true, users: allUsers }
   } catch (err: any) {
+    console.error("CRITICAL ERROR inside getCrossRoleUsers action:", err);
     return { success: false, error: err.message || String(err) }
   }
 }
@@ -161,8 +186,10 @@ export async function createCrossRoleTask(data: {
   assigned_to_role: string
   priority: string
   due_date: string
+  deadline?: string
   category: string
-  attachments: { name: string; url: string; type: string }[]
+  attachments: any[]
+  attachment_urls?: any[]
 }) {
   try {
     const supabase = await createClient()
@@ -244,7 +271,10 @@ export async function createCrossRoleTask(data: {
         priority: data.priority || 'MEDIUM',
         status: 'PENDING',
         due_date: data.due_date,
+        // New fields
+        deadline: data.deadline,
         attachments: data.attachments || [],
+        attachment_urls: data.attachment_urls || [],
         comments: [],
 
         // Old columns for backward compatibility / database constraints
@@ -304,6 +334,9 @@ export async function createCrossRoleTask(data: {
     revalidatePath('/admin/tasks')
     revalidatePath('/department/tasks')
     revalidatePath('/employee/tasks')
+
+    // Broadcast realtime updates for dashboard task counts
+    await broadcastTaskCounts()
 
     return { success: true, taskId: task.id }
   } catch (err: any) {
@@ -439,6 +472,9 @@ export async function respondToTask(
     revalidatePath('/admin/tasks')
     revalidatePath('/department/tasks')
     revalidatePath('/employee/tasks')
+
+    // Broadcast realtime updates for dashboard task counts
+    await broadcastTaskCounts()
 
     return { success: true }
   } catch (err: any) {
@@ -590,6 +626,9 @@ export async function updateCrossRoleTaskStatus(taskId: string, nextStatus: stri
     revalidatePath('/department/tasks')
     revalidatePath('/employee/tasks')
 
+    // Broadcast realtime updates for dashboard task counts
+    await broadcastTaskCounts()
+
     return { success: true }
   } catch (err: any) {
     console.error("Update task status error:", err)
@@ -611,7 +650,7 @@ export async function recalculateAndUpdateTaskOverallStatus(taskId: string) {
 
     const { data: task } = await getSupabaseAdmin()
       .from('tasks')
-      .select('due_date, status')
+      .select('due_date, deadline, status')
       .eq('id', taskId)
       .single()
 
@@ -620,7 +659,7 @@ export async function recalculateAndUpdateTaskOverallStatus(taskId: string) {
     let overallStatus = 'PENDING'
     
     const todayStr = new Date().toISOString().split('T')[0]
-    const isDeadlinePassed = task.due_date && task.due_date < todayStr
+    const isDeadlinePassed = (task.deadline || task.due_date) && (task.deadline || task.due_date) < todayStr
 
     const allCompleted = assignees.every(a => a.status === 'COMPLETED')
     const atLeastOneStarted = assignees.some(a => ['ACCEPTED', 'IN_PROGRESS', 'COMPLETED', 'BLOCKED'].includes(a.status))
@@ -648,6 +687,9 @@ export async function recalculateAndUpdateTaskOverallStatus(taskId: string) {
       .from('tasks')
       .update(updates)
       .eq('id', taskId)
+
+    // Broadcast counts update
+    await broadcastTaskCounts()
   } catch (err) {
     console.error("Error recalculating overall status:", err)
   }
@@ -685,6 +727,9 @@ export async function createSubtask(taskId: string, title: string, assignedTo?: 
     revalidatePath('/admin/tasks')
     revalidatePath('/department/tasks')
     revalidatePath('/employee/tasks')
+
+    // Broadcast realtime updates for dashboard task counts
+    await broadcastTaskCounts()
 
     return { success: true, subtask }
   } catch (err: any) {
@@ -725,6 +770,9 @@ export async function toggleSubtask(subtaskId: string, isCompleted: boolean) {
     revalidatePath('/department/tasks')
     revalidatePath('/employee/tasks')
 
+    // Broadcast realtime updates for dashboard task counts
+    await broadcastTaskCounts()
+
     return { success: true }
   } catch (err: any) {
     console.error("Toggle subtask error:", err)
@@ -763,6 +811,9 @@ export async function deleteSubtask(subtaskId: string) {
     revalidatePath('/admin/tasks')
     revalidatePath('/department/tasks')
     revalidatePath('/employee/tasks')
+
+    // Broadcast realtime updates for dashboard task counts
+    await broadcastTaskCounts()
 
     return { success: true }
   } catch (err: any) {
@@ -852,6 +903,9 @@ export async function addCrossRoleComment(
     revalidatePath('/department/tasks')
     revalidatePath('/employee/tasks')
 
+    // Broadcast realtime updates for dashboard task counts
+    await broadcastTaskCounts()
+
     return { success: true }
   } catch (err: any) {
     console.error("Add comment error:", err)
@@ -897,6 +951,9 @@ export async function deleteCrossRoleTask(taskId: string) {
     revalidatePath('/admin/tasks')
     revalidatePath('/department/tasks')
     revalidatePath('/employee/tasks')
+
+    // Broadcast realtime updates for dashboard task counts
+    await broadcastTaskCounts()
 
     return { success: true }
   } catch (err: any) {

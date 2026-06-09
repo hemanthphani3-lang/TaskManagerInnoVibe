@@ -1,9 +1,10 @@
 "use client"
 
-import React, { useState } from "react"
-import { deleteDepartmentAccount } from "@/app/actions/auth"
-import { toast } from "sonner"
-import { Trash2, Loader2 } from "lucide-react"
+import React, { useState } from "react";
+import { useRouter } from "next/navigation";
+import { deleteDepartmentAccount } from "@/app/actions/auth";
+import { toast } from "sonner";
+import { Trash2, Loader2 } from "lucide-react";
 
 interface DeleteDepartmentButtonProps {
   departmentId: string
@@ -11,6 +12,7 @@ interface DeleteDepartmentButtonProps {
 }
 
 export function DeleteDepartmentButton({ departmentId, departmentName }: DeleteDepartmentButtonProps) {
+  const router = useRouter();
   const [loading, setLoading] = useState(false)
 
   const handleDelete = async () => {
@@ -25,8 +27,7 @@ export function DeleteDepartmentButton({ departmentId, departmentName }: DeleteD
       const res = await deleteDepartmentAccount(departmentId)
       if (res.success) {
         toast.success(`Department "${departmentName}" has been successfully deleted from the organization.`)
-        // Force refresh
-        window.location.reload()
+router.refresh();
       } else {
         toast.error(res.error || "Failed to delete department account.")
       }

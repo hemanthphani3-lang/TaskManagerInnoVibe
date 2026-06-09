@@ -1,6 +1,8 @@
 import { createClient } from "@/lib/supabase/server"
 import { DepartmentSessionManager } from "@/components/department/DepartmentSessionManager"
 
+import { TaskCountsProvider } from "@/context/TaskCountsContext"
+
 export default async function DepartmentLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient()
   let user = null
@@ -28,6 +30,7 @@ export default async function DepartmentLayout({ children }: { children: React.R
     { label: "Employees", href: "/department/employees", iconName: "employees" },
     { label: "Tasks", href: "/department/tasks", iconName: "tasks" },
     { label: "Leave Approvals", href: "/department/leave-approvals", iconName: "calendar", badgeCount: pendingLeavesCount },
+    { label: "Request Leave", href: "/department/leave", iconName: "calendar" },
     { label: "Logout reports", href: "/department/logouts", iconName: "identity" },
     { label: "Announcements", href: "/department/announcements", iconName: "megaphone" },
     { label: "Reports", href: "/department/reports", iconName: "file" },
@@ -36,8 +39,10 @@ export default async function DepartmentLayout({ children }: { children: React.R
   ]
 
   return (
-    <DepartmentSessionManager links={departmentLinks}>
-      {children}
-    </DepartmentSessionManager>
+    <TaskCountsProvider>
+      <DepartmentSessionManager links={departmentLinks}>
+        {children}
+      </DepartmentSessionManager>
+    </TaskCountsProvider>
   )
 }

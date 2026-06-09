@@ -11,6 +11,7 @@ import { RealtimeLeaderboard } from "@/components/productivity/RealtimeLeaderboa
 import { ProductivityBadge } from "@/components/productivity/ProductivityBadge"
 import { DashboardProfileCompletionCard } from "@/components/dashboard/DashboardProfileCompletionCard"
 import { calculateCompletionPercentage } from "@/lib/onboarding-utils"
+import { RealtimeDepartmentTaskCards } from "@/components/dashboard/RealtimeDepartmentTaskCards"
 
 export default async function DepartmentDashboard() {
   // ── Auth ──────────────────────────────────────────────────────────────────
@@ -93,11 +94,12 @@ export default async function DepartmentDashboard() {
     supabaseAdmin.from('activity_feed').select('*').eq('department_id', user.id).order('created_at', { ascending: false }).limit(10),
     supabaseAdmin.from('productivity_scores').select('employee_id, productivity_score').eq('department_id', user.id).order('productivity_score', { ascending: false }),
     supabaseAdmin.from('rankings').select('employee_id, employee_rank, score').eq('department_id', user.id),
-    supabaseAdmin.from('work_sessions').select('logout_time, report_submitted, status').eq('department_id', user.id).gte('login_time', startUTC).lte('login_time', endUTC)
+    supabaseAdmin.from('work_sessions').select('session_id, user_id, login_time, logout_time, status, duration').eq('department_id', user.id).gte('login_time', startUTC).lte('login_time', endUTC)
   ])
 
   // Calculate today's team sessions statistics
-  const teamOnline = (todayTeamSessions || []).filter(s => s.status === 'ACTIVE').length
+  const activeTeamSessionsList = (todayTeamSessions || []).filter(s => s.status === 'ACTIVE' && s.logout_time === null)
+  const teamOnline = new Set(activeTeamSessionsList.map(s => s.user_id)).size
   const teamReportsSubmitted = (todayTeamSessions || []).filter(s => s.status === 'COMPLETED').length
   // Team session hours calculation removed
 
@@ -111,7 +113,7 @@ export default async function DepartmentDashboard() {
   const lateCount = todayAttendance.filter(a => a.attendance_status === 'LATE').length || 0
   const totalCheckedIn = presentCount + lateCount
   const absentCount = totalEmployees - totalCheckedIn
-  const activeCount = todayAttendance.filter(a => a.work_status === 'ACTIVE').length || 0
+  const activeCount = teamOnline
   const attendancePercentage = totalEmployees > 0 ? Math.round((totalCheckedIn / totalEmployees) * 100) : 0
 
   const totalTasks = tasks?.length || 0
@@ -186,9 +188,7 @@ export default async function DepartmentDashboard() {
         <AnalyticsCard title="Absent Today" value={absentCount} icon={XCircle} colorClass="text-red-600" bgClass="bg-red-50" />
         <AnalyticsCard title="Active Now" value={activeCount} icon={Activity} colorClass="text-blue-600" bgClass="bg-blue-50" />
         <AnalyticsCard title="Logged Out Today" value={logoutReportsToday || 0} icon={Target} colorClass="text-amber-600" bgClass="bg-amber-50" />
-        <AnalyticsCard title="Total Tasks" value={totalTasks} icon={Target} colorClass="text-slate-600" bgClass="bg-slate-100" />
-        <AnalyticsCard title="Completed Tasks" value={completedTasks} icon={CheckCircle2} colorClass="text-emerald-600" bgClass="bg-emerald-50" delay={1} />
-        <AnalyticsCard title="Delayed Tasks" value={delayedTasks} icon={Clock} colorClass="text-amber-600" bgClass="bg-amber-50" delay={2} />
+        <RealtimeDepartmentTaskCards />
         <AnalyticsCard title="Pending Leaves" value={pendingLeaves || 0} icon={Clock} colorClass="text-purple-600" bgClass="bg-purple-50" />
         <AnalyticsCard title="Dept Avg Score" value={`${avgScore.toFixed(0)}`} icon={Activity} colorClass="text-teal-600" bgClass="bg-teal-50" />
       </div>
@@ -290,6 +290,13 @@ export default async function DepartmentDashboard() {
               {todayAttendance && todayAttendance.length > 0 ? (
                 todayAttendance.map((record) => {
                   const emp = employees?.find(e => e.id === record.employee_id)
+                  
+                  const empSessions = (todayTeamSessions || [])
+                    .filter(s => s.user_id === record.employee_id)
+                    .sort((a, b) => new Date(a.login_time).getTime() - new Date(b.login_time).getTime())
+
+                  const isEmpActive = empSessions.some(s => s.status === 'ACTIVE' && s.logout_time === null)
+
                   return (
                     <div key={record.employee_id} className="flex items-center justify-between p-4 rounded-xl bg-slate-50 border border-slate-100">
                       <div className="flex items-center gap-4">
@@ -299,6 +306,31 @@ export default async function DepartmentDashboard() {
                         <div>
                           <p className="font-semibold text-slate-900">{emp?.employee_name || 'Unknown'}</p>
                           <p className="text-xs text-slate-500">{emp?.designation || 'Employee'}</p>
+                          {empSessions.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-1.5 max-w-xs sm:max-w-md">
+                              {empSessions.map((session, idx) => {
+                                const inTime = new Date(session.login_time).toLocaleTimeString('en-US', {
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                  hour12: true,
+                                  timeZone: 'Asia/Kolkata'
+                                })
+                                const outTime = session.logout_time
+                                  ? new Date(session.logout_time).toLocaleTimeString('en-US', {
+                                      hour: '2-digit',
+                                      minute: '2-digit',
+                                      hour12: true,
+                                      timeZone: 'Asia/Kolkata'
+                                    })
+                                  : "Active"
+                                return (
+                                  <span key={session.session_id} className={`inline-flex items-center text-[9px] font-bold px-1.5 py-0.5 rounded-md border ${!session.logout_time ? 'bg-emerald-50 text-emerald-700 border-emerald-200 animate-pulse' : 'bg-slate-50 text-slate-600 border-slate-100'}`}>
+                                    S{idx + 1}: {inTime} → {outTime}
+                                  </span>
+                                )
+                              })}
+                            </div>
+                          )}
                         </div>
                       </div>
                       <div className="text-right flex flex-col items-end gap-1">
@@ -309,8 +341,8 @@ export default async function DepartmentDashboard() {
                           <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${record.attendance_status === 'LATE' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>
                             {record.attendance_status}
                           </span>
-                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${record.work_status === 'LOGGED_OUT' ? 'bg-slate-200 text-slate-600' : 'bg-blue-100 text-blue-700'}`}>
-                            {record.work_status === 'ACTIVE' ? 'ACTIVE' : record.work_status === 'LOGOUT_REQUESTED' ? 'PENDING LOGOUT' : 'LOGGED OUT'}
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${!isEmpActive ? 'bg-slate-200 text-slate-600' : 'bg-blue-100 text-blue-700'}`}>
+                            {isEmpActive ? 'ACTIVE' : 'OFFLINE'}
                           </span>
                         </div>
                       </div>

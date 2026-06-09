@@ -2,6 +2,8 @@ import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 import { EmployeeSessionManager } from "@/components/employee/EmployeeSessionManager"
 
+import { TaskCountsProvider } from "@/context/TaskCountsContext"
+
 export default async function EmployeeLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient()
   let user = null
@@ -60,8 +62,10 @@ export default async function EmployeeLayout({ children }: { children: React.Rea
   }
 
   return (
-    <EmployeeSessionManager links={employeeLinks}>
-      {children}
-    </EmployeeSessionManager>
+    <TaskCountsProvider>
+      <EmployeeSessionManager links={employeeLinks}>
+        {children}
+      </EmployeeSessionManager>
+    </TaskCountsProvider>
   )
 }

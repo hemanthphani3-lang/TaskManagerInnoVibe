@@ -49,7 +49,9 @@ export function TaskDetailsModal({
   const supabase = createClient()
   const [isChatExpanded, setIsChatExpanded] = useState(false)
   const [task, setTask] = useState<any>(null)
-  const [loading, setLoading] = useState(true)
+
+  const [loading, setLoading] = useState(true);
+
   const [comments, setComments] = useState<any[]>([])
   const [activityLogs, setActivityLogs] = useState<any[]>([])
   const [newMessage, setNewMessage] = useState("")
@@ -57,212 +59,36 @@ export function TaskDetailsModal({
   const [commentFileUrl, setCommentFileUrl] = useState("")
   const [commentFileName, setCommentFileName] = useState("")
   
-  // Dialog Actions State
+  
+
+
   const [submittingAction, setSubmittingAction] = useState(false)
   const [showRejectInput, setShowRejectInput] = useState(false)
   const [showClarifyInput, setShowClarifyInput] = useState(false)
   const [rejectionReason, setRejectionReason] = useState("")
   const [clarifyNotes, setClarifyNotes] = useState("")
 
-  // Fetch complete task details (RLS bypassed on necessary fields or queried directly)
+  // Fetch complete task details via API route (uses service role, bypasses RLS)
   const loadTaskDetails = async () => {
     if (!taskId) return
     setLoading(true)
     try {
-      // 1. Fetch Task
-      const { data: tData, error: tErr } = await supabase
-        .from('tasks')
-        .select('*')
-        .eq('id', taskId)
-        .single()
+      const res = await fetch(`/api/tasks/${taskId}/details`, { cache: 'no-store' })
 
-      if (tErr) throw tErr
-
-      // Fetch Assignee Name
-      let assigneeName = "Unknown Assignee"
-      if (tData.assigned_to) {
-        const { data: emp } = await supabase.from('employees').select('employee_name').eq('id', tData.assigned_to).maybeSingle()
-        if (emp) {
-          assigneeName = emp.employee_name
-        } else {
-          const { data: dept } = await supabase.from('departments').select('department_head_name').eq('id', tData.assigned_to).maybeSingle()
-          if (dept) {
-            assigneeName = dept.department_head_name
-          } else {
-            const { data: adm } = await supabase.from('admins').select('full_name').eq('id', tData.assigned_to).maybeSingle()
-            if (adm) assigneeName = adm.full_name
-          }
-        }
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body?.error || `Failed to load task (HTTP ${res.status})`)
       }
 
-      // Fetch Creator Name
-      let creatorName = "System Creator"
-      if (tData.created_by) {
-        const { data: emp } = await supabase.from('employees').select('employee_name').eq('id', tData.created_by).maybeSingle()
-        if (emp) {
-          creatorName = emp.employee_name
-        } else {
-          const { data: dept } = await supabase.from('departments').select('department_head_name').eq('id', tData.created_by).maybeSingle()
-          if (dept) {
-            creatorName = dept.department_head_name
-          } else {
-            const { data: adm } = await supabase.from('admins').select('full_name').eq('id', tData.created_by).maybeSingle()
-            if (adm) creatorName = adm.full_name
-          }
-        }
-      }
+      const json = await res.json()
 
-      // 1.5 Fetch all assignees of this task from task_assignees
-      const { data: assigneesData } = await supabase
-        .from('task_assignees')
-        .select('*')
-        .eq('task_id', taskId)
-
-      const collaborators: any[] = []
-      if (assigneesData) {
-        for (const assignee of assigneesData) {
-          let name = "Unknown User"
-          let role = "Employee"
-          let department = "Unknown Department"
-          let profilePhoto = ""
-
-          const { data: emp } = await supabase
-            .from('employees')
-            .select('employee_name, designation, departments!department_id(department_name), profile_photo')
-            .eq('id', assignee.user_id)
-            .maybeSingle()
-
-          if (emp) {
-            name = emp.employee_name
-            role = emp.designation || "Employee"
-            department = (emp.departments as any)?.department_name || "Unassigned"
-            profilePhoto = emp.profile_photo || ""
-          } else {
-            const { data: dept } = await supabase
-              .from('departments')
-              .select('department_head_name, department_name')
-              .eq('id', assignee.user_id)
-              .maybeSingle()
-
-            if (dept) {
-              name = dept.department_head_name
-              role = "Department Head"
-              department = dept.department_name
-            } else {
-              const { data: adm } = await supabase
-                .from('admins')
-                .select('full_name')
-                .eq('id', assignee.user_id)
-                .maybeSingle()
-
-              if (adm) {
-                name = adm.full_name
-                role = "Administrator"
-                department = "Administration"
-              }
-            }
-          }
-
-          collaborators.push({
-            ...assignee,
-            name,
-            role,
-            department,
-            profilePhoto
-          })
-        }
-      }
-
-      // 1.7 Fetch subtasks
-      const { data: subtasksData } = await supabase
-        .from('task_subtasks')
-        .select('*')
-        .eq('task_id', taskId)
-        .order('created_at', { ascending: true })
-
-      setTask({
-        ...tData,
-        assigneeName,
-        creatorName,
-        collaborators,
-        subtasks: subtasksData || []
-      })
-
-      // 2. Fetch comments with user profiles fallback
-      const { data: cData } = await supabase
-        .from('task_comments')
-        .select('*')
-        .eq('task_id', taskId)
-        .order('created_at', { ascending: true })
-
-      // Fetch user profile names for comments
-      const mappedComments: any[] = []
-      if (cData) {
-        for (const comm of cData) {
-          let authorName = "System User"
-          let authorRole = "User"
-
-          // Query Employee
-          const { data: emp } = await supabase.from('employees').select('employee_name').eq('id', comm.user_id).maybeSingle()
-          if (emp) {
-            authorName = emp.employee_name
-            authorRole = "Employee"
-          } else {
-            const { data: dept } = await supabase.from('departments').select('department_head_name').eq('id', comm.user_id).maybeSingle()
-            if (dept) {
-              authorName = dept.department_head_name
-              authorRole = "Dept Head"
-            } else {
-              const { data: adm } = await supabase.from('admins').select('full_name').eq('id', comm.user_id).maybeSingle()
-              if (adm) {
-                authorName = adm.full_name
-                authorRole = "Admin"
-              }
-            }
-          }
-
-          mappedComments.push({
-            ...comm,
-            authorName,
-            authorRole
-          })
-        }
-      }
-      setComments(mappedComments)
-
-      // 3. Fetch Activity logs
-      const { data: lData } = await supabase
-        .from('task_activity_logs')
-        .select('*')
-        .eq('task_id', taskId)
-        .order('created_at', { ascending: false })
-      
-      const mappedLogs: any[] = []
-      if (lData) {
-        for (const log of lData) {
-          let actorName = "Staff"
-          const { data: emp } = await supabase.from('employees').select('employee_name').eq('id', log.action_by).maybeSingle()
-          if (emp) actorName = emp.employee_name
-          else {
-            const { data: dept } = await supabase.from('departments').select('department_head_name').eq('id', log.action_by).maybeSingle()
-            if (dept) actorName = dept.department_head_name
-            else {
-              const { data: adm } = await supabase.from('admins').select('full_name').eq('id', log.action_by).maybeSingle()
-              if (adm) actorName = adm.full_name
-            }
-          }
-
-          mappedLogs.push({
-            ...log,
-            actorName
-          })
-        }
-      }
-      setActivityLogs(mappedLogs)
-
+      setTask(json.task)
+      setComments(json.comments || [])
+      setActivityLogs(json.activityLogs || [])
     } catch (err: any) {
-      toast.error("Failed to load task details.")
-      console.error(err)
+      const msg = err?.message || 'Failed to load task details'
+      console.error('loadTaskDetails error:', msg)
+      toast.error(msg)
     } finally {
       setLoading(false)
     }
@@ -356,7 +182,24 @@ export function TaskDetailsModal({
     }
   }, [isOpen, taskId, supabase])
 
-  if (!isOpen) return null
+  // If the modal is closed, render nothing
+  if (!isOpen) return null;
+
+  // Show full-screen spinner while loading data
+  if (loading) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm">
+        <Loader2 className="w-12 h-12 text-[#0066FF] animate-spin" />
+      </div>
+    );
+  }
+
+  // If task data hasn't loaded after fetching, show a placeholder
+  if (!task) {
+    return (
+      <div className="p-6 text-slate-400">Task details unavailable.</div>
+    );
+  }
 
   // Workflow triggers
   const handleAccept = async () => {
@@ -535,7 +378,7 @@ export function TaskDetailsModal({
             </span>
             <ChevronRight className="w-4 h-4 text-slate-600 shrink-0" />
             <h3 className="font-extrabold text-white text-base line-clamp-1">
-              {loading ? "Loading details..." : (task?.title || task?.task_title)}
+              {task?.title || task?.task_title}
             </h3>
           </div>
           <div className="flex items-center gap-2">
@@ -559,13 +402,7 @@ export function TaskDetailsModal({
         </div>
 
         {/* Content Container */}
-        {loading ? (
-          <div className="flex-1 flex flex-col items-center justify-center">
-            <Loader2 className="w-10 h-10 text-[#0066FF] animate-spin mb-4" />
-            <p className="text-slate-400 text-sm font-semibold">Retrieving workspace discussion & audits...</p>
-          </div>
-        ) : (
-          <div className="flex-1 overflow-hidden flex flex-col lg:flex-row">
+        <div className="flex-1 overflow-hidden flex flex-col lg:flex-row">
             
             {/* Left side: Task core details, timelines, attachments */}
             <div className="flex-1 overflow-y-auto p-6 space-y-6 lg:border-r lg:border-slate-800">
@@ -583,7 +420,7 @@ export function TaskDetailsModal({
               <div className="space-y-2">
                 <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">Description / Deliverables</h4>
                 <div className="bg-slate-950/40 border border-slate-800/60 p-5 rounded-2xl text-slate-300 text-sm leading-relaxed whitespace-pre-wrap">
-                  {task.description || task.task_description}
+                  {task?.description || task?.task_description}
                 </div>
               </div>
 
@@ -598,12 +435,20 @@ export function TaskDetailsModal({
                       </div>
                       <div>
                         <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Created By (Owner)</span>
-                        <span className="text-sm font-bold text-white block">{task.creatorName}</span>
-                        <span className="text-[10px] text-slate-400 font-medium block">Role: {task.created_by_role}</span>
+                        <span className="text-sm font-bold text-white block">
+                          {task?.creatorName}
+                        </span>
+                        {task?.created_by_role && (
+                          <span className="text-[10px] text-slate-400 font-medium block">
+                            Role: {task.created_by_role}
+                          </span>
+                        )}
                       </div>
                     </div>
-                    {task.created_by === currentUserId && (
-                      <span className="text-[9px] bg-blue-500/10 border border-blue-500/30 text-blue-400 px-2 py-0.5 rounded font-extrabold uppercase">You (Owner)</span>
+                    {task?.created_by === currentUserId && (
+                      <span className="text-[9px] bg-blue-500/10 border border-blue-500/30 text-blue-400 px-2 py-0.5 rounded font-extrabold uppercase">
+                        You (Owner)
+                      </span>
                     )}
                   </div>
 
@@ -747,7 +592,9 @@ export function TaskDetailsModal({
                   <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block">Target Deadline</span>
                   <span className="text-sm font-bold text-slate-300 mt-1 flex items-center gap-1.5">
                     <Calendar className="w-4 h-4 text-slate-500" />
-                    {new Date(task.due_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                    {task.deadline || task.due_date 
+                      ? new Date(task.deadline || task.due_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+                      : 'No target deadline'}
                   </span>
                 </div>
                 <div>
@@ -765,47 +612,62 @@ export function TaskDetailsModal({
                   <AlertTriangle className="w-5 h-5 shrink-0 text-red-500" />
                   <div>
                     <h5 className="font-bold">Task Rejection Reason</h5>
-                    <p className="text-xs text-slate-300 mt-1">{task.rejection_reason}</p>
+                    <p className="text-xs text-slate-300 mt-1">{task?.rejection_reason}</p>
                   </div>
                 </div>
               )}
 
-              {task.clarification_text && (
+              {task?.clarification_text && (
                 <div className="p-4 bg-amber-950/20 border border-amber-900/30 rounded-2xl flex gap-3 text-amber-500 text-sm shadow-sm shadow-amber-900/5">
                   <HelpCircle className="w-5 h-5 shrink-0 text-amber-500" />
                   <div>
                     <h5 className="font-bold">Clarification Comments</h5>
-                    <p className="text-xs text-slate-300 mt-1">{task.clarification_text}</p>
+                    <p className="text-xs text-slate-300 mt-1">{task?.clarification_text}</p>
                   </div>
                 </div>
               )}
 
               {/* Attachments list */}
-              {Array.isArray(task.attachments) && task.attachments.length > 0 && (
-                <div className="space-y-3">
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">Attached Documentation</h4>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {task.attachments.map((file: any, idx: number) => (
-                      <div key={idx} className="p-3.5 bg-slate-950/40 border border-slate-800 rounded-2xl flex items-center justify-between gap-3 text-xs">
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <FileText className="w-4.5 h-4.5 text-[#0066FF] shrink-0" />
-                          <span className="font-bold text-slate-300 truncate">{file.name}</span>
+              {(() => {
+                const rawAttachments = task.attachment_urls || task.attachments || [];
+                const normalizedAttachments = Array.isArray(rawAttachments)
+                  ? rawAttachments.filter(Boolean).map((file: any) => {
+                      if (typeof file === 'string') {
+                        const name = file.substring(file.lastIndexOf('/') + 1) || 'Attachment';
+                        return { name, url: file };
+                      }
+                      return file;
+                    })
+                  : [];
+                
+                if (normalizedAttachments.length === 0) return null;
+
+                return (
+                  <div className="space-y-3">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">Attached Documentation</h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {normalizedAttachments.map((file: any, idx: number) => (
+                        <div key={idx} className="p-3.5 bg-slate-950/40 border border-slate-800 rounded-2xl flex items-center justify-between gap-3 text-xs">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <FileText className="w-4.5 h-4.5 text-[#0066FF] shrink-0" />
+                            <span className="font-bold text-slate-300 truncate">{file.name || 'Attachment'}</span>
+                          </div>
+                          <a 
+                            href={file.url} 
+                            target="_blank" 
+                            rel="noreferrer"
+                            download
+                            title="Download attachment"
+                            className="p-1.5 bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white rounded-lg border border-slate-800 shrink-0 transition"
+                          >
+                            <Download className="w-4.5 h-4.5" />
+                          </a>
                         </div>
-                        <a 
-                          href={file.url} 
-                          target="_blank" 
-                          rel="noreferrer"
-                          download
-                          title="Download attachment"
-                          className="p-1.5 bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white rounded-lg border border-slate-800 shrink-0 transition"
-                        >
-                          <Download className="w-4.5 h-4.5" />
-                        </a>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )}
+                );
+              })()}
 
               {/* Action Buttons Panel */}
               <div className="pt-4 border-t border-slate-800 space-y-4">
@@ -986,7 +848,7 @@ export function TaskDetailsModal({
                             ? 'bg-[#0066FF] border-[#0066FF] text-white rounded-tr-none shadow-blue-500/5' 
                             : 'bg-slate-900 border-slate-800 text-slate-200 rounded-tl-none shadow-slate-950/5'
                         }`}>
-                          <p className="leading-relaxed break-words">{comm.comment_text}</p>
+                          <p className="leading-relaxed break-words">{comm.message || comm.comment_text || ''}</p>
                           
                           {/* File Attachment inside comment */}
                           {comm.attachment && (
@@ -1078,7 +940,7 @@ export function TaskDetailsModal({
             </div>
 
           </div>
-        )}
+
 
       </div>
     </div>

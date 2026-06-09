@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useRef } from "react"
+import React, { useState, useRef } from "react"
+import { useRouter } from "next/navigation";
 import { Eye, Pencil, X, Upload, Loader2 } from "lucide-react"
 import Image from "next/image"
 
@@ -18,6 +19,7 @@ export function ProfilePhotoEditor({ currentPhoto, name, userId, onPhotoUpdated 
   const [uploading, setUploading] = useState(false)
   const [uploadError, setUploadError] = useState("")
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+  const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const initials = name
@@ -58,7 +60,7 @@ export function ProfilePhotoEditor({ currentPhoto, name, userId, onPhotoUpdated 
       onPhotoUpdated?.(data.url)
       setShowEditModal(false)
       setPreviewUrl(null)
-      window.location.reload()
+      router.refresh();
     } catch (err: any) {
       setUploadError(err.message || "Upload failed")
     } finally {

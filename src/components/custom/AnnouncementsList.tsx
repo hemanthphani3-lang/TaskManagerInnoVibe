@@ -5,6 +5,7 @@ import { Megaphone, Calendar, FileText, Image as ImageIcon, FileSpreadsheet, Fil
 import { formatDistanceToNow } from "date-fns"
 import { createClient } from "@/lib/supabase/client"
 import { deleteAnnouncement } from "@/app/actions/announcements"
+import { useRouter } from "next/navigation";
 import { toast } from "sonner"
 
 interface Attachment {
@@ -34,7 +35,8 @@ interface AnnouncementsListProps {
 }
 
 export function AnnouncementsList({ announcements, viewerRole }: AnnouncementsListProps) {
-  const supabase = createClient()
+  const supabase = createClient();
+  const router = useRouter();
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
 
@@ -57,7 +59,7 @@ export function AnnouncementsList({ announcements, viewerRole }: AnnouncementsLi
       const res = await deleteAnnouncement(id)
       if (res.success) {
         toast.success(`Announcement "${title}" has been successfully unsent.`)
-        window.location.reload()
+        router.refresh();
       } else {
         toast.error(res.error || "Failed to unsend announcement.")
       }

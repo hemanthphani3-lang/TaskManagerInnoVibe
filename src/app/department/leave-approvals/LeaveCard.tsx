@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { CheckCircle2, XCircle, Clock } from "lucide-react"
+import { useRouter } from 'next/navigation';
 import { updateLeaveStatus } from "@/app/actions/leave"
 
 interface LeaveCardProps {
@@ -12,6 +13,7 @@ interface LeaveCardProps {
 export function LeaveCard({ leave, emp }: LeaveCardProps) {
   const [optimisticStatus, setOptimisticStatus] = useState(leave.approval_status)
   const [isPending, setIsPending] = useState(false)
+  const router = useRouter()
 
   const handleAction = async (newStatus: 'APPROVED' | 'REJECTED') => {
     if (isPending) return
@@ -21,20 +23,27 @@ export function LeaveCard({ leave, emp }: LeaveCardProps) {
     setOptimisticStatus(newStatus)
     
     // Server Action
-    const result = await updateLeaveStatus(leave.id, newStatus)
+    let result;
+    if (newStatus === 'REJECTED') {
+      const reason = window.prompt('Please provide a rejection reason (optional):');
+      result = await updateLeaveStatus(leave.id, newStatus, reason ?? undefined);
+    } else {
+      result = await updateLeaveStatus(leave.id, newStatus);
+    }
     
     if (!result.success) {
       // Revert on failure
       setOptimisticStatus(leave.approval_status)
       alert(result.error)
+    } else {
+      // Refresh the page to reflect changes
+      router.refresh();
     }
     
     setIsPending(false)
   }
 
-  if (optimisticStatus === 'REJECTED') {
-    return null
-  }
+
 
   return (
     <div className={`flex flex-col md:flex-row md:items-center justify-between p-6 rounded-xl border border-slate-100 gap-6 transition-all duration-300 ${

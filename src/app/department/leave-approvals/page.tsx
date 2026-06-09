@@ -24,12 +24,10 @@ export default async function DepartmentLeaveApprovalsPage() {
     .eq('department_id', user.id)
     .order('created_at', { ascending: false })
 
-  // Filter out leaves that are approved and their end_date is in the past
-  const today = new Date().toISOString().split('T')[0]
+  // Filter out leaves that are not pending
   const displayLeaves = leaves?.filter(leave => {
-    if (leave.approval_status === 'REJECTED') return false
-    if (leave.approval_status === 'APPROVED' && leave.end_date < today) return false
-    return true
+    const status = leave.approval_status ?? leave.status ?? 'PENDING';
+    return status === 'PENDING';
   }) || []
 
   return (

@@ -11,6 +11,8 @@ import { LeaderboardTable } from "@/components/productivity/LeaderboardTable"
 import { ProductivityBadge } from "@/components/productivity/ProductivityBadge"
 import type { LeaderboardEntry } from "@/components/productivity/LeaderboardTable"
 import Link from "next/link"
+import { RealtimeAdminTaskCards } from "@/components/dashboard/RealtimeAdminTaskCards"
+import { RealtimeAdminDeptTaskCards } from "@/components/dashboard/RealtimeAdminDeptTaskCards"
 
 export default async function AdminDashboard(props: { searchParams: Promise<{ [key: string]: string | string[] | undefined }> }) {
   try {
@@ -86,7 +88,8 @@ export default async function AdminDashboard(props: { searchParams: Promise<{ [k
     ])
 
     // Calculate work session statistics for today
-    const activeUsersToday = (todaySessions || []).filter(s => s.status === 'ACTIVE').length
+    const activeSessionsList = (todaySessions || []).filter(s => s.status === 'ACTIVE' && s.logout_time === null)
+    const activeUsersToday = new Set(activeSessionsList.map(s => s.user_id)).size
     const loggedInUsersToday = new Set((todaySessions || []).map(s => s.user_id)).size
     const loggedOutUsersToday = (todaySessions || []).filter(s => s.status === 'COMPLETED').length
     const reportsSubmittedToday = (todaySessions || []).filter(s => s.report_submitted).length
@@ -285,6 +288,14 @@ export default async function AdminDashboard(props: { searchParams: Promise<{ [k
             <AnalyticsCard title="Active Users Today" value={activeUsersToday} icon={Activity} colorClass="text-emerald-600" bgClass="bg-emerald-50" />
           </div>
 
+          {/* Organization Task Status */}
+          <div className="mb-8">
+            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 px-1">Organization Task Status</h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <RealtimeAdminTaskCards />
+            </div>
+          </div>
+
           {/* Today's Shift Activity Cards */}
           <div className="mb-4">
             <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 px-1">Today's Shift Activity</h3>
@@ -310,8 +321,8 @@ export default async function AdminDashboard(props: { searchParams: Promise<{ [k
                   const deptEmployees = combinedEmployees.filter(e => e.department_id === dept.id).length || 0
                   const deptAttendance = combinedGlobalTodayAttendance.filter(a => a.department_id === dept.id).length || 0
                   const percent = deptEmployees > 0 ? Math.round((deptAttendance / deptEmployees) * 100) : 0
-                  const deptAvgScore = (productivityScores || []).filter(s => s.department_id === dept.id)
-                    .reduce((sum, s, _, arr) => sum + (s.productivity_score ?? 0) / arr.length, 0) ?? 0
+                  const deptScores = (productivityScores || []).filter(s => s.department_id === dept.id);
+                  const deptAvgScore = deptScores.length ? Math.round(deptScores.reduce((sum, s) => sum + (s.productivity_score ?? 0), 0) / deptScores.length) : 0;
 
                   return (
                     <Link
@@ -333,7 +344,7 @@ export default async function AdminDashboard(props: { searchParams: Promise<{ [k
                           <p className="text-xs text-slate-500">Attendance</p>
                           <p className="font-bold text-slate-900">{percent}%</p>
                         </div>
-                        <ProductivityBadge score={deptAvgScore} />
+                      <ProductivityBadge score={Number(deptAvgScore)} />
                       </div>
                     </Link>
                   )
@@ -467,9 +478,12 @@ export default async function AdminDashboard(props: { searchParams: Promise<{ [k
             <AnalyticsCard title="Absent Today" value={absentCount} icon={XCircle} colorClass="text-red-600" bgClass="bg-red-50" />
             <AnalyticsCard title="Active Sessions" value={activeSessions} icon={Activity} colorClass="text-blue-600" bgClass="bg-blue-50" />
             <AnalyticsCard title="Reports Submitted" value={reportsSubmittedToday} icon={FileText} colorClass="text-purple-600" bgClass="bg-purple-50" />
-            <AnalyticsCard title="Total Tasks" value={totalTasks} icon={Building2} colorClass="text-slate-600" bgClass="bg-slate-100" />
-            <AnalyticsCard title="Tasks Completed" value={completedTasks} icon={CheckCircle2} colorClass="text-emerald-600" bgClass="bg-emerald-50" delay={2} />
-            <AnalyticsCard title="Tasks Delayed" value={delayedTasks} icon={Clock} colorClass="text-amber-600" bgClass="bg-amber-50" delay={3} />
+            <RealtimeAdminDeptTaskCards 
+              deptId={dept_id!} 
+              initialTotal={totalTasks} 
+              initialCompleted={completedTasks} 
+              initialPending={totalTasks - completedTasks} 
+            />
             <AnalyticsCard title="Avg Work Hours" value={avgHoursDisplay} icon={Clock} colorClass="text-purple-600" bgClass="bg-purple-50" />
             <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm">
               <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Dept Score</p>
@@ -504,6 +518,12 @@ export default async function AdminDashboard(props: { searchParams: Promise<{ [k
                          const empTasks = tasks?.filter(t => isHead ? (t.assigned_to === emp.id || t.assigned_employee_id === emp.id) : t.assigned_employee_id === emp.id) || []
                          const completed = empTasks.filter(t => t.task_status === 'COMPLETED').length
                          const total = empTasks.length
+                         
+                         const empSessions = (todaySessions || [])
+                           .filter(s => s.user_id === emp.id)
+                           .sort((a, b) => new Date(a.login_time).getTime() - new Date(b.login_time).getTime())
+
+                         const isEmpActive = empSessions.some(s => s.status === 'ACTIVE' && s.logout_time === null)
                         
                         return (
                           <tr key={emp.id} className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
@@ -519,6 +539,31 @@ export default async function AdminDashboard(props: { searchParams: Promise<{ [k
                                 <div>
                                   <p className="font-semibold text-slate-900">{emp.employee_name}</p>
                                   <p className="text-xs text-slate-500">{emp.designation}</p>
+                                  {empSessions.length > 0 && (
+                                    <div className="flex flex-wrap gap-1 mt-1.5 max-w-xs sm:max-w-md">
+                                      {empSessions.map((session, idx) => {
+                                        const inTime = new Date(session.login_time).toLocaleTimeString('en-US', {
+                                          hour: '2-digit',
+                                          minute: '2-digit',
+                                          hour12: true,
+                                          timeZone: 'Asia/Kolkata'
+                                        })
+                                        const outTime = session.logout_time
+                                          ? new Date(session.logout_time).toLocaleTimeString('en-US', {
+                                              hour: '2-digit',
+                                              minute: '2-digit',
+                                              hour12: true,
+                                              timeZone: 'Asia/Kolkata'
+                                            })
+                                          : "Active"
+                                        return (
+                                          <span key={session.session_id} className={`inline-flex items-center text-[9px] font-bold px-1.5 py-0.5 rounded-md border ${!session.logout_time ? 'bg-emerald-50 text-emerald-700 border-emerald-200 animate-pulse' : 'bg-slate-50 text-slate-600 border-slate-100'}`}>
+                                            S{idx + 1}: {inTime} → {outTime}
+                                          </span>
+                                        )
+                                      })}
+                                    </div>
+                                  )}
                                 </div>
                               </div>
                             </td>
@@ -527,8 +572,8 @@ export default async function AdminDashboard(props: { searchParams: Promise<{ [k
                                 <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${!empAttendance ? 'bg-slate-100 text-slate-600' : empAttendance.attendance_status === 'LATE' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>
                                   {empAttendance?.attendance_status || 'ABSENT'}
                                 </span>
-                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${!empAttendance || empAttendance.work_status === 'LOGGED_OUT' ? 'bg-slate-100 text-slate-600' : 'bg-blue-100 text-blue-700'}`}>
-                                  {empAttendance?.work_status || 'OFFLINE'}
+                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${!isEmpActive ? 'bg-slate-100 text-slate-600' : 'bg-blue-100 text-blue-700'}`}>
+                                  {isEmpActive ? 'ACTIVE' : 'OFFLINE'}
                                 </span>
                               </div>
                             </td>

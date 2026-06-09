@@ -77,31 +77,82 @@ export function ReportExportModal({ role, departmentId, employeeId }: ReportExpo
 
       if (type === 'ATTENDANCE') {
         let query = supabase
-          .from('attendance')
-          .select('*, employees(employee_name, employee_code), departments(department_name)')
-          .gte('created_at', startDateISO)
-          .lte('created_at', endDateISO)
+          .from('work_sessions')
+          .select('*')
+          .gte('login_time', startDateISO)
+          .lte('login_time', endDateISO)
 
         if (role === 'DEPARTMENT' && departmentId) query = query.eq('department_id', departmentId)
-        if (role === 'EMPLOYEE' && employeeId) query = query.eq('employee_id', employeeId)
-        
-        const { data: attendanceData, error } = await query
-        if (error) throw error
-        
-        // Deduplicate records to prevent showing multiple check-ins per day for the same employee
-        const uniqueAttendance = Array.from(new Map(
-          (attendanceData || []).map(a => [`${a.employee_id}-${a.created_at.split('T')[0]}`, a])
-        ).values())
+        if (role === 'EMPLOYEE' && employeeId) query = query.eq('user_id', employeeId)
 
-        data = uniqueAttendance.map(a => ({
-          Date: a.created_at.split('T')[0],
-          Employee: a.employees?.employee_name || '-',
-          Code: a.employees?.employee_code || '-',
-          Department: a.departments?.department_name || '-',
-          Status: a.attendance_status,
-          WorkStatus: a.work_status,
-          WorkingHours: a.working_hours || '0h 0m'
-        }))
+        const [sessionsRes, employeesRes] = await Promise.all([
+          query,
+          supabase.from('employees').select('id, employee_name, employee_code, departments(department_name)')
+        ])
+
+        if (sessionsRes.error) throw sessionsRes.error
+        const sessionsList = sessionsRes.data || []
+        const employeesList = employeesRes.data || []
+
+        // Group sessions by employee and IST date
+        const groups: Record<string, typeof sessionsList> = {}
+        sessionsList.forEach(session => {
+          const loginDate = new Date(session.login_time)
+          const istDate = new Date(loginDate.getTime() + 5.5 * 60 * 60 * 1000).toISOString().split('T')[0]
+          const key = `${session.user_id}_${istDate}`
+          if (!groups[key]) groups[key] = []
+          groups[key].push(session)
+        })
+
+        data = Object.entries(groups).map(([key, groupSessions]) => {
+          const [userId, date] = key.split('_')
+          const emp = employeesList.find(e => e.id === userId)
+          
+          const sorted = [...groupSessions].sort((a, b) => new Date(a.login_time).getTime() - new Date(b.login_time).getTime())
+          
+          const firstSession = sorted[0]
+          const lastSession = sorted[sorted.length - 1]
+          
+          // Find last session with a logout_time
+          const lastSessionWithLogout = [...sorted].reverse().find(s => s.logout_time)
+          
+          const firstLoginTime = firstSession 
+            ? new Date(firstSession.login_time).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata' })
+            : '-'
+            
+          const lastLogoutTime = lastSessionWithLogout
+            ? new Date(lastSessionWithLogout.logout_time).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata' })
+            : (lastSession && !lastSession.logout_time ? 'Active' : '-')
+
+          // Sum duration in minutes
+          let totalMinutes = 0
+          sorted.forEach(s => {
+            if (s.duration) {
+              const match = s.duration.match(/(\d+)h\s*(\d+)m/)
+              if (match) {
+                totalMinutes += parseInt(match[1]) * 60 + parseInt(match[2])
+              }
+            }
+          })
+          const totalWorkingTime = `${Math.floor(totalMinutes / 60)}h ${totalMinutes % 60}m`
+          
+          return {
+            Date: date,
+            Employee: emp?.employee_name || firstSession.user_name || '-',
+            Code: emp?.employee_code || '-',
+            Department: (emp?.departments as any)?.department_name || firstSession.department || '-',
+            'First Login': firstLoginTime,
+            'Last Logout': lastLogoutTime,
+            'Number of Sessions': sorted.length,
+            'Total Working Time': totalWorkingTime
+          }
+        })
+        
+        // Sort data by Date descending, then Employee name ascending
+        data.sort((a, b) => {
+          if (a.Date !== b.Date) return String(b.Date).localeCompare(String(a.Date))
+          return String(a.Employee).localeCompare(String(b.Employee))
+        })
       } 
       else if (type === 'PRODUCTIVITY') {
         // Query productivity scores filtered by calculated_at for precision

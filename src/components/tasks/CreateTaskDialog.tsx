@@ -54,7 +54,8 @@ export function CreateTaskDialog({ isOpen, onClose, onSuccess, currentUserId }: 
         // Exclude current logged in user from assignee selection
         setDirectoryUsers(res.users.filter((u: any) => u.id !== currentUserId))
       } else {
-        toast.error("Failed to retrieve system workforce directory.")
+        console.error("Directory fetch error:", res)
+        toast.error(res.error ? `Failed to retrieve workforce directory: ${res.error}` : "Failed to retrieve system workforce directory.")
       }
       setUsersLoading(false)
     }
@@ -187,9 +188,13 @@ export function CreateTaskDialog({ isOpen, onClose, onSuccess, currentUserId }: 
         assigned_to: finalAssignees.map(u => u.id),
         assigned_to_role: assigneeRole,
         priority,
+        // Store both legacy due_date and new deadline column
         due_date: dueDate,
+        deadline: dueDate,
         category,
-        attachments
+        // Store both legacy attachments array of URLs and new attachment_urls JSONB
+        attachments: attachments.map(a => a.url),
+        attachment_urls: attachments
       })
 
       if (res.success) {

@@ -12,6 +12,7 @@ import { DashboardProfileCompletionCard } from "@/components/dashboard/Dashboard
 import { calculateCompletionPercentage } from "@/lib/onboarding-utils"
 import Link from "next/link"
 import { LogoutReportCard } from "@/components/employee/LogoutReportCard"
+import { RealtimeEmployeeTaskCards } from "@/components/dashboard/RealtimeEmployeeTaskCards"
 
 export default async function EmployeeDashboard({ params }: { params: Promise<{ emp_no: string }> }) {
   const { emp_no } = await params
@@ -65,7 +66,8 @@ export default async function EmployeeDashboard({ params }: { params: Promise<{ 
     { data: productivityData },
     { data: rankingData },
     { data: kpiData },
-    { data: reminders }
+    { data: reminders },
+    { data: todayUserSessions }
   ] = await Promise.all([
     supabaseAdmin.from('attendance').select('*').eq('employee_id', user.id).gte('created_at', startUTC).lte('created_at', endUTC).order('created_at', { ascending: false }).limit(1).maybeSingle(),
     supabaseAdmin.from('logout_requests').select('*, work_submissions(work_comment, attachment_url, attachment_type)').eq('employee_id', user.id).order('created_at', { ascending: false }).limit(5),
@@ -75,7 +77,8 @@ export default async function EmployeeDashboard({ params }: { params: Promise<{ 
     supabaseAdmin.from('productivity_scores').select('*').eq('employee_id', user.id).maybeSingle(),
     supabaseAdmin.from('rankings').select('*').eq('employee_id', user.id).maybeSingle(),
     supabaseAdmin.from('kpi_metrics').select('*').eq('employee_id', user.id).maybeSingle(),
-    supabaseAdmin.from('reminders').select('*').eq('employee_id', user.id).eq('reminder_status', 'UNREAD').order('created_at', { ascending: false })
+    supabaseAdmin.from('reminders').select('*').eq('employee_id', user.id).eq('reminder_status', 'UNREAD').order('created_at', { ascending: false }),
+    supabaseAdmin.from('work_sessions').select('*').eq('user_id', user.id).gte('login_time', startUTC).lte('login_time', endUTC).order('login_time', { ascending: true })
   ])
 
   // Map raw tasks to override overall status with individual assignee status
@@ -103,7 +106,31 @@ export default async function EmployeeDashboard({ params }: { params: Promise<{ 
   const completionRate = kpiData?.completion_rate ?? 0
   const employeeRank = rankingData?.rank
 
-  const isCheckedIn = attendance && attendance.work_status !== 'LOGGED_OUT'
+  const todaySessions = todayUserSessions || []
+  const sessionsCount = todaySessions.length
+  
+  const firstSession = todaySessions[0]
+  const lastSessionWithLogout = [...todaySessions].reverse().find(s => s.logout_time)
+  
+  const firstLogin = firstSession
+    ? new Date(firstSession.login_time).toLocaleTimeString('en-US', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true,
+        timeZone: 'Asia/Kolkata'
+      })
+    : "—"
+
+  const lastLogout = lastSessionWithLogout
+    ? new Date(lastSessionWithLogout.logout_time).toLocaleTimeString('en-US', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true,
+        timeZone: 'Asia/Kolkata'
+      })
+    : "—"
+
+  const isCheckedIn = todaySessions.some(s => s.status === 'ACTIVE')
   const departmentName = (employee?.departments as { department_name: string } | null)?.department_name || "Unassigned"
 
   const todayRequest = logoutRequests?.find(req => req.attendance_date === todayIST)
@@ -133,37 +160,71 @@ export default async function EmployeeDashboard({ params }: { params: Promise<{ 
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
-          {/* Status Card */}
-          <div className="col-span-1 bg-white rounded-2xl p-6 border border-slate-100 shadow-sm relative overflow-hidden">
+          {/* Today's Attendance Summary Card */}
+          <div className="col-span-1 bg-white rounded-2xl p-6 border border-slate-100 shadow-sm relative overflow-hidden flex flex-col justify-between min-h-[300px]">
             <div className="absolute top-0 right-0 w-64 h-64 bg-blue-50 rounded-full blur-3xl -mr-32 -mt-32 opacity-50 pointer-events-none" />
             
-            <div className="flex flex-col items-start justify-between h-full min-h-[170px] relative z-10">
-              <div className="flex items-center gap-4">
-                <div className={`p-4 rounded-2xl ${attendance?.work_status === 'LOGGED_OUT' ? 'bg-slate-50 text-slate-600 shadow-slate-500/20' : isCheckedIn ? 'bg-emerald-50 text-emerald-600 shadow-emerald-500/20' : 'bg-amber-50 text-amber-600 shadow-amber-500/20'} shadow-lg`}>
-                  {attendance?.work_status === 'LOGGED_OUT' ? <LogOut className="w-8 h-8" /> : isCheckedIn ? <CheckCircle2 className="w-8 h-8" /> : <Clock className="w-8 h-8" />}
+            <div className="relative z-10 flex flex-col h-full justify-between">
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-base font-bold text-[#0A1A2F]">Today&apos;s Attendance Summary</h3>
+                  <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider flex items-center gap-1.5 ${isCheckedIn ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : 'bg-slate-100 text-slate-650 border border-slate-200'}`}>
+                    <span className={`w-1.5 h-1.5 rounded-full ${isCheckedIn ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`} />
+                    {isCheckedIn ? 'Active' : 'Offline'}
+                  </span>
                 </div>
-                <div>
-                  <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Current Status</p>
-                  <h3 className="text-xl font-black text-slate-800">
-                    {isCheckedIn ? (isLogoutPending ? 'PENDING LOGOUT' : attendance.work_status.replace(/_/g, ' ')) : 'NOT CHECKED IN'}
-                  </h3>
+
+                <div className="grid grid-cols-2 gap-4 my-2">
+                  <div className="bg-slate-50 rounded-xl p-3 border border-slate-100">
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">First Login</p>
+                    <p className="font-mono text-sm font-bold text-slate-700 mt-0.5">{firstLogin}</p>
+                  </div>
+                  <div className="bg-slate-50 rounded-xl p-3 border border-slate-100">
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Last Logout</p>
+                    <p className="font-mono text-sm font-bold text-slate-700 mt-0.5">{lastLogout}</p>
+                  </div>
+                </div>
+
+                <div className="bg-slate-50 rounded-xl p-3 border border-slate-100 mt-2 flex items-center justify-between">
+                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Sessions Today</span>
+                  <span className="font-bold text-blue-700 bg-blue-50 px-2.5 py-0.5 rounded-full text-xs border border-blue-100">
+                    {sessionsCount}
+                  </span>
                 </div>
               </div>
-              <div className="w-full flex items-center justify-between mt-4 pt-4 border-t border-slate-100">
-                {isCheckedIn && (
-                  <div>
-                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Check-in Time</p>
-                    <p className="font-mono text-sm font-bold text-slate-700 mt-0.5">
-                      {new Date(attendance.check_in_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' })}
-                    </p>
-                  </div>
-                )}
-                {attendance?.work_status === 'LOGGED_OUT' && attendance?.working_hours && (
-                  <div className="flex flex-col items-end w-full">
-                    <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider mb-0.5">Total Hours</span>
-                    <span className="font-bold text-blue-700 bg-blue-50 px-3 py-1 rounded-full text-xs">
-                      {attendance.working_hours}
-                    </span>
+
+              {/* Today's Sessions Timeline List */}
+              <div className="mt-4 pt-4 border-t border-slate-100">
+                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-2">Today&apos;s Sessions</p>
+                {todaySessions.length === 0 ? (
+                  <p className="text-[11px] text-slate-400 italic">No sessions recorded yet.</p>
+                ) : (
+                  <div className="space-y-1.5 max-h-[100px] overflow-y-auto pr-1 scrollbar-thin">
+                    {todaySessions.map((session, idx) => {
+                      const inTime = new Date(session.login_time).toLocaleTimeString('en-US', {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        hour12: true,
+                        timeZone: 'Asia/Kolkata'
+                      })
+                      const outTime = session.logout_time
+                        ? new Date(session.logout_time).toLocaleTimeString('en-US', {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            hour12: true,
+                            timeZone: 'Asia/Kolkata'
+                          })
+                        : "Active"
+
+                      return (
+                        <div key={session.session_id} className="flex items-center justify-between text-[11px] bg-slate-50/50 p-2 rounded-lg border border-slate-100">
+                          <span className="font-medium text-slate-500">Session {idx + 1}</span>
+                          <span className="font-mono font-semibold text-slate-700 flex items-center gap-1">
+                            {inTime} <span className="text-slate-400">→</span> <span className={!session.logout_time ? 'text-emerald-600 font-bold' : ''}>{outTime}</span>
+                          </span>
+                        </div>
+                      )
+                    })}
                   </div>
                 )}
               </div>
@@ -210,9 +271,7 @@ export default async function EmployeeDashboard({ params }: { params: Promise<{ 
 
         {/* KPI Stats Row */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-          <AnalyticsCard title="Assigned Tasks" value={totalTasks} icon={Target} colorClass="text-blue-600" bgClass="bg-blue-50" />
-          <AnalyticsCard title="Completed" value={completedTasks} icon={CheckCircle2} colorClass="text-emerald-600" bgClass="bg-emerald-50" />
-          <AnalyticsCard title="Delayed Tasks" value={delayedTasks} icon={AlertCircle} colorClass="text-red-600" bgClass="bg-red-50" />
+          <RealtimeEmployeeTaskCards />
           <AnalyticsCard title="Leave Balance" value="12 Days" icon={Calendar} colorClass="text-purple-600" bgClass="bg-purple-50" />
         </div>
 

@@ -1,6 +1,10 @@
 "use client"
 
-import React, { useState, useEffect } from "react"
+import { useRouter } from "next/navigation";
+import { createClient } from '@/lib/supabase/client';
+import { useTaskCounts } from '@/context/TaskCountsContext';
+import React, { useState, useEffect } from "react";
+
 import { TaskStatusBadge } from "./TaskStatusBadge"
 import { PriorityBadge } from "./PriorityBadge"
 import { CreateTaskDialog } from "./CreateTaskDialog"
@@ -39,6 +43,7 @@ interface Task {
   status: string
   task_status?: string
   due_date: string
+  deadline?: string
   attachments?: any[]
   comments?: any[]
   created_at: string
@@ -79,85 +84,194 @@ export function TaskWorkspaceDashboard({
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
   
   // Realtime refetch trigger simulation (re-syncs list)
+  const router = useRouter();
+  const supabase = createClient();
+
+  // Realtime task sync: listen for inserts, updates, deletes on tasks and task_assignees tables
+  useEffect(() => {
+    const channelName = `realtime_tasks_${currentUserId}_${Math.random().toString(36).substring(7)}`;
+    const channel = supabase
+      .channel(channelName)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'tasks' }, async (payload) => {
+        const newTask = payload.new as any;
+        // If the current user is the creator or the primary assignee, fetch detail and prepend
+        if (newTask.created_by === currentUserId || newTask.assigned_to === currentUserId) {
+          try {
+            const res = await fetch(`/api/tasks/${newTask.id}/details`);
+            if (res.ok) {
+              const data = await res.json();
+              if (data && data.task) {
+                setTasks((prev) => {
+                  if (prev.some(t => t.id === newTask.id)) return prev;
+                  const enrichedTask = {
+                    ...data.task,
+                    assignee_ids: data.task.collaborators?.map((c: any) => c.user_id) || []
+                  };
+                  return [enrichedTask, ...prev];
+                });
+              }
+            }
+          } catch (err) {
+            console.error("Error fetching details for new task:", err);
+          }
+        }
+      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'task_assignees', filter: `user_id=eq.${currentUserId}` }, async (payload) => {
+        const record = payload.new as any;
+        if (record && record.task_id) {
+          try {
+            const res = await fetch(`/api/tasks/${record.task_id}/details`);
+            if (res.ok) {
+              const data = await res.json();
+              if (data && data.task) {
+                setTasks((prev) => {
+                  if (prev.some(t => t.id === record.task_id)) return prev;
+                  const enrichedTask = {
+                    ...data.task,
+                    assignee_ids: data.task.collaborators?.map((c: any) => c.user_id) || []
+                  };
+                  return [enrichedTask, ...prev];
+                });
+              }
+            }
+          } catch (err) {
+            console.error("Error fetching details for assigned task:", err);
+          }
+        }
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'tasks' }, (payload) => {
+        const updated = payload.new as any;
+        setTasks((prev) => prev.map((t) => (t.id === updated.id ? { ...t, ...updated } : t)));
+      })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'tasks' }, (payload) => {
+        const deleted = payload.old as any;
+        setTasks((prev) => prev.filter((t) => t.id !== deleted.id));
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'task_assignees' }, (payload) => {
+        const record = (payload.new || payload.old) as any;
+        if (record && record.task_id) {
+          if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+            setTasks((prev) => prev.map((t) => {
+              if (t.id === record.task_id) {
+                const existingAssignees = (t as any).task_assignees as any[] || [];
+                const updatedAssignees = existingAssignees.some(a => a.id === record.id)
+                  ? existingAssignees.map(a => a.id === record.id ? record : a)
+                  : [...existingAssignees, record];
+                const assigneeIds = updatedAssignees.map(a => a.user_id);
+                let status = t.status;
+                if (currentUserRole === 'EMPLOYEE' && record.user_id === currentUserId) {
+                  status = record.status;
+                }
+                return {
+                  ...t,
+                  task_assignees: updatedAssignees,
+                  assignee_ids: assigneeIds,
+                  status: status,
+                  task_status: status
+                };
+              }
+              return t;
+            }));
+          } else if (payload.eventType === 'DELETE') {
+            setTasks((prev) => {
+              // If the current user was deleted from the task collaborators, remove task from list
+              if (record.user_id === currentUserId) {
+                return prev.filter(t => t.id !== record.task_id);
+              }
+              return prev.map((t) => {
+                if (t.id === record.task_id) {
+                  const existingAssignees = (t as any).task_assignees as any[] || [];
+                  const updatedAssignees = existingAssignees.filter(a => a.id !== record.id);
+                  const assigneeIds = updatedAssignees.map(a => a.user_id);
+                  return {
+                    ...t,
+                    task_assignees: updatedAssignees,
+                    assignee_ids: assigneeIds
+                  };
+                }
+                return t;
+              });
+            });
+          }
+        }
+      })
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [currentUserId, supabase, currentUserRole]);
+
+  // Optional manual refresh (kept for fallback)
   const handleRefresh = async () => {
-    // Simply reloading window or re-fetching via client component makes it robust
-    window.location.reload()
-  }
+    router.refresh();
+  };
 
   // Parse task fields securely supporting both new/old formats
   const getTaskTitle = (t: Task) => t.title || t.task_title || "Untitled Task"
-  const getTaskDescription = (t: Task) => t.description || t.task_description || ""
+  const getTaskDescription = (t: Task) => t?.description || t?.task_description || "";
   const getTaskStatus = (t: Task) => t.status || t.task_status || "PENDING"
   const getTaskPriority = (t: Task) => t.priority || t.priority_level || "MEDIUM"
 
   const todayStr = new Date().toISOString().split('T')[0]
 
-  // KPI Calculations
-  const totalCount = tasks.length
-  const assignedToMeCount = tasks.filter(t => (t as any).assignee_ids?.includes(currentUserId) || t.assigned_to === currentUserId).length
-  const assignedByMeCount = tasks.filter(t => t.created_by === currentUserId).length
-  
-  const pendingActionsCount = tasks.filter(t => {
-    const status = getTaskStatus(t)
-    const isUserAssignee = (t as any).assignee_ids?.includes(currentUserId) || t.assigned_to === currentUserId
-    return (status === 'PENDING' && isUserAssignee) || 
-           (t.clarification_text && t.created_by === currentUserId && status === 'PENDING')
-  }).length
-  
-  const overdueCount = tasks.filter(t => {
-    const status = getTaskStatus(t)
-    return status !== 'COMPLETED' && t.due_date < todayStr
-  }).length
-
-  const highPriorityCount = tasks.filter(t => {
-    const p = getTaskPriority(t)
-    return p === 'HIGH' || p === 'CRITICAL'
-  }).length
-
-  // Filter Pipeline
-  const filteredTasks = tasks.filter(t => {
-    const status = getTaskStatus(t)
-    const priority = getTaskPriority(t)
-    const desc = getTaskDescription(t)
-    const title = getTaskTitle(t)
-    const isUserAssignee = (t as any).assignee_ids?.includes(currentUserId) || t.assigned_to === currentUserId
-
+  // Use realtime task counts from TaskCountsContext
+  const { 
+    total: totalCount, 
+    assignedToMe: assignedToMeCount, 
+    assignedByMe: assignedByMeCount, 
+    pending: pendingCount, 
+    completed: completedCount,
+    overdue: overdueCount,
+    highPriority: highPriorityCount
+  } = useTaskCounts();
+  const pendingActionsCount = pendingCount;
+  const safeTasks = tasks?.filter(Boolean) ?? [];
+  const filteredTasks = safeTasks.filter(t => {
+    // Guard against null task objects
+    if (!t) return false;
+    const status = getTaskStatus(t);
+    const priority = getTaskPriority(t);
+    const desc = getTaskDescription(t);
+    const title = getTaskTitle(t);
+    const isUserAssignee = (t as any).assignee_ids?.includes(currentUserId) || t.assigned_to === currentUserId;
+    
     // 1. Search Query Match
     const matchesSearch = 
       title.toLowerCase().includes(search.toLowerCase()) ||
       desc.toLowerCase().includes(search.toLowerCase()) ||
-      t.department.toLowerCase().includes(search.toLowerCase())
-
-    if (!matchesSearch) return false
-
+      t.department.toLowerCase().includes(search.toLowerCase());
+    
+    if (!matchesSearch) return false;
+    
     // 2. Custom dropdown filters
-    if (priorityFilter !== 'ALL' && priority !== priorityFilter) return false
-    if (statusFilter !== 'ALL' && status !== statusFilter) return false
-    if (categoryFilter !== 'ALL' && t.department !== categoryFilter) return false
+    if (priorityFilter !== 'ALL' && priority !== priorityFilter) return false;
+    if (statusFilter !== 'ALL' && status !== statusFilter) return false;
+    if (categoryFilter !== 'ALL' && t.department !== categoryFilter) return false;
     if (roleFilter !== 'ALL') {
-      if (roleFilter === 'ASSIGNED_TO_ME' && !isUserAssignee) return false
-      if (roleFilter === 'ASSIGNED_BY_ME' && t.created_by !== currentUserId) return false
+      if (roleFilter === 'ASSIGNED_TO_ME' && !isUserAssignee) return false;
+      if (roleFilter === 'ASSIGNED_BY_ME' && t.created_by !== currentUserId) return false;
     }
-
+    
     // 3. Tab restrictions
-    if (activeTab === 'assigned_to_me' && !isUserAssignee) return false
-    if (activeTab === 'assigned_by_me' && t.created_by !== currentUserId) return false
+    if (activeTab === 'assigned_to_me' && !isUserAssignee) return false;
+    if (activeTab === 'assigned_by_me' && t.created_by !== currentUserId) return false;
     if (activeTab === 'pending_actions') {
-      const isPendingAction = (status === 'PENDING' && isUserAssignee) || 
-                              (t.clarification_text && t.created_by === currentUserId && status === 'PENDING')
-      if (!isPendingAction) return false
+      const isPendingAction = (status === 'PENDING' && isUserAssignee) ||
+                              (t.clarification_text && t.created_by === currentUserId && status === 'PENDING');
+      if (!isPendingAction) return false;
     }
-    if (activeTab === 'overdue' && (status === 'COMPLETED' || t.due_date >= todayStr)) return false
-    if (activeTab === 'completed' && status !== 'COMPLETED') return false
-    if (activeTab === 'high_priority' && priority !== 'HIGH' && priority !== 'CRITICAL') return false
-
-    return true
-  })
+    const tDueDate = t.deadline || t.due_date || "";
+    if (activeTab === 'overdue' && (status === 'COMPLETED' || tDueDate >= todayStr)) return false;
+    if (activeTab === 'completed' && status !== 'COMPLETED') return false;
+    if (activeTab === 'high_priority' && priority !== 'HIGH' && priority !== 'CRITICAL') return false;
+    
+    return true;
+  });
 
   // Group upcoming timeline tasks (upcoming 5 due tasks)
   const timelineTasks = [...tasks]
     .filter(t => getTaskStatus(t) !== 'COMPLETED')
-    .sort((a, b) => a.due_date.localeCompare(b.due_date))
+    .sort((a, b) => (a.deadline || a.due_date || "").localeCompare(b.deadline || b.due_date || ""))
     .slice(0, 5)
 
   return (
@@ -193,7 +307,7 @@ export function TaskWorkspaceDashboard({
               <Layers className="w-6 h-6" />
             </div>
             <div>
-              <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest block">Total</span>
+              <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest block">Total Tasks</span>
               <h4 className="text-2xl font-black text-slate-900 dark:text-white">{totalCount}</h4>
             </div>
           </div>
@@ -203,38 +317,38 @@ export function TaskWorkspaceDashboard({
               <UserCheck className="w-6 h-6" />
             </div>
             <div>
-              <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest block">For Me</span>
+              <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest block">Assigned To Me</span>
               <h4 className="text-2xl font-black text-slate-900 dark:text-white">{assignedToMeCount}</h4>
             </div>
           </div>
 
           <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 p-5 rounded-2xl shadow-sm flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-purple-50 dark:bg-purple-900/30 text-purple-600 flex items-center justify-center shrink-0">
-              <HelpCircle className="w-6 h-6" />
+            <div className="w-12 h-12 rounded-xl bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 flex items-center justify-center shrink-0">
+              <User className="w-6 h-6" />
             </div>
             <div>
-              <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest block">Pending Act</span>
-              <h4 className="text-2xl font-black text-slate-900 dark:text-white">{pendingActionsCount}</h4>
+              <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest block">Assigned By Me</span>
+              <h4 className="text-2xl font-black text-slate-900 dark:text-white">{assignedByMeCount}</h4>
             </div>
           </div>
 
           <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 p-5 rounded-2xl shadow-sm flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-red-50 dark:bg-red-900/30 text-red-500 flex items-center justify-center shrink-0">
-              <Clock className="w-6 h-6 animate-pulse" />
+            <div className="w-12 h-12 rounded-xl bg-amber-50 dark:bg-amber-900/30 text-amber-600 flex items-center justify-center shrink-0">
+              <Clock className="w-6 h-6" />
             </div>
             <div>
-              <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest block">Overdue</span>
-              <h4 className="text-2xl font-black text-slate-900 dark:text-white">{overdueCount}</h4>
+              <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest block">Pending Tasks</span>
+              <h4 className="text-2xl font-black text-slate-900 dark:text-white">{pendingCount}</h4>
             </div>
           </div>
 
           <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 p-5 rounded-2xl shadow-sm col-span-2 lg:col-span-1 flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-orange-50 dark:bg-orange-900/30 text-orange-600 flex items-center justify-center shrink-0">
-              <ShieldAlert className="w-6 h-6" />
+            <div className="w-12 h-12 rounded-xl bg-teal-50 dark:bg-teal-900/30 text-teal-600 flex items-center justify-center shrink-0">
+              <CheckCircle2 className="w-6 h-6" />
             </div>
             <div>
-              <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest block">Critical</span>
-              <h4 className="text-2xl font-black text-slate-900 dark:text-white">{highPriorityCount}</h4>
+              <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest block">Completed Tasks</span>
+              <h4 className="text-2xl font-black text-slate-900 dark:text-white">{completedCount}</h4>
             </div>
           </div>
 
@@ -364,7 +478,8 @@ export function TaskWorkspaceDashboard({
                 {filteredTasks.map((t, idx) => {
                   const status = getTaskStatus(t)
                   const priority = getTaskPriority(t)
-                  const isOverdue = status !== 'COMPLETED' && t.due_date < todayStr
+                  const dueDateVal = t.deadline || t.due_date || ""
+                  const isOverdue = status !== 'COMPLETED' && dueDateVal < todayStr
 
                   return (
                     <div 
@@ -397,7 +512,7 @@ export function TaskWorkspaceDashboard({
                         <div className="flex items-center gap-1.5 text-slate-500">
                           <Clock className={`w-3.5 h-3.5 ${isOverdue ? 'text-red-500 animate-pulse' : 'text-slate-400'}`} />
                           <span className={`font-semibold ${isOverdue ? 'text-red-500 font-extrabold' : ''}`}>
-                            {new Date(t.due_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                            {dueDateVal ? new Date(dueDateVal).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : 'No due date'}
                           </span>
                         </div>
 
@@ -429,8 +544,9 @@ export function TaskWorkspaceDashboard({
                 </p>
               ) : (
                 <div className="space-y-4">
-                  {timelineTasks.map(t => {
-                    const isOverdue = t.due_date < todayStr
+                   {timelineTasks.map(t => {
+                    const dueDateVal = t.deadline || t.due_date || ""
+                    const isOverdue = dueDateVal < todayStr
                     return (
                       <div 
                         key={t.id} 
@@ -448,7 +564,7 @@ export function TaskWorkspaceDashboard({
                         <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded shrink-0 ${
                           isOverdue ? 'bg-red-50 text-red-600' : 'bg-blue-50 text-[#0066FF]'
                         }`}>
-                          {new Date(t.due_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                          {dueDateVal ? new Date(dueDateVal).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : 'No due date'}
                         </span>
                       </div>
                     )
