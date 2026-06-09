@@ -209,7 +209,7 @@ export function AdminSessionReports({ initialSessions, departments, employees }:
                         <span className="px-2 py-0.5 bg-blue-50 text-[#0066FF] text-[9px] font-bold rounded-md uppercase border border-blue-100">
                           {session.department || 'Operations'}
                         </span>
-                        {!session.logout_time && (
+                        {!session.logout_time && session.status === 'ACTIVE' && (
                           <span className="px-2 py-0.5 bg-emerald-50 text-emerald-600 text-[9px] font-bold rounded-md uppercase border border-emerald-100 animate-pulse">
                             Active
                           </span>

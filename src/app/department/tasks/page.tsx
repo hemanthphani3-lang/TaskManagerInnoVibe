@@ -27,16 +27,43 @@ export default async function DepartmentTasksPage() {
 
   const deptName = dept?.department_name || ""
 
-  // Fetch tasks assigned to them, assigned by them, or matching department labels
-  const { data: tasks } = await supabaseAdmin
+  // Fetch all employee IDs in the department
+  const { data: emps } = await supabaseAdmin
+    .from('employees')
+    .select('id')
+    .eq('department_id', user.id)
+
+  const empIds = emps?.map(e => e.id) || []
+
+  // Fetch task IDs where any employee or department head is assigned
+  const { data: assigneeRecords } = await supabaseAdmin
+    .from('task_assignees')
+    .select('task_id')
+    .in('user_id', [...empIds, user.id])
+
+  const deptTaskIds = assigneeRecords?.map(r => r.task_id) || []
+
+  let tasksQuery = supabaseAdmin
     .from('tasks')
-    .select('*')
-    .or(`assigned_to.eq.${user.id},created_by.eq.${user.id},department.eq.${deptName},department_id.eq.${user.id}`)
+    .select('*, task_assignees(*)')
+
+  if (deptTaskIds.length > 0) {
+    tasksQuery = tasksQuery.or(`id.in.(${deptTaskIds.map(id => `"${id}"`).join(',')}),created_by.eq.${user.id},department.eq.${deptName},department_id.eq.${user.id}`)
+  } else {
+    tasksQuery = tasksQuery.or(`assigned_to.eq.${user.id},created_by.eq.${user.id},department.eq.${deptName},department_id.eq.${user.id}`)
+  }
+
+  const { data: tasks } = await tasksQuery
     .order('created_at', { ascending: false })
+
+  const mappedTasks = tasks?.map(t => ({
+    ...t,
+    assignee_ids: (t.task_assignees as any[])?.map(a => a.user_id) || []
+  })) || []
 
   return (
     <TaskWorkspaceDashboard
-      initialTasks={tasks || []}
+      initialTasks={mappedTasks}
       currentUserId={user.id}
       currentUserRole="DEPARTMENT"
       currentUserDept={deptName}

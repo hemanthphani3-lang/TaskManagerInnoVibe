@@ -157,7 +157,7 @@ export async function getCurrentUserRoleAndProfile() {
 export async function createCrossRoleTask(data: {
   title: string
   description: string
-  assigned_to: string
+  assigned_to: string | string[]
   assigned_to_role: string
   priority: string
   due_date: string
@@ -177,17 +177,43 @@ export async function createCrossRoleTask(data: {
     const creator = profileRes.profile
     const creatorRole = profileRes.role
 
+    const assigneeIds = Array.isArray(data.assigned_to)
+      ? data.assigned_to
+      : (typeof data.assigned_to === 'string' && data.assigned_to ? data.assigned_to.split(',').map(s => s.trim()).filter(Boolean) : [])
+
+    if (assigneeIds.length === 0) {
+      return { success: false, error: "Please select at least one assignee user." }
+    }
+
+    const primaryAssigneeId = assigneeIds[0]
+
     // Fetch employee's department if assignee is an employee
     let targetDepartmentId = null
-    if (data.assigned_to_role === 'EMPLOYEE') {
-      const { data: empData } = await getSupabaseAdmin()
-        .from('employees')
-        .select('department_id')
-        .eq('id', data.assigned_to)
+    let actualAssignedToRole = data.assigned_to_role
+    let actualAssignedEmployeeId = null
+
+    const { data: empData } = await getSupabaseAdmin()
+      .from('employees')
+      .select('department_id')
+      .eq('id', primaryAssigneeId)
+      .maybeSingle()
+
+    if (empData) {
+      targetDepartmentId = empData.department_id
+      actualAssignedToRole = 'EMPLOYEE'
+      actualAssignedEmployeeId = primaryAssigneeId
+    } else {
+      // Check if it is a department head
+      const { data: deptData } = await getSupabaseAdmin()
+        .from('departments')
+        .select('id')
+        .eq('id', primaryAssigneeId)
         .maybeSingle()
-      if (empData) {
-        targetDepartmentId = empData.department_id
+      if (deptData) {
+        targetDepartmentId = deptData.id
+        actualAssignedToRole = 'DEPARTMENT'
       }
+      actualAssignedEmployeeId = null // Set to null to prevent foreign key constraint violations
     }
 
     // Ensure we have a valid department ID for SQL constraints
@@ -212,8 +238,8 @@ export async function createCrossRoleTask(data: {
         description: data.description,
         created_by: user.id,
         created_by_role: creatorRole,
-        assigned_to: data.assigned_to,
-        assigned_to_role: data.assigned_to_role,
+        assigned_to: primaryAssigneeId,
+        assigned_to_role: actualAssignedToRole,
         department: creator.department || data.category || 'Operations',
         priority: data.priority || 'MEDIUM',
         status: 'PENDING',
@@ -225,7 +251,7 @@ export async function createCrossRoleTask(data: {
         task_title: data.title,
         task_description: data.description,
         assigned_by_department: creatorRole === 'DEPARTMENT' ? user.id : finalDeptId,
-        assigned_employee_id: data.assigned_to_role === 'EMPLOYEE' ? data.assigned_to : null,
+        assigned_employee_id: actualAssignedEmployeeId,
         department_id: finalDeptId,
         priority_level: (data.priority || 'MEDIUM') as any,
         task_status: 'PENDING'
@@ -235,12 +261,27 @@ export async function createCrossRoleTask(data: {
 
     if (insertError) throw insertError
 
+    // Insert task assignees
+    const assigneeInserts = assigneeIds.map(uid => ({
+      task_id: task.id,
+      user_id: uid,
+      status: 'PENDING'
+    }))
+
+    const { error: assError } = await getSupabaseAdmin()
+      .from('task_assignees')
+      .insert(assigneeInserts)
+
+    if (assError) {
+      console.error("Failed to insert task assignees:", assError.message)
+    }
+
     // Insert task activity log
     await getSupabaseAdmin().from('task_activity_logs').insert({
       task_id: task.id,
       action_type: 'CREATED',
       action_by: user.id,
-      action_description: `Task created and assigned to ${data.assigned_to_role} by ${creator.name}.`
+      action_description: `Task created and assigned to ${assigneeIds.length} collaborators by ${creator.name}.`
     })
 
     // Setup route-based links for notification
@@ -248,14 +289,16 @@ export async function createCrossRoleTask(data: {
                   : data.assigned_to_role === 'DEPARTMENT' ? `/department/tasks`
                   : `/employee/tasks`
 
-    // Notify the assignee
-    await getSupabaseAdmin().from('notifications').insert({
-      user_id: data.assigned_to,
+    // Notify all collaborators
+    const notificationInserts = assigneeIds.map(uid => ({
+      user_id: uid,
       title: '📬 New Task Assigned',
-      message: `You have been assigned a new task: "${data.title}" by ${creator.name} (${creatorRole})`,
+      message: `You have been added to Task: "${data.title}" by ${creator.name} (${creatorRole})`,
       type: 'TASK',
       link_url: linkUrl
-    })
+    }))
+
+    await getSupabaseAdmin().from('notifications').insert(notificationInserts)
 
     // Revalidate paths
     revalidatePath('/admin/tasks')
@@ -297,43 +340,60 @@ export async function respondToTask(
 
     if (fetchErr || !task) return { success: false, error: "Task not found" }
 
-    // RLS override validation
-    if (task.assigned_to !== user.id && profileRes.role !== 'ADMIN') {
-      return { success: false, error: "Only the assigned user can respond to this task." }
+    // Check if user is one of the collaborators
+    const { data: assigneeRecord } = await getSupabaseAdmin()
+      .from('task_assignees')
+      .select('*')
+      .eq('task_id', taskId)
+      .eq('user_id', user.id)
+      .maybeSingle()
+
+    if (!assigneeRecord && profileRes.role !== 'ADMIN') {
+      return { success: false, error: "Only the assigned users can respond to this task." }
     }
 
-    const updates: Record<string, any> = {}
+    const targetUserId = assigneeRecord ? user.id : task.assigned_to
+
     let logMsg = ""
     let notificationTitle = ""
     let notificationMessage = ""
+    let nextAssigneeStatus = 'PENDING'
 
     if (action === 'ACCEPT') {
-      updates.status = 'IN_PROGRESS'
-      updates.accepted_at = new Date().toISOString()
-      logMsg = `Task accepted by ${responderName}. Status changed to In Progress.`
+      nextAssigneeStatus = 'ACCEPTED'
+      logMsg = `Task accepted by ${responderName}.`
       notificationTitle = '✅ Task Accepted'
       notificationMessage = `${responderName} has accepted the task: "${task.title || task.task_title}"`
     } else if (action === 'REJECT') {
-      updates.status = 'REJECTED'
-      updates.rejected_at = new Date().toISOString()
-      updates.rejection_reason = notes || 'No reason provided'
-      logMsg = `Task rejected by ${responderName}. Reason: ${notes || 'None'}`
-      notificationTitle = '❌ Task Rejected'
-      notificationMessage = `${responderName} rejected the task: "${task.title || task.task_title}" (Reason: ${notes || 'None'})`
+      nextAssigneeStatus = 'BLOCKED'
+      logMsg = `Task marked as blocked by ${responderName}. Reason: ${notes || 'None'}`
+      notificationTitle = '❌ Task Blocked'
+      notificationMessage = `${responderName} marked task as blocked: "${task.title || task.task_title}" (Reason: ${notes || 'None'})`
     } else if (action === 'CLARIFY') {
-      updates.clarification_requested_at = new Date().toISOString()
-      updates.clarification_text = notes || 'Clarification needed'
+      nextAssigneeStatus = 'PENDING'
       logMsg = `Clarification requested by ${responderName}: ${notes}`
       notificationTitle = '❓ Clarification Requested'
       notificationMessage = `${responderName} requested clarification on task: "${task.title || task.task_title}"`
     }
 
-    const { error: updateErr } = await getSupabaseAdmin()
-      .from('tasks')
-      .update(updates)
-      .eq('id', taskId)
+    // Update assignee status in task_assignees
+    const assigneeUpdates: Record<string, any> = {
+      status: nextAssigneeStatus
+    }
+    if (action === 'ACCEPT') {
+      assigneeUpdates.accepted_at = new Date().toISOString()
+    }
 
-    if (updateErr) throw updateErr
+    const { error: updateAssigneeErr } = await getSupabaseAdmin()
+      .from('task_assignees')
+      .update(assigneeUpdates)
+      .eq('task_id', taskId)
+      .eq('user_id', targetUserId)
+
+    if (updateAssigneeErr) throw updateAssigneeErr
+
+    // Recalculate overall status
+    await recalculateAndUpdateTaskOverallStatus(taskId)
 
     // Insert task activity log
     await getSupabaseAdmin().from('task_activity_logs').insert({
@@ -356,6 +416,24 @@ export async function respondToTask(
       type: 'TASK',
       link_url: creatorLinkUrl
     })
+
+    // Notify remaining collaborators
+    const { data: otherAssignees } = await getSupabaseAdmin()
+      .from('task_assignees')
+      .select('user_id')
+      .eq('task_id', taskId)
+      .neq('user_id', user.id)
+
+    if (otherAssignees && otherAssignees.length > 0) {
+      const notificationInserts = otherAssignees.map(oa => ({
+        user_id: oa.user_id,
+        title: notificationTitle,
+        message: `${responderName} updated status on "${task.title || task.task_title}": ${logMsg}`,
+        type: 'TASK',
+        link_url: `/employee/tasks`
+      }))
+      await getSupabaseAdmin().from('notifications').insert(notificationInserts)
+    }
 
     // Revalidate paths
     revalidatePath('/admin/tasks')
@@ -392,46 +470,120 @@ export async function updateCrossRoleTaskStatus(taskId: string, nextStatus: stri
 
     if (fetchErr || !task) return { success: false, error: "Task not found" }
 
-    const updates: Record<string, any> = {
-      status: nextStatus,
-      updated_at: new Date().toISOString()
+    // Check if user is an assignee
+    const { data: assigneeRecord } = await getSupabaseAdmin()
+      .from('task_assignees')
+      .select('*')
+      .eq('task_id', taskId)
+      .eq('user_id', user.id)
+      .maybeSingle()
+
+    if (assigneeRecord) {
+      const assUpdates: Record<string, any> = {
+        status: nextStatus
+      }
+      if (nextStatus === 'COMPLETED') {
+        assUpdates.completed_at = new Date().toISOString()
+      } else if (nextStatus === 'IN_PROGRESS' && !assigneeRecord.accepted_at) {
+        assUpdates.accepted_at = new Date().toISOString()
+      }
+
+      const { error: assErr } = await getSupabaseAdmin()
+        .from('task_assignees')
+        .update(assUpdates)
+        .eq('id', assigneeRecord.id)
+
+      if (assErr) throw assErr
+
+      // Insert task activity log
+      await getSupabaseAdmin().from('task_activity_logs').insert({
+        task_id: taskId,
+        action_type: 'STATUS_CHANGE',
+        action_by: user.id,
+        action_description: `${changerName} marked their portion as ${nextStatus}.`
+      })
+
+      // Recalculate overall status
+      await recalculateAndUpdateTaskOverallStatus(taskId)
+
+      // Notify task creator
+      if (task.created_by !== user.id) {
+        await getSupabaseAdmin().from('notifications').insert({
+          user_id: task.created_by,
+          title: `🔄 Task Status Updated: ${nextStatus}`,
+          message: `${changerName} marked their portion as ${nextStatus} on task "${task.title || task.task_title}".`,
+          type: 'TASK',
+          link_url: task.created_by_role === 'ADMIN' ? `/admin/tasks` : task.created_by_role === 'DEPARTMENT' ? `/department/tasks` : `/employee/tasks`
+        })
+      }
+
+      // Notify remaining collaborators
+      const { data: otherAssignees } = await getSupabaseAdmin()
+        .from('task_assignees')
+        .select('user_id')
+        .eq('task_id', taskId)
+        .neq('user_id', user.id)
+
+      if (otherAssignees && otherAssignees.length > 0) {
+        const notificationInserts = otherAssignees.map(oa => ({
+          user_id: oa.user_id,
+          title: `🔄 Collaborator Progress Update`,
+          message: `${changerName} marked their portion as ${nextStatus} on task "${task.title || task.task_title}".`,
+          type: 'TASK',
+          link_url: `/employee/tasks`
+        }))
+        await getSupabaseAdmin().from('notifications').insert(notificationInserts)
+      }
+    } else {
+      // If user is not assignee (e.g. creator or admin), update overall status directly
+      const updates: Record<string, any> = {
+        status: nextStatus,
+        task_status: nextStatus,
+        updated_at: new Date().toISOString()
+      }
+      if (nextStatus === 'COMPLETED') {
+        updates.completed_at = new Date().toISOString()
+      }
+
+      const { error: taskErr } = await getSupabaseAdmin()
+        .from('tasks')
+        .update(updates)
+        .eq('id', taskId)
+
+      if (taskErr) throw taskErr
+
+      // Update all assignees to match if completed
+      if (nextStatus === 'COMPLETED') {
+        await getSupabaseAdmin()
+          .from('task_assignees')
+          .update({ status: 'COMPLETED', completed_at: new Date().toISOString() })
+          .eq('task_id', taskId)
+      }
+
+      await getSupabaseAdmin().from('task_activity_logs').insert({
+        task_id: taskId,
+        action_type: 'STATUS_CHANGE',
+        action_by: user.id,
+        action_description: `Task overall status updated to ${nextStatus} by ${changerName}.`
+      })
+
+      // Notify all assignees
+      const { data: allAssignees } = await getSupabaseAdmin()
+        .from('task_assignees')
+        .select('user_id')
+        .eq('task_id', taskId)
+
+      if (allAssignees && allAssignees.length > 0) {
+        const notificationInserts = allAssignees.map(a => ({
+          user_id: a.user_id,
+          title: `🔄 Task Overall Status Updated: ${nextStatus}`,
+          message: `The overall status of task "${task.title || task.task_title}" was updated to ${nextStatus} by ${changerName}.`,
+          type: 'TASK',
+          link_url: `/employee/tasks`
+        }))
+        await getSupabaseAdmin().from('notifications').insert(notificationInserts)
+      }
     }
-
-    if (nextStatus === 'COMPLETED') {
-      updates.completed_at = new Date().toISOString()
-    }
-
-    const { error: updateErr } = await getSupabaseAdmin()
-      .from('tasks')
-      .update(updates)
-      .eq('id', taskId)
-
-    if (updateErr) throw updateErr
-
-    // Insert task activity log
-    await getSupabaseAdmin().from('task_activity_logs').insert({
-      task_id: taskId,
-      action_type: 'STATUS_CHANGE',
-      action_by: user.id,
-      action_description: `Status updated to ${nextStatus} by ${changerName}.`
-    })
-
-    // Notify other party
-    const isCreator = task.created_by === user.id
-    const notifyTarget = isCreator ? task.assigned_to : task.created_by
-    const notifyTargetRole = isCreator ? task.assigned_to_role : task.created_by_role
-
-    const linkUrl = notifyTargetRole === 'ADMIN' ? `/admin/tasks`
-                  : notifyTargetRole === 'DEPARTMENT' ? `/department/tasks`
-                  : `/employee/tasks`
-
-    await getSupabaseAdmin().from('notifications').insert({
-      user_id: notifyTarget,
-      title: `🔄 Task Status Updated: ${nextStatus}`,
-      message: `The task "${task.title || task.task_title}" was marked as ${nextStatus} by ${changerName}.`,
-      type: 'TASK',
-      link_url: linkUrl
-    })
 
     // Revalidate paths
     revalidatePath('/admin/tasks')
@@ -441,6 +593,180 @@ export async function updateCrossRoleTaskStatus(taskId: string, nextStatus: stri
     return { success: true }
   } catch (err: any) {
     console.error("Update task status error:", err)
+    return { success: false, error: err.message || String(err) }
+  }
+}
+
+// ==========================================
+// 5.5 RECALCULATE & UPDATE OVERALL STATUS
+// ==========================================
+export async function recalculateAndUpdateTaskOverallStatus(taskId: string) {
+  try {
+    const { data: assignees, error } = await getSupabaseAdmin()
+      .from('task_assignees')
+      .select('status, completed_at')
+      .eq('task_id', taskId)
+
+    if (error || !assignees || assignees.length === 0) return
+
+    const { data: task } = await getSupabaseAdmin()
+      .from('tasks')
+      .select('due_date, status')
+      .eq('id', taskId)
+      .single()
+
+    if (!task) return
+
+    let overallStatus = 'PENDING'
+    
+    const todayStr = new Date().toISOString().split('T')[0]
+    const isDeadlinePassed = task.due_date && task.due_date < todayStr
+
+    const allCompleted = assignees.every(a => a.status === 'COMPLETED')
+    const atLeastOneStarted = assignees.some(a => ['ACCEPTED', 'IN_PROGRESS', 'COMPLETED', 'BLOCKED'].includes(a.status))
+
+    if (allCompleted) {
+      overallStatus = 'COMPLETED'
+    } else if (isDeadlinePassed) {
+      overallStatus = 'OVERDUE'
+    } else if (atLeastOneStarted) {
+      overallStatus = 'IN_PROGRESS'
+    } else {
+      overallStatus = 'PENDING'
+    }
+
+    const updates: Record<string, any> = {
+      status: overallStatus,
+      task_status: overallStatus
+    }
+
+    if (overallStatus === 'COMPLETED') {
+      updates.completed_at = new Date().toISOString()
+    }
+
+    await getSupabaseAdmin()
+      .from('tasks')
+      .update(updates)
+      .eq('id', taskId)
+  } catch (err) {
+    console.error("Error recalculating overall status:", err)
+  }
+}
+
+// ==========================================
+// 5.6 SUBTASK SYSTEM ACTIONS
+// ==========================================
+export async function createSubtask(taskId: string, title: string, assignedTo?: string) {
+  try {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { success: false, error: "Unauthorized" }
+
+    const { data: subtask, error } = await getSupabaseAdmin()
+      .from('task_subtasks')
+      .insert({
+        task_id: taskId,
+        title: title,
+        assigned_to: assignedTo || null,
+        is_completed: false
+      })
+      .select()
+      .single()
+
+    if (error) throw error
+
+    await getSupabaseAdmin().from('task_activity_logs').insert({
+      task_id: taskId,
+      action_type: 'SUBTASK_ADDED',
+      action_by: user.id,
+      action_description: `Subtask "${title}" was created.`
+    })
+
+    revalidatePath('/admin/tasks')
+    revalidatePath('/department/tasks')
+    revalidatePath('/employee/tasks')
+
+    return { success: true, subtask }
+  } catch (err: any) {
+    console.error("Create subtask error:", err)
+    return { success: false, error: err.message || String(err) }
+  }
+}
+
+export async function toggleSubtask(subtaskId: string, isCompleted: boolean) {
+  try {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { success: false, error: "Unauthorized" }
+
+    const { data: subtask } = await getSupabaseAdmin()
+      .from('task_subtasks')
+      .select('*')
+      .eq('id', subtaskId)
+      .single()
+
+    if (!subtask) return { success: false, error: "Subtask not found" }
+
+    const { error } = await getSupabaseAdmin()
+      .from('task_subtasks')
+      .update({ is_completed: isCompleted })
+      .eq('id', subtaskId)
+
+    if (error) throw error
+
+    await getSupabaseAdmin().from('task_activity_logs').insert({
+      task_id: subtask.task_id,
+      action_type: 'SUBTASK_TOGGLED',
+      action_by: user.id,
+      action_description: `Subtask "${subtask.title}" marked as ${isCompleted ? 'completed' : 'incomplete'}.`
+    })
+
+    revalidatePath('/admin/tasks')
+    revalidatePath('/department/tasks')
+    revalidatePath('/employee/tasks')
+
+    return { success: true }
+  } catch (err: any) {
+    console.error("Toggle subtask error:", err)
+    return { success: false, error: err.message || String(err) }
+  }
+}
+
+export async function deleteSubtask(subtaskId: string) {
+  try {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { success: false, error: "Unauthorized" }
+
+    const { data: subtask } = await getSupabaseAdmin()
+      .from('task_subtasks')
+      .select('*')
+      .eq('id', subtaskId)
+      .single()
+
+    if (!subtask) return { success: false, error: "Subtask not found" }
+
+    const { error } = await getSupabaseAdmin()
+      .from('task_subtasks')
+      .delete()
+      .eq('id', subtaskId)
+
+    if (error) throw error
+
+    await getSupabaseAdmin().from('task_activity_logs').insert({
+      task_id: subtask.task_id,
+      action_type: 'SUBTASK_DELETED',
+      action_by: user.id,
+      action_description: `Subtask "${subtask.title}" was deleted.`
+    })
+
+    revalidatePath('/admin/tasks')
+    revalidatePath('/department/tasks')
+    revalidatePath('/employee/tasks')
+
+    return { success: true }
+  } catch (err: any) {
+    console.error("Delete subtask error:", err)
     return { success: false, error: err.message || String(err) }
   }
 }
@@ -492,22 +818,34 @@ export async function addCrossRoleComment(
       action_description: `${commenterName} added a comment: "${message.substring(0, 30)}${message.length > 30 ? '...' : ''}"`
     })
 
-    // Notify other party
-    const isCreator = task.created_by === user.id
-    const notifyTarget = isCreator ? task.assigned_to : task.created_by
-    const notifyTargetRole = isCreator ? task.assigned_to_role : task.created_by_role
+    // Fetch all assignees of this task to notify
+    const { data: assignees } = await getSupabaseAdmin()
+      .from('task_assignees')
+      .select('user_id')
+      .eq('task_id', taskId)
 
-    const linkUrl = notifyTargetRole === 'ADMIN' ? `/admin/tasks`
-                  : notifyTargetRole === 'DEPARTMENT' ? `/department/tasks`
-                  : `/employee/tasks`
+    const notifyUserIds = new Set<string>()
+    if (assignees) {
+      assignees.forEach(a => {
+        if (a.user_id !== user.id) {
+          notifyUserIds.add(a.user_id)
+        }
+      })
+    }
+    if (task.created_by !== user.id) {
+      notifyUserIds.add(task.created_by)
+    }
 
-    await getSupabaseAdmin().from('notifications').insert({
-      user_id: notifyTarget,
-      title: '💬 New Comment Added',
-      message: `${commenterName} commented on "${task.title || task.task_title}": "${message.substring(0, 40)}${message.length > 40 ? '...' : ''}"`,
-      type: 'TASK',
-      link_url: linkUrl
-    })
+    if (notifyUserIds.size > 0) {
+      const notificationInserts = Array.from(notifyUserIds).map(targetId => ({
+        user_id: targetId,
+        title: '💬 New Comment Added',
+        message: `${commenterName} commented on "${task.title || task.task_title}": "${message.substring(0, 40)}${message.length > 40 ? '...' : ''}"`,
+        type: 'TASK',
+        link_url: `/employee/tasks`
+      }))
+      await getSupabaseAdmin().from('notifications').insert(notificationInserts)
+    }
 
     // Revalidate paths
     revalidatePath('/admin/tasks')
@@ -653,14 +991,14 @@ export async function addTaskAttachment(taskId: string, fileUrl: string, fileTyp
 export async function createAdminTask(formData: FormData) {
   const title = formData.get('title') as string
   const description = formData.get('description') as string
-  const assigned_employee_id = formData.get('assigned_employee_id') as string
+  const assigned_employee_ids = formData.getAll('assigned_employee_id') as string[]
   const priority = formData.get('priority') as string
   const due_date = formData.get('due_date') as string
 
   const res = await createCrossRoleTask({
     title,
     description,
-    assigned_to: assigned_employee_id,
+    assigned_to: assigned_employee_ids,
     assigned_to_role: 'EMPLOYEE',
     priority: priority || 'MEDIUM',
     due_date,

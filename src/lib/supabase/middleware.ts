@@ -36,107 +36,78 @@ export async function updateSession(request: NextRequest) {
     const isAdminRoute = pathname.startsWith('/admin')
     const isDeptRoute = pathname.startsWith('/department')
     const isEmployeeRoute = pathname.startsWith('/employee')
-    const isOnboardingRoute = 
+    const isOnboardingRoute =
       pathname.startsWith('/onboarding') ||
       pathname.startsWith('/admin/onboarding') ||
       pathname.startsWith('/department/onboarding') ||
       pathname.startsWith('/employee/onboarding')
     const isProtectedRoute = isAdminRoute || isDeptRoute || isEmployeeRoute || isOnboardingRoute
 
-    if (!user && isProtectedRoute) {
-      const url = request.nextUrl.clone()
-      url.pathname = '/login'
-      return NextResponse.redirect(url)
-    }
-
-    if (user) {
-      let role: 'ADMIN' | 'DEPARTMENT' | 'EMPLOYEE' | null = null
-      let onboardingCompleted = false
-
-      try {
-        const [
-          { data: admin },
-          { data: dept },
-          { data: employee }
-        ] = await Promise.all([
-          supabase.from('admins').select('id, onboarding_completed').eq('id', user.id).maybeSingle(),
-          supabase.from('departments').select('id, onboarding_completed, profile_completion_percentage').eq('id', user.id).maybeSingle(),
-          supabase.from('employees').select('id, onboarding_completed, profile_completion_percentage').eq('id', user.id).maybeSingle()
-        ])
-
-        if (admin) {
-          role = 'ADMIN'
-          onboardingCompleted = true // Admins are always fully onboarded/exempt
-        } else if (dept) {
-          role = 'DEPARTMENT'
-          onboardingCompleted = !!dept.onboarding_completed || (typeof dept.profile_completion_percentage === 'number' && dept.profile_completion_percentage >= 70)
-        } else if (employee) {
-          role = 'EMPLOYEE'
-          onboardingCompleted = !!employee.onboarding_completed || (typeof employee.profile_completion_percentage === 'number' && employee.profile_completion_percentage >= 70)
-        }
-      } catch (e) {
-        console.error('[Middleware] Error fetching role/onboarding:', e)
-      }
-
-      const getOnboardingPath = (r: typeof role) => {
-        if (r === 'ADMIN') return '/admin/onboarding'
-        if (r === 'DEPARTMENT') return '/department/onboarding'
-        return '/employee/onboarding'
-      }
-
-      if (isLoginRoute) {
-        const url = request.nextUrl.clone()
-        if (role && !onboardingCompleted) {
-          url.pathname = getOnboardingPath(role)
-        } else {
-          if (role === 'ADMIN') url.pathname = '/admin/dashboard'
-          else if (role === 'DEPARTMENT') url.pathname = '/department/dashboard'
-          else url.pathname = '/employee/identity-check'
-        }
-        return NextResponse.redirect(url)
-      }
-
-      if (!role && isProtectedRoute) {
+    // Avoid redirecting Next.js Server Actions or router data fetches (which are POST requests)
+    if (request.method !== 'POST') {
+      if (!user && isProtectedRoute) {
         const url = request.nextUrl.clone()
         url.pathname = '/login'
         return NextResponse.redirect(url)
       }
 
-      // Restrict access for users who haven't completed onboarding
-      if (role && !onboardingCompleted && !isOnboardingRoute) {
-        const url = request.nextUrl.clone()
-        url.pathname = getOnboardingPath(role)
-        return NextResponse.redirect(url)
-      }
+      if (user) {
+        let role: 'ADMIN' | 'DEPARTMENT' | 'EMPLOYEE' | null = null
 
-      if (isAdminRoute && role !== 'ADMIN') {
-        const url = request.nextUrl.clone()
-        if (!onboardingCompleted) {
-          url.pathname = getOnboardingPath(role)
-        } else {
-          url.pathname = role === 'DEPARTMENT' ? '/department/dashboard' : '/employee/identity-check'
+        try {
+          const [
+            { data: admin },
+            { data: dept },
+            { data: employee }
+          ] = await Promise.all([
+            supabase.from('admins').select('id').eq('id', user.id).maybeSingle(),
+            supabase.from('departments').select('id').eq('id', user.id).maybeSingle(),
+            supabase.from('employees').select('id').eq('id', user.id).maybeSingle()
+          ])
+
+          if (admin) {
+            role = 'ADMIN'
+          } else if (dept) {
+            role = 'DEPARTMENT'
+          } else if (employee) {
+            role = 'EMPLOYEE'
+          }
+        } catch (e) {
+          console.error('[Middleware] Error fetching role:', e)
         }
-        return NextResponse.redirect(url)
-      }
 
-      if (isDeptRoute && role !== 'DEPARTMENT') {
-        const url = request.nextUrl.clone()
-        if (!onboardingCompleted) {
-          url.pathname = getOnboardingPath(role)
-        } else {
-          url.pathname = role === 'ADMIN' ? '/admin/dashboard' : '/employee/identity-check'
+        if (isLoginRoute) {
+          const url = request.nextUrl.clone()
+          if (role === 'ADMIN') url.pathname = '/admin/dashboard'
+          else if (role === 'DEPARTMENT') url.pathname = '/department/dashboard'
+          else if (role === 'EMPLOYEE') url.pathname = '/employee/dashboard'
+          else url.pathname = '/login'
+          return NextResponse.redirect(url)
         }
-        return NextResponse.redirect(url)
-      }
 
-      if (isEmployeeRoute && role !== 'EMPLOYEE') {
-        const url = request.nextUrl.clone()
-        if (!onboardingCompleted) {
-          url.pathname = getOnboardingPath(role)
-        } else {
+        if (!role && isProtectedRoute) {
+          const url = request.nextUrl.clone()
+          url.pathname = '/login'
+          return NextResponse.redirect(url)
+        }
+
+        if (isAdminRoute && role !== 'ADMIN') {
+          const url = request.nextUrl.clone()
+          url.pathname = role === 'DEPARTMENT' ? '/department/dashboard' : '/employee/dashboard'
+          return NextResponse.redirect(url)
+        }
+
+        if (isDeptRoute && role !== 'DEPARTMENT') {
+          const url = request.nextUrl.clone()
+          url.pathname = role === 'ADMIN' ? '/admin/dashboard' : '/employee/dashboard'
+          return NextResponse.redirect(url)
+        }
+
+        if (isEmployeeRoute && role !== 'EMPLOYEE') {
+          const url = request.nextUrl.clone()
           url.pathname = role === 'ADMIN' ? '/admin/dashboard' : '/department/dashboard'
+          return NextResponse.redirect(url)
         }
-        return NextResponse.redirect(url)
       }
     }
 

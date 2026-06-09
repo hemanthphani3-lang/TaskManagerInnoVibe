@@ -111,32 +111,75 @@ export async function requestLogoutAndSubmitWork(formData: FormData) {
   const logoutDate = new Date()
   const logoutTimeStr = logoutDate.toLocaleTimeString('en-US', { hour12: false })
 
-  // 1. Create a work session record on the fly for this checkout
-  const { data: activeSession, error: sessInsertErr } = await supabaseAdmin
+  // Find existing active session for this user to update
+  const { data: existingSession } = await supabaseAdmin
     .from('work_sessions')
-    .insert({
-      user_id: user.id,
-      user_name: employee ? (employee.employee_name || 'Employee') : (departmentHead?.department_head_name || 'Department Head'),
-      user_role: employee ? 'EMPLOYEE' : 'DEPARTMENT',
-      department_id: employee ? employee.department_id : (departmentHead?.id || null),
-      department: employee ? ((employee.departments as any)?.department_name || 'Technology') : (departmentHead?.department_name || 'Technology'),
-      login_time: checkInTime,
-      logout_time: logoutDate.toISOString(),
-      report_submitted: true
-    })
-    .select('session_id')
-    .single()
+    .select('session_id, login_time')
+    .eq('user_id', user.id)
+    .eq('status', 'ACTIVE')
+    .is('logout_time', null)
+    .order('login_time', { ascending: false })
+    .limit(1)
+    .maybeSingle()
 
-  if (sessInsertErr || !activeSession) {
-    console.error("Failed to insert work session:", sessInsertErr)
-    return { success: false, error: sessInsertErr?.message || "Failed to create work session." }
+  let sessionId = null
+  let sessionLoginTime = checkInTime
+
+  const loginTimeObj = existingSession ? new Date(existingSession.login_time) : new Date(checkInTime)
+  const durationMs = logoutDate.getTime() - loginTimeObj.getTime()
+  const durationHrs = Math.floor(durationMs / (1000 * 60 * 60))
+  const durationMins = Math.floor((durationMs % (1000 * 60 * 60)) / (1000 * 60))
+  const durationStr = `${durationHrs}h ${durationMins}m`
+
+  if (existingSession) {
+    sessionId = existingSession.session_id
+    sessionLoginTime = existingSession.login_time
+
+    const { error: sessUpdateErr } = await supabaseAdmin
+      .from('work_sessions')
+      .update({
+        logout_time: logoutDate.toISOString(),
+        duration: durationStr,
+        status: 'COMPLETED',
+        report_submitted: true
+      })
+      .eq('session_id', sessionId)
+
+    if (sessUpdateErr) {
+      console.error("Failed to update work session:", sessUpdateErr)
+      return { success: false, error: sessUpdateErr.message }
+    }
+  } else {
+    // 1. Create a work session record on the fly for this checkout (fallback)
+    const { data: activeSession, error: sessInsertErr } = await supabaseAdmin
+      .from('work_sessions')
+      .insert({
+        user_id: user.id,
+        user_name: employee ? (employee.employee_name || 'Employee') : (departmentHead?.department_head_name || 'Department Head'),
+        user_role: employee ? 'EMPLOYEE' : 'DEPARTMENT',
+        department_id: employee ? employee.department_id : (departmentHead?.id || null),
+        department: employee ? ((employee.departments as any)?.department_name || 'Technology') : (departmentHead?.department_name || 'Technology'),
+        login_time: checkInTime,
+        logout_time: logoutDate.toISOString(),
+        duration: durationStr,
+        status: 'COMPLETED',
+        report_submitted: true
+      })
+      .select('session_id')
+      .single()
+
+    if (sessInsertErr || !activeSession) {
+      console.error("Failed to insert work session:", sessInsertErr)
+      return { success: false, error: sessInsertErr?.message || "Failed to create work session." }
+    }
+    sessionId = activeSession.session_id
   }
 
   // 2. Create Logout Report
   const { data: newReport, error: reportErr } = await supabaseAdmin
     .from('logout_reports')
     .insert({
-      session_id: activeSession.session_id,
+      session_id: sessionId,
       user_id: user.id,
       summary: summary,
       completed_tasks: completedTasks,
@@ -158,7 +201,7 @@ export async function requestLogoutAndSubmitWork(formData: FormData) {
     .update({
       report_id: newReport.report_id
     })
-    .eq('session_id', activeSession.session_id)
+    .eq('session_id', sessionId)
 
   // 4. Update attendance (only if employee)
   if (employee && attendanceId) {

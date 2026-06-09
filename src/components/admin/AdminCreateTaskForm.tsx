@@ -27,6 +27,9 @@ export function AdminCreateTaskForm({ employees }: { employees: Employee[] }) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [selectedEmployees, setSelectedEmployees] = useState<any[]>([])
+  const [searchQuery, setSearchQuery] = useState("")
+  const [isSearchFocused, setIsSearchFocused] = useState(false)
 
   // Determine file names for display if files selected
   const [fileNames, setFileNames] = useState<string[]>([])
@@ -49,6 +52,26 @@ export function AdminCreateTaskForm({ employees }: { employees: Employee[] }) {
     return matchesDept && matchesRole
   })
 
+  const addEmployee = (emp: Employee) => {
+    if (!selectedEmployees.some(e => e.id === emp.id)) {
+      setSelectedEmployees(prev => [...prev, emp])
+    }
+    setSearchQuery("")
+    setIsSearchFocused(false)
+  }
+
+  const removeEmployee = (empId: string) => {
+    setSelectedEmployees(prev => prev.filter(e => e.id !== empId))
+  }
+
+  const searchableEmployees = filteredEmployees.filter(emp => {
+    const isNotSelected = !selectedEmployees.some(sel => sel.id === emp.id)
+    const matchesSearch = emp.employee_name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                          emp.employee_code.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                          (emp.designation && emp.designation.toLowerCase().includes(searchQuery.toLowerCase()))
+    return isNotSelected && matchesSearch
+  })
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     setLoading(true)
@@ -57,17 +80,22 @@ export function AdminCreateTaskForm({ employees }: { employees: Employee[] }) {
     const formData = new FormData(e.currentTarget)
     
     // Check if employee is selected
-    const assigned_employee_id = formData.get('assigned_employee_id') as string
-    if (!assigned_employee_id) {
-      setError("Please select an employee.")
+    if (selectedEmployees.length === 0) {
+      setError("Please select at least one employee.")
       setLoading(false)
       return
     }
 
-    // Get the employee's department
-    const selectedEmp = formattedEmployees.find(emp => emp.id === assigned_employee_id)
-    if (selectedEmp) {
-      formData.append('department_id', selectedEmp.department_id)
+    // Append all selected employee IDs
+    formData.delete('assigned_employee_id')
+    selectedEmployees.forEach(emp => {
+      formData.append('assigned_employee_id', emp.id)
+    })
+
+    // Get the first employee's department for backward compatibility
+    const firstEmp = selectedEmployees[0]
+    if (firstEmp) {
+      formData.append('department_id', firstEmp.department_id)
     }
 
     const result = await createAdminTask(formData)
@@ -153,27 +181,67 @@ export function AdminCreateTaskForm({ employees }: { employees: Employee[] }) {
                 </select>
               </div>
 
-              {/* Employee Dropdown */}
-              <div className="space-y-2">
-                <Label htmlFor="assigned_employee_id" className="flex items-center gap-2 dark:text-slate-200">
-                  Assign to Employee
+              {/* Employee Search Dropdown */}
+              <div className="space-y-2 relative">
+                <Label className="flex items-center gap-2 dark:text-slate-200">
+                  Search & Add Employees
                 </Label>
-                <select
-                  id="assigned_employee_id"
-                  name="assigned_employee_id"
-                  required
-                  defaultValue=""
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 focus:bg-white dark:focus:bg-slate-800 outline-none focus:ring-2 focus:ring-[#0066FF]/20 transition-all text-sm font-medium text-slate-700 dark:text-slate-300"
-                >
-                  <option value="" disabled>Select an employee...</option>
-                  {filteredEmployees.map((emp) => (
-                    <option key={emp.id} value={emp.id}>
-                      {emp.employee_name} ({emp.employee_code}) {emp.designation ? `- ${emp.designation}` : ''}
-                    </option>
-                  ))}
-                </select>
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="Type employee name..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onFocus={() => setIsSearchFocused(true)}
+                    onBlur={() => setTimeout(() => setIsSearchFocused(false), 200)}
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 focus:bg-white dark:focus:bg-slate-800 outline-none focus:ring-2 focus:ring-[#0066FF]/20 transition-all text-sm font-medium text-slate-700 dark:text-slate-300 placeholder-slate-400"
+                  />
+                  {isSearchFocused && (searchQuery || isSearchFocused) && (
+                    <div className="absolute z-50 left-0 right-0 mt-1.5 max-h-56 overflow-y-auto bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg py-1">
+                      {searchableEmployees.length === 0 ? (
+                        <p className="text-xs text-slate-500 p-3 text-center">No matching employees</p>
+                      ) : (
+                        searchableEmployees.map((emp) => (
+                          <div
+                            key={emp.id}
+                            onMouseDown={() => addEmployee(emp)}
+                            className="px-4 py-2.5 hover:bg-slate-100 dark:hover:bg-slate-700 text-xs text-slate-700 dark:text-slate-350 cursor-pointer transition flex items-center justify-between"
+                          >
+                            <span className="font-bold">{emp.employee_name} ({emp.employee_code})</span>
+                            <span className="text-[10px] text-slate-400 font-medium">{emp.deptName}</span>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
+
+            {/* Selected Employees Chips Display */}
+            {selectedEmployees.length > 0 && (
+              <div className="space-y-2 pb-4 border-b border-slate-100 dark:border-slate-700">
+                <Label className="dark:text-slate-200">Selected Team Members ({selectedEmployees.length})</Label>
+                <div className="flex flex-wrap gap-2 p-3 bg-slate-50 dark:bg-slate-900/50 border border-slate-205 dark:border-slate-750 rounded-2xl animate-fadeIn">
+                  {selectedEmployees.map((emp) => (
+                    <div
+                      key={emp.id}
+                      className="flex items-center gap-1.5 bg-[#0066FF]/10 border border-[#0066FF]/35 text-[#0066FF] dark:text-blue-300 px-3 py-1.5 rounded-full text-xs font-bold"
+                    >
+                      <span>{emp.employee_name}</span>
+                      <span className="text-[9px] text-slate-400 font-medium">({emp.deptName})</span>
+                      <button
+                        type="button"
+                        onClick={() => removeEmployee(emp.id)}
+                        className="text-slate-400 hover:text-red-500 transition font-bold"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <div className="space-y-2">
               <Label htmlFor="title" className="dark:text-slate-200">Task Title</Label>

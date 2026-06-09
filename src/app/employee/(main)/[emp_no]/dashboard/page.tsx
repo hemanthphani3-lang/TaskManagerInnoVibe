@@ -11,7 +11,6 @@ import { ReminderCard } from "@/components/productivity/ReminderCard"
 import { DashboardProfileCompletionCard } from "@/components/dashboard/DashboardProfileCompletionCard"
 import { calculateCompletionPercentage } from "@/lib/onboarding-utils"
 import Link from "next/link"
-import { DashboardLockScreen } from "@/components/employee/DashboardLockScreen"
 import { LogoutReportCard } from "@/components/employee/LogoutReportCard"
 
 export default async function EmployeeDashboard({ params }: { params: Promise<{ emp_no: string }> }) {
@@ -48,11 +47,19 @@ export default async function EmployeeDashboard({ params }: { params: Promise<{ 
   const startUTC = new Date(`${todayIST}T00:00:00+05:30`).toISOString()
   const endUTC = new Date(`${todayIST}T23:59:59+05:30`).toISOString()
 
+  // Fetch task IDs where user is assigned
+  const { data: assigneeRecords } = await supabase
+    .from('task_assignees')
+    .select('task_id')
+    .eq('user_id', user.id)
+
+  const assignedTaskIds = assigneeRecords?.map(r => r.task_id) || []
+
   // Execute all independent queries concurrently to drastically reduce page load time
   const [
     { data: attendance },
     { data: logoutRequests },
-    { data: tasks },
+    { data: rawTasks },
     { data: activityFeed },
     { data: productivityData },
     { data: rankingData },
@@ -61,18 +68,29 @@ export default async function EmployeeDashboard({ params }: { params: Promise<{ 
   ] = await Promise.all([
     supabase.from('attendance').select('*').eq('employee_id', user.id).gte('created_at', startUTC).lte('created_at', endUTC).order('created_at', { ascending: false }).limit(1).maybeSingle(),
     supabase.from('logout_requests').select('*, work_submissions(work_comment, attachment_url, attachment_type)').eq('employee_id', user.id).order('created_at', { ascending: false }).limit(5),
-    supabase.from('tasks').select('*').eq('assigned_employee_id', user.id),
+    assignedTaskIds.length > 0
+      ? supabase.from('tasks').select('*, task_assignees(*)').or(`id.in.(${assignedTaskIds.map(id => `"${id}"`).join(',')}),created_by.eq.${user.id}`).limit(100)
+      : supabase.from('tasks').select('*, task_assignees(*)').or(`assigned_to.eq.${user.id},created_by.eq.${user.id}`).limit(100),
     supabase.from('activity_feed').select('*').eq('department_id', employee?.department_id).order('created_at', { ascending: false }).limit(10),
     supabase.from('productivity_scores').select('*').eq('employee_id', user.id).maybeSingle(),
     supabase.from('rankings').select('*').eq('employee_id', user.id).maybeSingle(),
     supabase.from('kpi_metrics').select('*').eq('employee_id', user.id).maybeSingle(),
-    supabase.from('reminders').select('*').eq('employee_id', user.id).eq('is_read', false).order('created_at', { ascending: false })
+    supabase.from('reminders').select('*').eq('employee_id', user.id).eq('reminder_status', 'UNREAD').order('created_at', { ascending: false })
   ])
 
-  const totalTasks = tasks?.length || 0
-  const pendingTasks = tasks?.filter(t => ['PENDING', 'IN_PROGRESS', 'WAITING_APPROVAL'].includes(t.task_status)).length || 0
-  const delayedTasks = tasks?.filter(t => t.task_status === 'DELAYED').length || 0
-  const completedTasks = tasks?.filter(t => t.task_status === 'COMPLETED').length || 0
+  // Map raw tasks to override overall status with individual assignee status
+  const tasks = rawTasks?.map(t => {
+    const userAssignee = (t.task_assignees as any[])?.find(a => a.user_id === user.id)
+    return {
+      ...t,
+      task_status: userAssignee?.status || t.task_status || t.status || 'PENDING'
+    }
+  }) || []
+
+  const totalTasks = tasks.length
+  const pendingTasks = tasks.filter(t => ['PENDING', 'ACCEPTED', 'IN_PROGRESS', 'WAITING_APPROVAL'].includes(t.task_status)).length
+  const delayedTasks = tasks.filter(t => t.task_status === 'DELAYED').length
+  const completedTasks = tasks.filter(t => t.task_status === 'COMPLETED').length
 
   const productivityScore = productivityData?.productivity_score ?? 0
   const attendanceRate = kpiData?.attendance_rate ?? 0
@@ -88,17 +106,7 @@ export default async function EmployeeDashboard({ params }: { params: Promise<{ 
   const profileScore = employee ? calculateCompletionPercentage('EMPLOYEE', employee).score : 100
 
   return (
-    <DashboardLockScreen>
-      <div className="p-8 max-w-7xl mx-auto space-y-8">
-        {profileScore < 70 && (
-          <div className="mb-6 p-4 bg-gradient-to-r from-red-50 to-orange-50 border border-red-200 rounded-2xl flex items-center gap-3 shadow-sm animate-pulse">
-            <ShieldAlert className="w-6 h-6 text-red-500 shrink-0" />
-            <div className="flex-1">
-              <h4 className="text-sm font-bold text-red-900">Profile Incomplete — Action Required</h4>
-              <p className="text-xs text-red-700 font-medium">Your profile is currently at {profileScore}%. Complete your profile to at least 70% to unlock full module access.</p>
-            </div>
-          </div>
-        )}
+    <div className="p-8 max-w-7xl mx-auto space-y-8">
 
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
           <div>
@@ -283,6 +291,5 @@ export default async function EmployeeDashboard({ params }: { params: Promise<{ 
           </div>
         </div>
       </div>
-    </DashboardLockScreen>
   )
 }

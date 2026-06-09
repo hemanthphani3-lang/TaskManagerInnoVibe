@@ -65,9 +65,14 @@ export function calculateCompletionPercentage(role: 'ADMIN' | 'DEPARTMENT' | 'EM
 
   score = Math.round(mandatoryScore + optionalScore)
 
+  const missingMandatoryFields = mandatoryFields
+    .filter(item => !item.value || String(item.value).trim() === '')
+    .map(item => item.field)
+
   return {
     score: Math.min(100, score),
-    completedMandatoryFields
+    completedMandatoryFields,
+    missingMandatoryFields
   }
 }
 

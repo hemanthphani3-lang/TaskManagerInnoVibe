@@ -199,11 +199,11 @@ export default function AdminWorkforceProfileViewer() {
         {/* Navigation Breadcrumb */}
         <div className="flex items-center justify-between">
           <Link 
-            href={role === 'DEPARTMENT' ? "/admin/departments" : "/admin/employees"}
+            href="/admin/employees"
             className="inline-flex items-center gap-2 text-sm font-semibold text-slate-500 hover:text-slate-900 transition-colors"
           >
             <ArrowLeft className="w-4 h-4" /> 
-            Back to {role === 'DEPARTMENT' ? 'Departments' : 'Employees'}
+            Back to Workforce Directory
           </Link>
           
           <span className="text-xs font-bold text-slate-400">

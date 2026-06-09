@@ -48,7 +48,7 @@ export default async function AdminDashboard(props: { searchParams: Promise<{ [k
   let sessionsQuery = supabase.from('work_sessions').select('*').gte('login_time', startUTC).lte('login_time', endUTC)
   if (dept_id) sessionsQuery = sessionsQuery.eq('department_id', dept_id)
 
-  let tasksQuery = supabase.from('tasks').select('id, department_id, assigned_employee_id, task_status')
+  let tasksQuery = supabase.from('tasks').select('id, department_id, assigned_to, assigned_employee_id, task_status')
   if (dept_id) tasksQuery = tasksQuery.eq('department_id', dept_id)
 
   let activityQuery = supabase.from('activity_feed').select('*').order('created_at', { ascending: false }).limit(10)
@@ -83,9 +83,9 @@ export default async function AdminDashboard(props: { searchParams: Promise<{ [k
   ])
 
   // Calculate work session statistics for today
-  const activeUsersToday = (todaySessions || []).filter(s => s.logout_time === null).length
+  const activeUsersToday = (todaySessions || []).filter(s => s.status === 'ACTIVE').length
   const loggedInUsersToday = new Set((todaySessions || []).map(s => s.user_id)).size
-  const loggedOutUsersToday = (todaySessions || []).filter(s => s.logout_time !== null).length
+  const loggedOutUsersToday = (todaySessions || []).filter(s => s.status === 'COMPLETED').length
   const reportsSubmittedToday = (todaySessions || []).filter(s => s.report_submitted).length
 
   let onboardingAdmins: any[] = []
@@ -121,21 +121,65 @@ export default async function AdminDashboard(props: { searchParams: Promise<{ [k
   const rawGlobalTodayAttendance = globalAttendance?.filter(a => a.created_at.startsWith(today)) || []
   const globalTodayAttendance = Array.from(new Map(rawGlobalTodayAttendance.map(a => [a.employee_id, a])).values())
 
+  // Synthesize department heads as employees
+  const deptHeadsAsEmployees = departments?.map(d => ({
+    id: d.id, // Department head user_id is the department ID
+    department_id: d.id,
+    employee_name: d.department_head_name && d.department_head_name !== '-' ? d.department_head_name : `${d.department_name} Head`,
+    designation: 'Department Head',
+    profile_photo: null,
+    isDeptHead: true
+  })) || []
+
+  const combinedEmployees = [
+    ...(globalEmployees || []),
+    ...deptHeadsAsEmployees
+  ]
+
+  // Synthesize department head attendance from active sessions globally
+  const presentHeadsAttendanceGlobal = deptHeadsAsEmployees.map(head => {
+    const headSession = todaySessions?.find(s => s.user_id === head.id)
+    if (headSession) {
+      return {
+        employee_id: head.id,
+        department_id: head.department_id,
+        attendance_status: 'PRESENT',
+        work_status: headSession.status === 'COMPLETED' ? 'LOGGED_OUT' : 'ACTIVE',
+        working_hours: headSession.duration || null,
+        created_at: headSession.login_time
+      }
+    }
+    return null
+  }).filter(Boolean) as any[]
+
+  // Combine raw global attendance with department head presence
+  const combinedGlobalTodayAttendance = [
+    ...globalTodayAttendance,
+    ...presentHeadsAttendanceGlobal
+  ]
+
   // Drill-down data
-  const employees = dept_id ? globalEmployees?.filter(e => e.department_id === dept_id) : globalEmployees
+  const employees = dept_id ? combinedEmployees.filter(e => e.department_id === dept_id) : combinedEmployees
   const totalEmployees = employees?.length || 0
 
   const attendance = dept_id ? globalAttendance?.filter(a => a.department_id === dept_id) : globalAttendance
   const rawTodayAttendance = attendance?.filter(a => a.created_at.startsWith(today)) || []
   const todayAttendance = Array.from(new Map(rawTodayAttendance.map(a => [a.employee_id, a])).values())
 
-  const presentCount = todayAttendance.filter(a => a.attendance_status === 'PRESENT' || a.attendance_status === 'HALF_DAY').length
-  const lateCount = todayAttendance.filter(a => a.attendance_status === 'LATE').length
+  const activePresentHeadsAttendance = presentHeadsAttendanceGlobal.filter(h => dept_id ? h.department_id === dept_id : true)
+
+  const combinedTodayAttendance = [
+    ...todayAttendance,
+    ...activePresentHeadsAttendance
+  ]
+
+  const presentCount = combinedTodayAttendance.filter(a => a.attendance_status === 'PRESENT' || a.attendance_status === 'HALF_DAY').length
+  const lateCount = combinedTodayAttendance.filter(a => a.attendance_status === 'LATE').length
   const totalCheckedIn = presentCount + lateCount
   const absentCount = totalEmployees - totalCheckedIn
-  const activeSessions = todayAttendance.filter(a => a.work_status === 'ACTIVE' || a.work_status === 'LOGOUT_REQUESTED').length
+  const activeSessions = combinedTodayAttendance.filter(a => a.work_status === 'ACTIVE' || a.work_status === 'LOGOUT_REQUESTED').length
 
-  const loggedOutWithHours = todayAttendance.filter(a => a.work_status === 'LOGGED_OUT' && a.working_hours)
+  const loggedOutWithHours = combinedTodayAttendance.filter(a => a.work_status === 'LOGGED_OUT' && a.working_hours)
   let avgHoursDisplay = "0h 0m"
   if (loggedOutWithHours.length > 0) {
     let totalMins = 0
@@ -260,8 +304,8 @@ export default async function AdminDashboard(props: { searchParams: Promise<{ [k
               </div>
               <div className="p-4 space-y-3 overflow-auto max-h-96">
                 {departments?.map((dept) => {
-                  const deptEmployees = globalEmployees?.filter(e => e.department_id === dept.id).length || 0
-                  const deptAttendance = globalTodayAttendance.filter(a => a.department_id === dept.id).length || 0
+                  const deptEmployees = combinedEmployees.filter(e => e.department_id === dept.id).length || 0
+                  const deptAttendance = combinedGlobalTodayAttendance.filter(a => a.department_id === dept.id).length || 0
                   const percent = deptEmployees > 0 ? Math.round((deptAttendance / deptEmployees) * 100) : 0
                   const deptAvgScore = (productivityScores || []).filter(s => s.department_id === dept.id)
                     .reduce((sum, s, _, arr) => sum + (s.productivity_score ?? 0) / arr.length, 0) ?? 0
@@ -451,11 +495,12 @@ export default async function AdminDashboard(props: { searchParams: Promise<{ [k
                     </thead>
                     <tbody>
                       {employees?.map((emp) => {
-                        const empAttendance = todayAttendance.find(a => a.employee_id === emp.id)
-                        const empScore = productivityScores?.find(s => s.employee_id === emp.id)?.productivity_score ?? 0
-                        const empTasks = tasks?.filter(t => t.assigned_employee_id === emp.id) || []
-                        const completed = empTasks.filter(t => t.task_status === 'COMPLETED').length
-                        const total = empTasks.length
+                         const empAttendance = combinedTodayAttendance.find(a => a.employee_id === emp.id)
+                         const empScore = productivityScores?.find(s => s.employee_id === emp.id)?.productivity_score ?? 0
+                         const isHead = (emp as any).isDeptHead
+                         const empTasks = tasks?.filter(t => isHead ? (t.assigned_to === emp.id || t.assigned_employee_id === emp.id) : t.assigned_employee_id === emp.id) || []
+                         const completed = empTasks.filter(t => t.task_status === 'COMPLETED').length
+                         const total = empTasks.length
                         
                         return (
                           <tr key={emp.id} className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors">

@@ -112,10 +112,80 @@ export function TaskDetailsModal({
         }
       }
 
+      // 1.5 Fetch all assignees of this task from task_assignees
+      const { data: assigneesData } = await supabase
+        .from('task_assignees')
+        .select('*')
+        .eq('task_id', taskId)
+
+      const collaborators: any[] = []
+      if (assigneesData) {
+        for (const assignee of assigneesData) {
+          let name = "Unknown User"
+          let role = "Employee"
+          let department = "Unknown Department"
+          let profilePhoto = ""
+
+          const { data: emp } = await supabase
+            .from('employees')
+            .select('employee_name, designation, departments(department_name), profile_photo')
+            .eq('id', assignee.user_id)
+            .maybeSingle()
+
+          if (emp) {
+            name = emp.employee_name
+            role = emp.designation || "Employee"
+            department = (emp.departments as any)?.department_name || "Unassigned"
+            profilePhoto = emp.profile_photo || ""
+          } else {
+            const { data: dept } = await supabase
+              .from('departments')
+              .select('department_head_name, department_name')
+              .eq('id', assignee.user_id)
+              .maybeSingle()
+
+            if (dept) {
+              name = dept.department_head_name
+              role = "Department Head"
+              department = dept.department_name
+            } else {
+              const { data: adm } = await supabase
+                .from('admins')
+                .select('full_name')
+                .eq('id', assignee.user_id)
+                .maybeSingle()
+
+              if (adm) {
+                name = adm.full_name
+                role = "Administrator"
+                department = "Administration"
+              }
+            }
+          }
+
+          collaborators.push({
+            ...assignee,
+            name,
+            role,
+            department,
+            profilePhoto
+          })
+        }
+      }
+
+      // 1.7 Fetch subtasks
+      const { data: subtasksData } = await supabase
+        .from('task_subtasks')
+        .select('*')
+        .eq('task_id', taskId)
+        .order('created_at', { ascending: true })
+
       setTask({
         ...tData,
         assigneeName,
-        creatorName
+        creatorName,
+        collaborators,
+        subtasks: subtasksData || []
       })
 
       // 2. Fetch comments with user profiles fallback
@@ -408,12 +478,46 @@ export function TaskDetailsModal({
     }
   }
 
+  // Subtask Action Helpers
+  const handleAddSubtask = async (title: string) => {
+    const { createSubtask } = await import("@/app/actions/tasks")
+    const res = await createSubtask(taskId, title)
+    if (res.success) {
+      toast.success("Subtask added.")
+      await loadTaskDetails()
+    } else {
+      toast.error(res.error || "Failed to add subtask.")
+    }
+  }
+
+  const handleToggleSubtask = async (subtaskId: string, isCompleted: boolean) => {
+    const { toggleSubtask } = await import("@/app/actions/tasks")
+    const res = await toggleSubtask(subtaskId, isCompleted)
+    if (res.success) {
+      await loadTaskDetails()
+    } else {
+      toast.error(res.error || "Failed to toggle subtask.")
+    }
+  }
+
+  const handleDeleteSubtask = async (subtaskId: string) => {
+    const { deleteSubtask } = await import("@/app/actions/tasks")
+    const res = await deleteSubtask(subtaskId)
+    if (res.success) {
+      toast.success("Subtask deleted.")
+      await loadTaskDetails()
+    } else {
+      toast.error(res.error || "Failed to delete subtask.")
+    }
+  }
+
   // Visual layout configurations
-  const isPending = task?.status === 'PENDING'
-  const isAssignee = task?.assigned_to === currentUserId
   const isCreator = task?.created_by === currentUserId
   const isAdmin = currentUserRole === 'ADMIN'
-  const isCompletable = (task?.status === 'IN_PROGRESS' || task?.status === 'PENDING') && (isAssignee || isCreator || isAdmin)
+  const currentUserCollaborator = task?.collaborators?.find((c: any) => c.user_id === currentUserId)
+  const isCollaborator = !!currentUserCollaborator
+  const isPendingForUser = currentUserCollaborator?.status === 'PENDING'
+  const isCompletable = (task?.status !== 'COMPLETED') && (isCollaborator && currentUserCollaborator.status !== 'COMPLETED' || isCreator || isAdmin)
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-fadeIn">
@@ -479,31 +583,151 @@ export function TaskDetailsModal({
                 </div>
               </div>
 
-              {/* Creator & Assignee Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                
-                <div className="p-4 bg-slate-950/20 border border-slate-800 rounded-2xl flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-blue-900/30 border border-blue-800/40 text-[#0066FF] flex items-center justify-center font-bold text-sm shrink-0">
-                    <User className="w-5 h-5" />
+              {/* TEAM MEMBERS / COLLABORATORS */}
+              <div className="space-y-3 pt-2">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">Team Members</h4>
+                <div className="bg-slate-950/30 border border-slate-800 p-5 rounded-2xl space-y-4">
+                  <div className="flex items-center justify-between pb-3 border-b border-slate-850">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-blue-900/30 border border-blue-800/40 text-[#0066FF] flex items-center justify-center font-bold text-sm shrink-0">
+                        <User className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Created By (Owner)</span>
+                        <span className="text-sm font-bold text-white block">{task.creatorName}</span>
+                        <span className="text-[10px] text-slate-400 font-medium block">Role: {task.created_by_role}</span>
+                      </div>
+                    </div>
+                    {task.created_by === currentUserId && (
+                      <span className="text-[9px] bg-blue-500/10 border border-blue-500/30 text-blue-400 px-2 py-0.5 rounded font-extrabold uppercase">You (Owner)</span>
+                    )}
                   </div>
-                  <div>
-                    <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Assigned By</span>
-                    <span className="text-sm font-bold text-white block">{task.creatorName || `${task.created_by_role || "ADMIN"} Head`}</span>
-                    <span className="text-[10px] text-slate-400 font-medium block">Role: {task.created_by_role || "ADMIN"}</span>
+
+                  <div className="space-y-3">
+                    <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Collaborators & Individual Progress</span>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {task.collaborators?.map((col: any) => {
+                        const isCurrentUser = col.user_id === currentUserId
+                        return (
+                          <div key={col.id} className={`p-3 rounded-xl border flex items-center justify-between gap-3 ${
+                            isCurrentUser 
+                              ? 'bg-blue-950/15 border-blue-800/40' 
+                              : 'bg-slate-950/20 border-slate-800/60'
+                          }`}>
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              {col.profilePhoto ? (
+                                <img src={col.profilePhoto} alt={col.name} className="w-8 h-8 rounded-full object-cover shrink-0" />
+                              ) : (
+                                <div className="w-8 h-8 rounded-full bg-slate-800 text-slate-400 flex items-center justify-center font-bold text-xs shrink-0">
+                                  {col.name.charAt(0)}
+                                </div>
+                              )}
+                              <div className="min-w-0">
+                                <span className="text-xs font-bold text-white block truncate">{col.name}</span>
+                                <span className="text-[9px] text-slate-400 block truncate">{col.role} ✦ {col.department}</span>
+                              </div>
+                            </div>
+                            <div className="flex flex-col items-end gap-1 shrink-0">
+                              <span className={`text-[9px] font-extrabold px-2.5 py-0.5 rounded-full uppercase tracking-wider ${
+                                col.status === 'COMPLETED' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                                : col.status === 'IN_PROGRESS' ? 'bg-blue-500/10 text-[#0066FF] border border-[#0066FF]/20'
+                                : col.status === 'ACCEPTED' ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20'
+                                : col.status === 'BLOCKED' ? 'bg-red-500/10 text-red-400 border border-red-500/20'
+                                : 'bg-slate-800 text-slate-400'
+                              }`}>
+                                {col.status.replace('_', ' ')}
+                              </span>
+                              {isCurrentUser && (
+                                <span className="text-[8px] text-[#0066FF] font-extrabold uppercase tracking-wider">Current User</span>
+                              )}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
                   </div>
                 </div>
+              </div>
 
-                <div className="p-4 bg-slate-950/20 border border-slate-800 rounded-2xl flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-emerald-900/30 border border-emerald-800/40 text-emerald-400 flex items-center justify-center font-bold text-sm shrink-0">
-                    <User className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Assigned To</span>
-                    <span className="text-sm font-bold text-white block">{task.assigneeName || task.assigned_to_role}</span>
-                    <span className="text-[10px] text-slate-400 font-medium block">Role: {task.assigned_to_role}</span>
-                  </div>
+              {/* Subtask Checklist System */}
+              <div className="space-y-3 pt-2">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">Subtasks checklist</h4>
+                <div className="bg-slate-950/30 border border-slate-800 p-5 rounded-2xl space-y-4">
+                  {/* Create Subtask Form */}
+                  {(isCreator || isAdmin) && (
+                    <div className="flex gap-2">
+                      <input 
+                        type="text"
+                        placeholder="Add a subtask..."
+                        id="new-subtask-input"
+                        className="flex-1 bg-slate-950 border border-slate-800 focus:border-[#0066FF] rounded-xl px-4 py-2 text-xs text-white placeholder-slate-700 outline-none transition"
+                        onKeyDown={async (e) => {
+                          if (e.key === 'Enter') {
+                            const val = e.currentTarget.value.trim()
+                            if (val) {
+                              e.currentTarget.value = ""
+                              await handleAddSubtask(val)
+                            }
+                          }
+                        }}
+                      />
+                      <button 
+                        type="button"
+                        onClick={async () => {
+                          const input = document.getElementById('new-subtask-input') as HTMLInputElement
+                          if (input && input.value.trim()) {
+                            const val = input.value.trim()
+                            input.value = ""
+                            await handleAddSubtask(val)
+                          }
+                        }}
+                        className="px-4 py-2 bg-[#0066FF] hover:bg-[#0052CC] text-white rounded-xl text-xs font-bold transition active:scale-95 shrink-0"
+                      >
+                        Add
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Subtasks List */}
+                  {(!task.subtasks || task.subtasks.length === 0) ? (
+                    <p className="text-slate-500 text-xs italic">No subtasks created yet.</p>
+                  ) : (
+                    <div className="space-y-2.5">
+                      {task.subtasks.map((sub: any) => {
+                        const canManageSub = isCreator || isAdmin || isCollaborator
+                        return (
+                          <div key={sub.id} className="flex items-center justify-between gap-3 p-3 bg-slate-950/20 border border-slate-855 hover:border-slate-800 rounded-xl transition">
+                            <label className="flex items-center gap-3 cursor-pointer min-w-0 flex-1">
+                              <input 
+                                type="checkbox"
+                                checked={sub.is_completed}
+                                disabled={!canManageSub}
+                                onChange={async (e) => {
+                                  await handleToggleSubtask(sub.id, e.target.checked)
+                                }}
+                                className="w-4.5 h-4.5 rounded border-slate-850 text-[#0066FF] focus:ring-[#0066FF] bg-slate-950 outline-none cursor-pointer disabled:opacity-50"
+                              />
+                              <span className={`text-xs text-slate-300 truncate font-semibold ${sub.is_completed ? 'line-through text-slate-500' : ''}`}>
+                                {sub.title}
+                              </span>
+                            </label>
+                            {(isCreator || isAdmin) && (
+                              <button 
+                                type="button"
+                                onClick={async () => {
+                                  await handleDeleteSubtask(sub.id)
+                                }}
+                                className="text-slate-500 hover:text-red-400 transition shrink-0"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
                 </div>
-
               </div>
 
               {/* Deadlines timeline details */}
@@ -583,7 +807,7 @@ export function TaskDetailsModal({
               <div className="pt-4 border-t border-slate-800 space-y-4">
                 
                 {/* 1. Standard Pending response states */}
-                {isPending && isAssignee && !showRejectInput && !showClarifyInput && (
+                {isPendingForUser && !showRejectInput && !showClarifyInput && (
                   <div className="flex items-center gap-3 flex-wrap">
                     <button 
                       onClick={handleAccept}

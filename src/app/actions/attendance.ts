@@ -43,18 +43,31 @@ export async function checkInEmployee(employeeId: string, departmentId: string) 
 
   // Helper to trigger notifications and session logging
   const createLoginSessionAndNotifications = async () => {
-    // 1. Create a work session
-    await supabase
+    // Check if there is already an active session for this employee to prevent duplicates
+    const { data: activeSession } = await supabase
       .from('work_sessions')
-      .insert({
-        user_id: employeeId,
-        user_name: empName,
-        user_role: 'EMPLOYEE',
-        department_id: departmentId,
-        department: deptName,
-        login_time: now.toISOString(),
-        report_submitted: false
-      })
+      .select('session_id')
+      .eq('user_id', employeeId)
+      .eq('status', 'ACTIVE')
+      .is('logout_time', null)
+      .limit(1)
+      .maybeSingle()
+
+    if (!activeSession) {
+      // 1. Create a work session
+      await supabase
+        .from('work_sessions')
+        .insert({
+          user_id: employeeId,
+          user_name: empName,
+          user_role: 'EMPLOYEE',
+          department_id: departmentId,
+          department: deptName,
+          login_time: now.toISOString(),
+          status: 'ACTIVE',
+          report_submitted: false
+        })
+    }
 
     // 2. Generate notification message & formatted time
     const timeStr = now.toLocaleTimeString('en-US', {

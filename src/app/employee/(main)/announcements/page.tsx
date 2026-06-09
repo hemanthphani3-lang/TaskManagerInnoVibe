@@ -15,12 +15,18 @@ export default async function EmployeeAnnouncementsPage() {
 
   if (!user) redirect("/login")
 
-  const { data: announcementsRaw } = await supabase
-    .from('announcements')
-    .select('*')
-    .order('created_at', { ascending: false })
+  // Run both queries in parallel, limit to 30 most recent announcements
+  const [{ data: announcementsRaw }, { data: departments }] = await Promise.all([
+    supabase
+      .from('announcements')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(30),
+    supabase
+      .from('departments')
+      .select('id, department_name')
+  ])
 
-  const { data: departments } = await supabase.from('departments').select('id, department_name')
   const deptMap = new Map(departments?.map(d => [d.id, d.department_name]) || [])
 
   const announcements = (announcementsRaw || []).map(a => ({

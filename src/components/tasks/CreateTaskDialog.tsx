@@ -35,7 +35,9 @@ export function CreateTaskDialog({ isOpen, onClose, onSuccess, currentUserId }: 
   const [title, setTitle] = useState("")
   const [description, setDescription] = useState("")
   const [assigneeRole, setAssigneeRole] = useState<"ADMIN" | "DEPARTMENT" | "EMPLOYEE">("EMPLOYEE")
-  const [assigneeId, setAssigneeId] = useState("")
+  const [selectedAssignees, setSelectedAssignees] = useState<any[]>([])
+  const [searchQuery, setSearchQuery] = useState("")
+  const [isSearchFocused, setIsSearchFocused] = useState(false)
   const [priority, setPriority] = useState("MEDIUM")
   const [category, setCategory] = useState("Operations")
   const [dueDate, setDueDate] = useState("")
@@ -62,9 +64,9 @@ export function CreateTaskDialog({ isOpen, onClose, onSuccess, currentUserId }: 
     }
   }, [isOpen, currentUserId])
 
-  // Reset assignee when role changes
+  // Reset assignee search when role changes
   useEffect(() => {
-    setAssigneeId("")
+    setSearchQuery("")
   }, [assigneeRole])
 
   if (!isOpen) return null
@@ -132,13 +134,41 @@ export function CreateTaskDialog({ isOpen, onClose, onSuccess, currentUserId }: 
     setAttachments(prev => prev.filter((_, i) => i !== idx))
   }
 
+  const addAssignee = (user: any) => {
+    if (!selectedAssignees.some(u => u.id === user.id)) {
+      setSelectedAssignees(prev => [...prev, user])
+    }
+    setSearchQuery("")
+    setIsSearchFocused(false)
+  }
+
+  const removeAssignee = (userId: string) => {
+    setSelectedAssignees(prev => prev.filter(u => u.id !== userId))
+  }
+
+  const searchableUsers = filteredUsers.filter(u => {
+    const isNotSelected = !selectedAssignees.some(sel => sel.id === u.id)
+    const matchesSearch = u.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                          (u.department && u.department.toLowerCase().includes(searchQuery.toLowerCase()))
+    return isNotSelected && matchesSearch
+  })
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+
+    let finalAssignees = [...selectedAssignees]
+    if (finalAssignees.length === 0 && searchQuery.trim()) {
+      if (searchableUsers.length > 0) {
+        finalAssignees = [searchableUsers[0]]
+        setSelectedAssignees(finalAssignees)
+        setSearchQuery("")
+      }
+    }
 
     const errors: string[] = []
     if (!title.trim()) errors.push("Please enter a task title.")
     if (!description.trim()) errors.push("Please provide a task description.")
-    if (!assigneeId) errors.push("Please select an assignee user.")
+    if (finalAssignees.length === 0) errors.push("Please select at least one assignee user.")
     if (!dueDate) errors.push("Please select a target deadline date.")
 
     if (errors.length > 0) {
@@ -154,7 +184,7 @@ export function CreateTaskDialog({ isOpen, onClose, onSuccess, currentUserId }: 
       const res = await createCrossRoleTask({
         title,
         description,
-        assigned_to: assigneeId,
+        assigned_to: finalAssignees.map(u => u.id),
         assigned_to_role: assigneeRole,
         priority,
         due_date: dueDate,
@@ -169,7 +199,7 @@ export function CreateTaskDialog({ isOpen, onClose, onSuccess, currentUserId }: 
         setTitle("")
         setDescription("")
         setAssigneeRole("EMPLOYEE")
-        setAssigneeId("")
+        setSelectedAssignees([])
         setPriority("MEDIUM")
         setCategory("Operations")
         setDueDate("")
@@ -269,28 +299,77 @@ export function CreateTaskDialog({ isOpen, onClose, onSuccess, currentUserId }: 
               </select>
             </div>
 
-            {/* Target User */}
-            <div className="space-y-2">
-              <label className="text-xs font-bold uppercase tracking-wider text-slate-400">Assignee User</label>
-              <select 
-                value={assigneeId}
-                required
-                onChange={e => setAssigneeId(e.target.value)}
-                disabled={usersLoading}
-                className={`w-full bg-slate-950 border focus:ring-1 rounded-xl px-4 py-3 text-sm text-white outline-none transition disabled:opacity-50 ${validationErrors.some(e => e.includes("assignee")) ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : 'border-slate-800 focus:border-[#0066FF] focus:ring-[#0066FF]'}`}
-              >
-                <option value="" disabled>
-                  {usersLoading ? "Retrieving active workforce..." : `-- Select ${assigneeRole} --`}
-                </option>
-                {filteredUsers.map((u: any) => (
-                  <option key={u.id} value={u.id}>
-                    {u.name} ({u.department || 'Administration'})
-                  </option>
-                ))}
-              </select>
+            {/* Target Search & Selection */}
+            <div className="space-y-2 relative">
+              <label className="text-xs font-bold uppercase tracking-wider text-slate-400">Search & Add Assignees</label>
+              <div className="relative">
+                <input 
+                  type="text"
+                  placeholder={usersLoading ? "Loading directory..." : `Type to search ${assigneeRole.toLowerCase()}s...`}
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  onFocus={() => setIsSearchFocused(true)}
+                  onBlur={() => setTimeout(() => setIsSearchFocused(false), 200)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      if (searchableUsers.length > 0) {
+                        addAssignee(searchableUsers[0])
+                      }
+                    }
+                  }}
+                  disabled={usersLoading}
+                  className={`w-full bg-slate-950 border focus:ring-1 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-655 outline-none transition disabled:opacity-50 ${validationErrors.some(e => e.includes("assignee")) ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : 'border-slate-800 focus:border-[#0066FF] focus:ring-[#0066FF]'}`}
+                />
+                
+                {/* Dropdown search results */}
+                {isSearchFocused && (searchQuery || isSearchFocused) && (
+                  <div className="absolute z-50 left-0 right-0 mt-1.5 max-h-56 overflow-y-auto bg-slate-900 border border-slate-800 rounded-xl shadow-2xl py-1">
+                    {searchableUsers.length === 0 ? (
+                      <p className="text-xs text-slate-500 p-3 text-center">No matching workforce found</p>
+                    ) : (
+                      searchableUsers.map((u: any) => (
+                        <div 
+                          key={u.id}
+                          onMouseDown={() => addAssignee(u)}
+                          className="px-4 py-2.5 hover:bg-[#0066FF]/10 text-xs text-slate-355 hover:text-white cursor-pointer transition flex items-center justify-between"
+                        >
+                          <span className="font-bold">{u.name}</span>
+                          <span className="text-[10px] text-slate-500 uppercase">{u.department || 'Administration'}</span>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
 
           </div>
+
+          {/* Selected assignees chips display */}
+          {selectedAssignees.length > 0 && (
+            <div className="space-y-2">
+              <label className="text-xs font-bold uppercase tracking-wider text-slate-400">Selected Assignees ({selectedAssignees.length})</label>
+              <div className="flex flex-wrap gap-2 p-3 bg-slate-950/40 border border-slate-850 rounded-2xl">
+                {selectedAssignees.map(user => (
+                  <div 
+                    key={user.id} 
+                    className="flex items-center gap-1.5 bg-[#0066FF]/15 border border-[#0066FF]/35 text-white px-3 py-1.5 rounded-full text-xs font-bold"
+                  >
+                    <span>{user.name}</span>
+                    <span className="text-[9px] text-slate-400 font-medium">({user.department || 'Administration'})</span>
+                    <button 
+                      type="button" 
+                      onClick={() => removeAssignee(user.id)}
+                      className="text-slate-400 hover:text-red-400 transition"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Priority, Category, Deadline Grid */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5">

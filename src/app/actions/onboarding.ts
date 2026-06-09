@@ -2,6 +2,7 @@
 "use server"
 
 import { createClient } from "@/lib/supabase/server"
+import { createServiceClient } from "@/lib/supabase/service"
 import { revalidatePath } from "next/cache"
 import { calculateCompletionPercentage } from "@/lib/onboarding-utils"
 
@@ -92,8 +93,8 @@ export async function saveOnboardingProfile({ role, formData, isSubmit = false }
     last_saved_at: new Date().toISOString()
   }
 
-  // Onboarding is completed only when profile completion percentage is 100%
-  if (percentageData.score === 100) {
+  // Onboarding is completed when profile completion percentage is 100% OR when finalized/submitted at >= 70%
+  if (percentageData.score === 100 || (isSubmit && percentageData.score >= 70)) {
     updateData.onboarding_completed = true
     updateData.onboarding_completed_at = new Date().toISOString()
   }
@@ -152,11 +153,18 @@ export async function saveOnboardingProfile({ role, formData, isSubmit = false }
     }
   }
 
-  // Save to database
-  const { error: updateErr } = await supabase
+  // Save to database using service client to bypass RLS
+  // (RLS only has SELECT policies — UPDATE policies are missing, so user-context client silently fails)
+  // Security is enforced above via the role check (lines 57-65)
+  const serviceSupabase = createServiceClient()
+  console.log("Saving onboarding profile for user:", user.id, "role:", role, "isSubmit:", isSubmit, "score:", percentageData.score)
+  const { error: updateErr, data: updatedRecords } = await serviceSupabase
     .from(tableName)
     .update(filteredUpdateData)
     .eq('id', user.id)
+    .select()
+
+  console.log("Update result:", { updatedRecords, updateErr, rowsUpdated: updatedRecords?.length })
 
   if (updateErr) {
     console.error("Onboarding profile save error:", updateErr)
@@ -183,6 +191,7 @@ export async function saveOnboardingProfile({ role, formData, isSubmit = false }
   return { 
     success: true, 
     score: percentageData.score,
+    missingFields: percentageData.missingMandatoryFields,
     onboardingCompleted: !!updateData.onboarding_completed 
   }
 }

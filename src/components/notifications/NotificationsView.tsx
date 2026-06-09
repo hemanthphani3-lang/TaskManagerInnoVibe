@@ -18,7 +18,11 @@ interface Notification {
   link_url: string | null
 }
 
-export function NotificationsView() {
+interface NotificationsViewProps {
+  userId?: string
+}
+
+export function NotificationsView({ userId: userIdProp }: NotificationsViewProps = {}) {
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const supabase = createClient()
@@ -54,13 +58,18 @@ export function NotificationsView() {
 
   const fetchNotifications = async () => {
     try {
-      const { data: userData } = await supabase.auth.getUser()
-      if (!userData.user) return
+      // Use prop userId if available, otherwise fall back to auth lookup
+      let uid = userIdProp
+      if (!uid) {
+        const { data: userData } = await supabase.auth.getUser()
+        if (!userData.user) return
+        uid = userData.user.id
+      }
 
       const { data, error } = await supabase
         .from('notifications')
         .select('*')
-        .eq('user_id', userData.user.id)
+        .eq('user_id', uid)
         .order('created_at', { ascending: false })
         .limit(50)
 
@@ -94,8 +103,12 @@ export function NotificationsView() {
 
   const markAllAsRead = async () => {
     try {
-      const { data: userData } = await supabase.auth.getUser()
-      if (!userData.user) return
+      let uid = userIdProp
+      if (!uid) {
+        const { data: userData } = await supabase.auth.getUser()
+        if (!userData.user) return
+        uid = userData.user.id
+      }
 
       // Optimistic update
       setNotifications(prev => prev.map(n => ({ ...n, is_read: true })))
@@ -103,7 +116,7 @@ export function NotificationsView() {
       const { error } = await supabase
         .from('notifications')
         .update({ is_read: true })
-        .eq('user_id', userData.user.id)
+        .eq('user_id', uid)
         .eq('is_read', false)
 
       if (error) throw error

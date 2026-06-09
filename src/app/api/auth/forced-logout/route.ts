@@ -51,6 +51,7 @@ export async function POST(req: NextRequest) {
           .from('work_sessions')
           .select('session_id, login_time')
           .eq('user_id', user.id)
+          .eq('status', 'ACTIVE')
           .is('logout_time', null)
           .order('login_time', { ascending: false })
           .limit(1)
@@ -67,6 +68,7 @@ export async function POST(req: NextRequest) {
               user_role: 'EMPLOYEE',
               login_time: checkInTime,
               department_id: employee.department_id,
+              status: 'ACTIVE',
               report_submitted: false
             })
             .select('session_id, login_time')
@@ -93,11 +95,20 @@ export async function POST(req: NextRequest) {
             .select('report_id')
             .single()
 
+          // Calculate duration
+          const loginTimeObj = new Date(activeSession.login_time)
+          const durationMs = now.getTime() - loginTimeObj.getTime()
+          const durationHrs = Math.floor(durationMs / (1000 * 60 * 60))
+          const durationMins = Math.floor((durationMs % (1000 * 60 * 60)) / (1000 * 60))
+          const durationStr = `${durationHrs}h ${durationMins}m`
+
           // 2. Complete active session
           await adminSupabase
             .from('work_sessions')
             .update({
               logout_time: now.toISOString(),
+              duration: durationStr,
+              status: 'COMPLETED',
               report_submitted: true,
               report_id: newReport?.report_id || null
             })
@@ -137,6 +148,11 @@ export async function POST(req: NextRequest) {
         const todayIST = new Date(now.getTime() + istOffset).toISOString().split('T')[0]
         const checkInTime = new Date(`${todayIST}T09:00:00+05:30`).toISOString()
 
+        const durationMs = now.getTime() - new Date(checkInTime).getTime()
+        const durationHrs = Math.floor(durationMs / (1000 * 60 * 60))
+        const durationMins = Math.floor((durationMs % (1000 * 60 * 60)) / (1000 * 60))
+        const durationStr = `${durationHrs}h ${durationMins}m`
+
         // Create active work session and blank report on the fly for Department Head
         const { data: activeSession } = await adminSupabase
           .from('work_sessions')
@@ -146,6 +162,8 @@ export async function POST(req: NextRequest) {
             user_role: 'DEPARTMENT',
             login_time: checkInTime,
             logout_time: now.toISOString(),
+            duration: durationStr,
+            status: 'COMPLETED',
             department_id: dept.id,
             department: dept.department_name,
             report_submitted: true

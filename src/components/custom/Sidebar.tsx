@@ -40,30 +40,6 @@ export function Sidebar({ title, links, onLogoutClick }: SidebarProps) {
   const [onboardingCompleted, setOnboardingCompleted] = useState<boolean>(true)
 
   useEffect(() => {
-    let isMounted = true
-    const checkOnboarding = async () => {
-      if (title === 'Admin Portal') return
-
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user || !isMounted) return
-
-      let tableName = title === 'Employee Portal' ? 'employees' : 'departments'
-      const { data } = await supabase
-        .from(tableName)
-        .select('onboarding_completed')
-        .eq('id', user.id)
-        .maybeSingle()
-
-      if (!isMounted) return
-      if (data) {
-        setOnboardingCompleted(!!data.onboarding_completed)
-      }
-    }
-    checkOnboarding()
-    return () => { isMounted = false }
-  }, [title])
-
-  useEffect(() => {
     let channel: any;
     let isMounted = true;
 

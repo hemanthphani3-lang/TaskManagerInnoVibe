@@ -18,15 +18,20 @@ export default async function AdminTasksPage() {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  // Fetch all tasks globally for Admin view
+  // Fetch all tasks globally for Admin view with assignee details
   const { data: tasks } = await supabaseAdmin
     .from('tasks')
-    .select('*')
+    .select('*, task_assignees(*)')
     .order('created_at', { ascending: false })
+
+  const mappedTasks = tasks?.map(t => ({
+    ...t,
+    assignee_ids: (t.task_assignees as any[])?.map(a => a.user_id) || []
+  })) || []
 
   return (
     <TaskWorkspaceDashboard
-      initialTasks={tasks || []}
+      initialTasks={mappedTasks}
       currentUserId={user.id}
       currentUserRole="ADMIN"
     />

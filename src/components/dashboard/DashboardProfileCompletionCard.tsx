@@ -6,14 +6,8 @@ import Link from "next/link"
 import { motion } from "framer-motion"
 import { calculateCompletionPercentage } from "@/lib/onboarding-utils"
 import { 
-  Award, 
-  AlertCircle, 
   ArrowRight, 
-  CheckCircle, 
-  Lock, 
-  Sparkles,
-  ShieldCheck,
-  UserCheck
+  Sparkles
 } from "lucide-react"
 
 interface DashboardProfileCompletionCardProps {
@@ -87,6 +81,13 @@ export function DashboardProfileCompletionCard({ role, profile }: DashboardProfi
     )
   }
 
+  const remainingCount = missingFields.length
+
+  const getOnboardingUrl = () => {
+    if (role === 'DEPARTMENT') return '/department/onboarding'
+    return '/employee/onboarding'
+  }
+
   return (
     <div className={`relative overflow-hidden rounded-3xl border p-6 transition-all duration-300 ${getBgGlow()} bg-white shadow-xl shadow-slate-100/40`}>
       
@@ -97,30 +98,15 @@ export function DashboardProfileCompletionCard({ role, profile }: DashboardProfi
 
       <div className="flex flex-col md:flex-row gap-6 justify-between items-start md:items-center relative z-10">
         
-        {/* Profile score and motivational prompt */}
-        <div className="flex-1 space-y-3">
+        {/* Profile score and description */}
+        <div className="flex-1 space-y-2">
           <div className="flex items-center flex-wrap gap-2.5">
-            <span className="text-slate-400 text-xs font-bold uppercase tracking-wider">Workspace Profile Status</span>
-            
-            {!isUnlocked ? (
-              <span className="inline-flex items-center gap-1 bg-red-100 text-red-700 px-2.5 py-0.5 rounded-full text-[10px] font-bold border border-red-200">
-                <Lock className="w-3 h-3" /> System Access Restricted
-              </span>
-            ) : isFullyCompleted ? (
-              <span className="inline-flex items-center gap-1 bg-amber-500/10 text-amber-500 px-2.5 py-0.5 rounded-full text-[10px] font-bold border border-amber-500/20 shadow-md shadow-amber-500/5 animate-pulse">
-                <Award className="w-3 h-3 text-amber-500" /> Profile Fully Completed
-              </span>
-            ) : (
-              <span className="inline-flex items-center gap-1 bg-emerald-100 text-emerald-700 px-2.5 py-0.5 rounded-full text-[10px] font-bold border border-emerald-200">
-                <ShieldCheck className="w-3 h-3" /> Portal Unlocked
-              </span>
-            )}
+            <span className="text-slate-400 text-xs font-bold uppercase tracking-wider">Profile Completion</span>
           </div>
 
           <div className="flex items-baseline gap-2.5">
-            <h2 className="text-3xl font-black text-slate-900 tracking-tight flex items-baseline">
-              <span className={getPercentageColor()}>{progress}%</span>
-              <span className="text-sm font-semibold text-slate-400 ml-1">completed</span>
+            <h2 className="text-3xl font-black text-slate-900 tracking-tight">
+              <span className={getPercentageColor()}>{progress}% Complete</span>
             </h2>
           </div>
 
@@ -128,58 +114,23 @@ export function DashboardProfileCompletionCard({ role, profile }: DashboardProfi
             {getMotivationalMessage()}
           </p>
 
-          {/* Missing mandatory fields details */}
-          {!isFullyCompleted && missingFields.length > 0 && (
-            <div className="pt-2">
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">
-                Pending Required Fields ({missingFields.length})
-              </p>
-              <div className="flex flex-wrap gap-1.5 max-h-[80px] overflow-y-auto">
-                {missingFields.map(f => (
-                  <span 
-                    key={f.key} 
-                    className="inline-block text-[10px] font-bold px-2.5 py-1 bg-slate-100 hover:bg-slate-200 border border-slate-200/60 rounded-lg text-slate-600 transition-colors"
-                  >
-                    ✦ {f.label}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
+          <div className="pt-1">
+            <span className="inline-block text-xs font-bold px-3 py-1 bg-slate-100 rounded-lg text-slate-605 border border-slate-200/50">
+              {remainingCount} {remainingCount === 1 ? 'Field' : 'Fields'} Remaining
+            </span>
+          </div>
         </div>
 
-        {/* Dynamic score visualization circle / block + buttons */}
-        <div className="w-full md:w-auto flex flex-col sm:flex-row md:flex-col gap-4 items-stretch sm:items-center md:items-end justify-end shrink-0">
-          
-          {/* Action button */}
+        {/* Action button */}
+        <div className="w-full md:w-auto flex items-center shrink-0">
           <Link
-            href="/onboarding"
-            className={`px-6 py-3.5 text-xs font-bold rounded-2xl shadow-lg transition-all duration-200 hover:-translate-y-0.5 active:scale-95 flex items-center justify-center gap-2 text-white ${
-              !isUnlocked 
-                ? 'bg-linear-to-tr from-amber-500 to-orange-500 hover:brightness-110 shadow-orange-500/15'
-                : 'bg-linear-to-tr from-[#0066FF] to-[#00D4FF] hover:brightness-110 shadow-blue-500/15'
-            }`}
+            href={getOnboardingUrl()}
+            className="w-full md:w-auto px-6 py-3.5 text-xs font-bold rounded-2xl shadow-lg transition-all duration-200 hover:-translate-y-0.5 active:scale-95 flex items-center justify-center gap-2 text-white bg-linear-to-tr from-[#0066FF] to-[#00D4FF] hover:brightness-110 shadow-blue-500/15"
           >
-            {isFullyCompleted ? (
-              <>
-                <UserCheck className="w-4 h-4" /> Edit Profile Details
-              </>
-            ) : (
-              <>
-                <Sparkles className="w-4 h-4 animate-spin-slow" />
-                {!isUnlocked ? 'Complete Profile to Unlock' : 'Update Missing Details'}
-                <ArrowRight className="w-4 h-4" />
-              </>
-            )}
+            <Sparkles className="w-4 h-4" />
+            Update Profile
+            <ArrowRight className="w-4 h-4" />
           </Link>
-
-          {/* Access status alert info */}
-          {!isUnlocked && (
-            <span className="text-[10px] font-bold text-red-500 flex items-center gap-1 bg-red-50 px-3 py-1.5 rounded-xl border border-red-100">
-              <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-              Locked modules: Tasks, Leave, Reports, Announcements
-            </span>
-          )}
         </div>
 
       </div>
@@ -193,13 +144,10 @@ export function DashboardProfileCompletionCard({ role, profile }: DashboardProfi
             transition={{ duration: 0.8, ease: "easeOut" }}
             className={`absolute top-0 left-0 h-full bg-linear-to-r ${getProgressColor()} rounded-full`}
           />
-          {/* Threshold Marker indicator line */}
-          <div className="absolute top-0 bottom-0 left-[70%] w-0.5 bg-red-400/80 z-10" />
         </div>
-        <div className="relative w-full h-5 text-[9px] font-bold text-slate-400 mt-2 px-1">
-          <span className="absolute left-1">0%</span>
-          <span className="absolute left-[70%] -translate-x-1/2 text-red-500 whitespace-nowrap">70% Required Threshold</span>
-          <span className="absolute right-1">100% Completed</span>
+        <div className="flex justify-between w-full text-[9px] font-bold text-slate-400 mt-2 px-1">
+          <span>0%</span>
+          <span>100% Completed</span>
         </div>
       </div>
 

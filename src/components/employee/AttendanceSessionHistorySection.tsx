@@ -109,7 +109,7 @@ export function AttendanceSessionHistorySection({ employeeId }: AttendanceSessio
                 <div>
                   <div className="flex items-center gap-2">
                     <span className="font-bold text-slate-800">{formattedDate}</span>
-                    {!session.logout_time && (
+                    {!session.logout_time && session.status === 'ACTIVE' && (
                       <span className="px-1.5 py-0.5 bg-emerald-50 text-emerald-600 text-[8px] font-bold rounded uppercase border border-emerald-100 animate-pulse">
                         Active
                       </span>

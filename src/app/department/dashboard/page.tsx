@@ -65,12 +65,12 @@ export default async function DepartmentDashboard() {
     supabase.from('activity_feed').select('*').eq('department_id', user!.id).order('created_at', { ascending: false }).limit(10),
     supabase.from('productivity_scores').select('employee_id, productivity_score').eq('department_id', user!.id).order('productivity_score', { ascending: false }),
     supabase.from('rankings').select('employee_id, employee_rank, score').eq('department_id', user!.id),
-    supabase.from('work_sessions').select('*').eq('department_id', user!.id).gte('login_time', startUTC).lte('login_time', endUTC)
+    supabase.from('work_sessions').select('logout_time, report_submitted, status').eq('department_id', user!.id).gte('login_time', startUTC).lte('login_time', endUTC)
   ])
 
   // Calculate today's team sessions statistics
-  const teamOnline = (todayTeamSessions || []).filter(s => s.logout_time === null).length
-  const teamReportsSubmitted = (todayTeamSessions || []).filter(s => s.report_submitted).length
+  const teamOnline = (todayTeamSessions || []).filter(s => s.status === 'ACTIVE').length
+  const teamReportsSubmitted = (todayTeamSessions || []).filter(s => s.status === 'COMPLETED').length
   // Team session hours calculation removed
 
   // ── Computed Stats ────────────────────────────────────────────────────────
@@ -132,15 +132,6 @@ export default async function DepartmentDashboard() {
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="p-4 sm:p-6 md:p-8 pb-20">
-      {profileScore < 70 && (
-        <div className="mb-6 p-4 bg-gradient-to-r from-red-50 to-orange-50 border border-red-200 rounded-2xl flex items-center gap-3 shadow-sm animate-pulse">
-          <ShieldAlert className="w-6 h-6 text-red-500 shrink-0" />
-          <div className="flex-1">
-            <h4 className="text-sm font-bold text-red-900">Profile Incomplete — Action Required</h4>
-            <p className="text-xs text-red-700 font-medium">Your profile is currently at {profileScore}%. Complete your profile to at least 70% to unlock full module access.</p>
-          </div>
-        </div>
-      )}
 
       <header className="mb-8 flex justify-between items-end">
         <div>

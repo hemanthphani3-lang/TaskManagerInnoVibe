@@ -90,12 +90,13 @@ export function TaskWorkspaceDashboard({
 
   // KPI Calculations
   const totalCount = tasks.length
-  const assignedToMeCount = tasks.filter(t => t.assigned_to === currentUserId).length
+  const assignedToMeCount = tasks.filter(t => (t as any).assignee_ids?.includes(currentUserId) || t.assigned_to === currentUserId).length
   const assignedByMeCount = tasks.filter(t => t.created_by === currentUserId).length
   
   const pendingActionsCount = tasks.filter(t => {
     const status = getTaskStatus(t)
-    return (status === 'PENDING' && t.assigned_to === currentUserId) || 
+    const isUserAssignee = (t as any).assignee_ids?.includes(currentUserId) || t.assigned_to === currentUserId
+    return (status === 'PENDING' && isUserAssignee) || 
            (t.clarification_text && t.created_by === currentUserId && status === 'PENDING')
   }).length
   
@@ -115,6 +116,7 @@ export function TaskWorkspaceDashboard({
     const priority = getTaskPriority(t)
     const desc = getTaskDescription(t)
     const title = getTaskTitle(t)
+    const isUserAssignee = (t as any).assignee_ids?.includes(currentUserId) || t.assigned_to === currentUserId
 
     // 1. Search Query Match
     const matchesSearch = 
@@ -129,15 +131,15 @@ export function TaskWorkspaceDashboard({
     if (statusFilter !== 'ALL' && status !== statusFilter) return false
     if (categoryFilter !== 'ALL' && t.department !== categoryFilter) return false
     if (roleFilter !== 'ALL') {
-      if (roleFilter === 'ASSIGNED_TO_ME' && t.assigned_to !== currentUserId) return false
+      if (roleFilter === 'ASSIGNED_TO_ME' && !isUserAssignee) return false
       if (roleFilter === 'ASSIGNED_BY_ME' && t.created_by !== currentUserId) return false
     }
 
     // 3. Tab restrictions
-    if (activeTab === 'assigned_to_me' && t.assigned_to !== currentUserId) return false
+    if (activeTab === 'assigned_to_me' && !isUserAssignee) return false
     if (activeTab === 'assigned_by_me' && t.created_by !== currentUserId) return false
     if (activeTab === 'pending_actions') {
-      const isPendingAction = (status === 'PENDING' && t.assigned_to === currentUserId) || 
+      const isPendingAction = (status === 'PENDING' && isUserAssignee) || 
                               (t.clarification_text && t.created_by === currentUserId && status === 'PENDING')
       if (!isPendingAction) return false
     }

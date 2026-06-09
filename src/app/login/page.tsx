@@ -111,7 +111,7 @@ export default function LoginPage() {
       } else if (selectedRole === 'DEPARTMENT') {
         router.push('/department/dashboard')
       } else {
-        router.push('/employee/identity-check')
+        router.push('/employee/dashboard')
       }
 
       router.refresh()
