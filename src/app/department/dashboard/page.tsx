@@ -1,6 +1,7 @@
 export const dynamic = 'force-dynamic'
 
 import { createClient } from "@/lib/supabase/server"
+import { createServiceClient } from "@/lib/supabase/service"
 import { redirect } from "next/navigation"
 import { Users, Clock, CheckCircle2, XCircle, Target, Activity, AlertCircle, ShieldAlert, FileText } from "lucide-react"
 import { AnalyticsCard } from "@/components/dashboard/AnalyticsCard"
@@ -22,14 +23,17 @@ export default async function DepartmentDashboard() {
 
   if (!user) redirect("/login")
 
+  const supabaseAdmin = createServiceClient()
+
   // ── Fetch Department Head Profile ──────────────────────────────────────────
-  const { data: deptProfile } = await supabase
+  const { data: deptProfile } = await supabaseAdmin
     .from('departments')
     .select('*')
     .eq('id', user.id)
     .single()
 
   const profileScore = deptProfile ? calculateCompletionPercentage('DEPARTMENT', deptProfile).score : 100
+  const deptName = deptProfile?.department_name || ""
 
   // ── Data Fetching ─────────────────────────────────────────────────────────
   const today = new Date().toISOString().split('T')[0]
@@ -46,8 +50,33 @@ export default async function DepartmentDashboard() {
   const startUTC = new Date(`${todayIST}T00:00:00+05:30`).toISOString()
   const endUTC = new Date(`${todayIST}T23:59:59+05:30`).toISOString()
 
+  // Fetch all employee IDs under this department
+  const { data: employees } = await supabaseAdmin
+    .from('employees')
+    .select('id, employee_name, designation, profile_photo')
+    .eq('department_id', user.id)
+
+  const empIds = employees?.map(e => e.id) || []
+
+  // Fetch task IDs where any employee or department head is assigned
+  const { data: assigneeRecords } = await supabaseAdmin
+    .from('task_assignees')
+    .select('task_id')
+    .in('user_id', [...empIds, user.id])
+
+  const deptTaskIds = assigneeRecords?.map(r => r.task_id) || []
+
+  let tasksQuery = supabaseAdmin
+    .from('tasks')
+    .select('id, task_status, assigned_employee_id')
+
+  if (deptTaskIds.length > 0) {
+    tasksQuery = tasksQuery.or(`id.in.(${deptTaskIds.map(id => `"${id}"`).join(',')}),created_by.eq.${user.id},department.eq.${deptName},department_id.eq.${user.id}`)
+  } else {
+    tasksQuery = tasksQuery.or(`assigned_to.eq.${user.id},created_by.eq.${user.id},department.eq.${deptName},department_id.eq.${user.id}`)
+  }
+
   const [
-    { data: employees },
     { data: attendance },
     { count: logoutReportsToday },
     { count: pendingLeaves },
@@ -57,15 +86,14 @@ export default async function DepartmentDashboard() {
     { data: rankings },
     { data: todayTeamSessions }
   ] = await Promise.all([
-    supabase.from('employees').select('id, employee_name, designation, profile_photo').eq('department_id', user!.id),
-    supabase.from('attendance').select('employee_id, attendance_status, check_in_time, work_status, working_hours, created_at').eq('department_id', user!.id).gte('created_at', `${last7Days[0]}T00:00:00Z`).lte('created_at', `${today}T23:59:59Z`),
-    supabase.from('logout_requests').select('*', { count: 'exact', head: true }).eq('department_id', user!.id).eq('attendance_date', today),
-    supabase.from('leave_requests').select('*', { count: 'exact', head: true }).eq('department_id', user!.id).eq('approval_status', 'PENDING'),
-    supabase.from('tasks').select('id, task_status, assigned_employee_id').eq('department_id', user!.id),
-    supabase.from('activity_feed').select('*').eq('department_id', user!.id).order('created_at', { ascending: false }).limit(10),
-    supabase.from('productivity_scores').select('employee_id, productivity_score').eq('department_id', user!.id).order('productivity_score', { ascending: false }),
-    supabase.from('rankings').select('employee_id, employee_rank, score').eq('department_id', user!.id),
-    supabase.from('work_sessions').select('logout_time, report_submitted, status').eq('department_id', user!.id).gte('login_time', startUTC).lte('login_time', endUTC)
+    supabaseAdmin.from('attendance').select('employee_id, attendance_status, check_in_time, work_status, working_hours, created_at').eq('department_id', user.id).gte('created_at', `${last7Days[0]}T00:00:00Z`).lte('created_at', `${today}T23:59:59Z`),
+    supabaseAdmin.from('logout_requests').select('*', { count: 'exact', head: true }).eq('department_id', user.id).eq('attendance_date', today),
+    supabaseAdmin.from('leave_requests').select('*', { count: 'exact', head: true }).eq('department_id', user.id).eq('approval_status', 'PENDING'),
+    tasksQuery,
+    supabaseAdmin.from('activity_feed').select('*').eq('department_id', user.id).order('created_at', { ascending: false }).limit(10),
+    supabaseAdmin.from('productivity_scores').select('employee_id, productivity_score').eq('department_id', user.id).order('productivity_score', { ascending: false }),
+    supabaseAdmin.from('rankings').select('employee_id, employee_rank, score').eq('department_id', user.id),
+    supabaseAdmin.from('work_sessions').select('logout_time, report_submitted, status').eq('department_id', user.id).gte('login_time', startUTC).lte('login_time', endUTC)
   ])
 
   // Calculate today's team sessions statistics

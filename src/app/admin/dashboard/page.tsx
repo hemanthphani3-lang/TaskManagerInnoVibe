@@ -1,6 +1,7 @@
 export const dynamic = 'force-dynamic'
 
 import { createClient } from "@/lib/supabase/server"
+import { createServiceClient } from "@/lib/supabase/service"
 import { redirect } from "next/navigation"
 import { Building2, Users, CheckCircle2, Clock, Activity, Target, XCircle, ArrowLeft, TrendingUp, LogOut, FileText } from "lucide-react"
 import { AnalyticsCard } from "@/components/dashboard/AnalyticsCard"
@@ -41,69 +42,71 @@ export default async function AdminDashboard(props: { searchParams: Promise<{ [k
     const startUTC = new Date(`${todayIST}T00:00:00+05:30`).toISOString()
     const endUTC = new Date(`${todayIST}T23:59:59+05:30`).toISOString()
 
-  // Build dynamic queries based on dept_id filter
-  let logoutsQuery = supabase.from('logout_requests').select('*', { count: 'exact', head: true }).eq('approval_status', 'PENDING')
-  if (dept_id) logoutsQuery = logoutsQuery.eq('department_id', dept_id)
+    const supabaseAdmin = createServiceClient()
 
-  let sessionsQuery = supabase.from('work_sessions').select('*').gte('login_time', startUTC).lte('login_time', endUTC)
-  if (dept_id) sessionsQuery = sessionsQuery.eq('department_id', dept_id)
+    // Build dynamic queries based on dept_id filter
+    let logoutsQuery = supabaseAdmin.from('logout_requests').select('*', { count: 'exact', head: true }).eq('approval_status', 'PENDING')
+    if (dept_id) logoutsQuery = logoutsQuery.eq('department_id', dept_id)
 
-  let tasksQuery = supabase.from('tasks').select('id, department_id, assigned_to, assigned_employee_id, task_status')
-  if (dept_id) tasksQuery = tasksQuery.eq('department_id', dept_id)
+    let sessionsQuery = supabaseAdmin.from('work_sessions').select('*').gte('login_time', startUTC).lte('login_time', endUTC)
+    if (dept_id) sessionsQuery = sessionsQuery.eq('department_id', dept_id)
 
-  let activityQuery = supabase.from('activity_feed').select('*').order('created_at', { ascending: false }).limit(10)
-  if (dept_id) activityQuery = activityQuery.eq('department_id', dept_id)
+    let tasksQuery = supabaseAdmin.from('tasks').select('id, department_id, assigned_to, assigned_employee_id, task_status')
+    if (dept_id) tasksQuery = tasksQuery.eq('department_id', dept_id)
 
-  let productivityQuery = supabase
-    .from('productivity_scores')
-    .select('employee_id, department_id, productivity_score')
-    .order('productivity_score', { ascending: false })
-    .limit(10)
-  if (dept_id) productivityQuery = productivityQuery.eq('department_id', dept_id)
+    let activityQuery = supabaseAdmin.from('activity_feed').select('*').order('created_at', { ascending: false }).limit(10)
+    if (dept_id) activityQuery = activityQuery.eq('department_id', dept_id)
 
-  // Execute all independent queries concurrently to drastically reduce page load time
-  const [
-    { data: departments },
-    { data: globalEmployees },
-    { data: globalAttendance },
-    { count: pendingLogouts },
-    { data: tasks },
-    { data: activityFeed },
-    { data: productivityScores },
-    { data: todaySessions }
-  ] = await Promise.all([
-    supabase.from('departments').select('id, department_name, department_head_name'),
-    supabase.from('employees').select('id, department_id, employee_name, designation, profile_photo'),
-    supabase.from('attendance').select('employee_id, department_id, attendance_status, work_status, working_hours, created_at').gte('created_at', `${last7Days[0]}T00:00:00Z`).lte('created_at', `${today}T23:59:59Z`),
-    logoutsQuery,
-    tasksQuery,
-    activityQuery,
-    productivityQuery,
-    sessionsQuery
-  ])
+    let productivityQuery = supabaseAdmin
+      .from('productivity_scores')
+      .select('employee_id, department_id, productivity_score')
+      .order('productivity_score', { ascending: false })
+      .limit(10)
+    if (dept_id) productivityQuery = productivityQuery.eq('department_id', dept_id)
 
-  // Calculate work session statistics for today
-  const activeUsersToday = (todaySessions || []).filter(s => s.status === 'ACTIVE').length
-  const loggedInUsersToday = new Set((todaySessions || []).map(s => s.user_id)).size
-  const loggedOutUsersToday = (todaySessions || []).filter(s => s.status === 'COMPLETED').length
-  const reportsSubmittedToday = (todaySessions || []).filter(s => s.report_submitted).length
-
-  let onboardingAdmins: any[] = []
-  let onboardingDepts: any[] = []
-  let onboardingEmps: any[] = []
-
-  try {
-    const [adminsRes, deptsRes, empsRes] = await Promise.all([
-      supabase.from('admins').select('id, full_name, email, onboarding_completed, profile_completion_percentage, mandatory_fields_completed'),
-      supabase.from('departments').select('id, department_name, department_head_name, onboarding_completed, profile_completion_percentage, mandatory_fields_completed'),
-      supabase.from('employees').select('id, employee_name, employee_email, designation, onboarding_completed, profile_completion_percentage, mandatory_fields_completed')
+    // Execute all independent queries concurrently to drastically reduce page load time
+    const [
+      { data: departments },
+      { data: globalEmployees },
+      { data: globalAttendance },
+      { count: pendingLogouts },
+      { data: tasks },
+      { data: activityFeed },
+      { data: productivityScores },
+      { data: todaySessions }
+    ] = await Promise.all([
+      supabaseAdmin.from('departments').select('id, department_name, department_head_name'),
+      supabaseAdmin.from('employees').select('id, department_id, employee_name, designation, profile_photo'),
+      supabaseAdmin.from('attendance').select('employee_id, department_id, attendance_status, work_status, working_hours, created_at').gte('created_at', `${last7Days[0]}T00:00:00Z`).lte('created_at', `${today}T23:59:59Z`),
+      logoutsQuery,
+      tasksQuery,
+      activityQuery,
+      productivityQuery,
+      sessionsQuery
     ])
-    if (adminsRes.data) onboardingAdmins = adminsRes.data
-    if (deptsRes.data) onboardingDepts = deptsRes.data
-    if (empsRes.data) onboardingEmps = empsRes.data
-  } catch (e) {
-    console.warn("Onboarding database columns not yet created. Skipping onboarding analytics fetch.", e)
-  }
+
+    // Calculate work session statistics for today
+    const activeUsersToday = (todaySessions || []).filter(s => s.status === 'ACTIVE').length
+    const loggedInUsersToday = new Set((todaySessions || []).map(s => s.user_id)).size
+    const loggedOutUsersToday = (todaySessions || []).filter(s => s.status === 'COMPLETED').length
+    const reportsSubmittedToday = (todaySessions || []).filter(s => s.report_submitted).length
+
+    let onboardingAdmins: any[] = []
+    let onboardingDepts: any[] = []
+    let onboardingEmps: any[] = []
+
+    try {
+      const [adminsRes, deptsRes, empsRes] = await Promise.all([
+        supabaseAdmin.from('admins').select('id, full_name, email, onboarding_completed, profile_completion_percentage, mandatory_fields_completed'),
+        supabaseAdmin.from('departments').select('id, department_name, department_head_name, onboarding_completed, profile_completion_percentage, mandatory_fields_completed'),
+        supabaseAdmin.from('employees').select('id, employee_name, employee_email, designation, onboarding_completed, profile_completion_percentage, mandatory_fields_completed')
+      ])
+      if (adminsRes.data) onboardingAdmins = adminsRes.data
+      if (deptsRes.data) onboardingDepts = deptsRes.data
+      if (empsRes.data) onboardingEmps = empsRes.data
+    } catch (e) {
+      console.warn("Onboarding database columns not yet created. Skipping onboarding analytics fetch.", e)
+    }
 
   // Calculate onboarding statistics safely
   const allUsersOnboarding = [

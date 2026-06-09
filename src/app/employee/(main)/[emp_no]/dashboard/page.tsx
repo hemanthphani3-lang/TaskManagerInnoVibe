@@ -1,6 +1,7 @@
 export const dynamic = 'force-dynamic'
 
 import { createClient } from "@/lib/supabase/server"
+import { createServiceClient } from "@/lib/supabase/service"
 import { redirect } from "next/navigation"
 import { Clock, Calendar, CheckCircle2, UserCircle2, AlertCircle, Target, FileText, LogOut, Trophy, ShieldAlert, DownloadCloud } from "lucide-react"
 import { AnalyticsCard } from "@/components/dashboard/AnalyticsCard"
@@ -24,8 +25,10 @@ export default async function EmployeeDashboard({ params }: { params: Promise<{ 
 
   if (!user) redirect("/login")
 
+  const supabaseAdmin = createServiceClient()
+
   // Fetch employee details
-  const { data: employee } = await supabase
+  const { data: employee } = await supabaseAdmin
     .from('employees')
     .select('*, departments!department_id(department_name)')
     .eq('id', user.id)
@@ -47,7 +50,7 @@ export default async function EmployeeDashboard({ params }: { params: Promise<{ 
   const endUTC = new Date(`${todayIST}T23:59:59+05:30`).toISOString()
 
   // Fetch task IDs where user is assigned
-  const { data: assigneeRecords } = await supabase
+  const { data: assigneeRecords } = await supabaseAdmin
     .from('task_assignees')
     .select('task_id')
     .eq('user_id', user.id)
@@ -64,25 +67,31 @@ export default async function EmployeeDashboard({ params }: { params: Promise<{ 
     { data: kpiData },
     { data: reminders }
   ] = await Promise.all([
-    supabase.from('attendance').select('*').eq('employee_id', user.id).gte('created_at', startUTC).lte('created_at', endUTC).order('created_at', { ascending: false }).limit(1).maybeSingle(),
-    supabase.from('logout_requests').select('*, work_submissions(work_comment, attachment_url, attachment_type)').eq('employee_id', user.id).order('created_at', { ascending: false }).limit(5),
+    supabaseAdmin.from('attendance').select('*').eq('employee_id', user.id).gte('created_at', startUTC).lte('created_at', endUTC).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+    supabaseAdmin.from('logout_requests').select('*, work_submissions(work_comment, attachment_url, attachment_type)').eq('employee_id', user.id).order('created_at', { ascending: false }).limit(5),
     assignedTaskIds.length > 0
-      ? supabase.from('tasks').select('*, task_assignees(*)').or(`id.in.(${assignedTaskIds.map(id => `"${id}"`).join(',')}),created_by.eq.${user.id}`).limit(100)
-      : supabase.from('tasks').select('*, task_assignees(*)').or(`assigned_to.eq.${user.id},created_by.eq.${user.id}`).limit(100),
-    supabase.from('productivity_scores').select('*').eq('employee_id', user.id).maybeSingle(),
-    supabase.from('rankings').select('*').eq('employee_id', user.id).maybeSingle(),
-    supabase.from('kpi_metrics').select('*').eq('employee_id', user.id).maybeSingle(),
-    supabase.from('reminders').select('*').eq('employee_id', user.id).eq('reminder_status', 'UNREAD').order('created_at', { ascending: false })
+      ? supabaseAdmin.from('tasks').select('*, task_assignees(*)').or(`id.in.(${assignedTaskIds.map(id => `"${id}"`).join(',')}),created_by.eq.${user.id}`).limit(100)
+      : supabaseAdmin.from('tasks').select('*, task_assignees(*)').or(`assigned_to.eq.${user.id},created_by.eq.${user.id},assigned_employee_id.eq.${user.id}`).limit(100),
+    supabaseAdmin.from('productivity_scores').select('*').eq('employee_id', user.id).maybeSingle(),
+    supabaseAdmin.from('rankings').select('*').eq('employee_id', user.id).maybeSingle(),
+    supabaseAdmin.from('kpi_metrics').select('*').eq('employee_id', user.id).maybeSingle(),
+    supabaseAdmin.from('reminders').select('*').eq('employee_id', user.id).eq('reminder_status', 'UNREAD').order('created_at', { ascending: false })
   ])
 
   // Map raw tasks to override overall status with individual assignee status
-  const tasks = rawTasks?.map(t => {
+  const allTasks = rawTasks?.map(t => {
     const userAssignee = (t.task_assignees as any[])?.find(a => a.user_id === user.id)
     return {
       ...t,
       task_status: userAssignee?.status || t.task_status || t.status || 'PENDING'
     }
   }) || []
+
+  // Filter ONLY tasks assigned to this employee (excluding tasks they created but assigned to someone else)
+  const tasks = allTasks.filter(t => 
+    (t.task_assignees as any[])?.some(a => a.user_id === user.id) || 
+    t.assigned_to === user.id
+  )
 
   const totalTasks = tasks.length
   const pendingTasks = tasks.filter(t => ['PENDING', 'ACCEPTED', 'IN_PROGRESS', 'WAITING_APPROVAL'].includes(t.task_status)).length
@@ -220,7 +229,7 @@ export default async function EmployeeDashboard({ params }: { params: Promise<{ 
               </div>
               
               <div className="space-y-3">
-                {(tasks || []).filter(t => ['PENDING', 'IN_PROGRESS', 'WAITING_APPROVAL'].includes(t.task_status)).slice(0, 5).map(task => (
+                {(tasks || []).filter(t => ['PENDING', 'ACCEPTED', 'IN_PROGRESS', 'WAITING_APPROVAL'].includes(t.task_status)).slice(0, 5).map(task => (
                   <div key={task.id} className="p-4 rounded-xl border border-slate-100 bg-slate-50 flex items-center justify-between hover:border-blue-200 hover:bg-blue-50/50 transition-colors">
                     <div className="flex items-center gap-3">
                       <div className={`p-2 rounded-lg ${task.priority_level === 'CRITICAL' ? 'bg-red-100 text-red-600' : task.priority_level === 'HIGH' ? 'bg-orange-100 text-orange-600' : 'bg-blue-100 text-blue-600'}`}>
