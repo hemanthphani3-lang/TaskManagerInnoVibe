@@ -2,8 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
-import { Calendar as CalendarIcon, CheckCircle2, XCircle, Clock } from "lucide-react"
-import { updateLeaveStatus } from "@/app/actions/leave"
+import { Calendar as CalendarIcon } from "lucide-react"
 import { LeaveCard } from "./LeaveCard"
 
 export default async function DepartmentLeaveApprovalsPage() {
@@ -18,17 +17,39 @@ export default async function DepartmentLeaveApprovalsPage() {
 
   if (!user) redirect("/login")
 
-  const { data: leaves } = await supabase
-    .from('leave_requests')
-    .select('*, employees!employee_id(employee_name, profile_photo)')
-    .eq('department_id', user.id)
-    .order('created_at', { ascending: false })
+  // Fetch leave requests and department employees in parallel
+  const [leavesRes, employeesRes] = await Promise.all([
+    supabase
+      .from('leave_requests')
+      .select('*')
+      .eq('department_id', user.id)
+      .order('created_at', { ascending: false }),
+    supabase
+      .from('employees')
+      .select('id, employee_name, profile_photo')
+      .eq('department_id', user.id)
+  ])
+
+  const leaves = leavesRes.data || []
+  const employees = employeesRes.data || []
 
   // Filter out leaves that are not pending
-  const displayLeaves = leaves?.filter(leave => {
+  const pendingLeaves = leaves.filter(leave => {
     const status = leave.approval_status ?? leave.status ?? 'PENDING';
     return status === 'PENDING';
-  }) || []
+  })
+
+  // Map employee details to each leave request to simulate the relation join
+  const displayLeaves = pendingLeaves.map(leave => {
+    const emp = employees.find(e => e.id === leave.employee_id) || {
+      employee_name: "Unknown Employee",
+      profile_photo: null
+    }
+    return {
+      ...leave,
+      employees: emp
+    }
+  })
 
   return (
     <div className="p-8">
