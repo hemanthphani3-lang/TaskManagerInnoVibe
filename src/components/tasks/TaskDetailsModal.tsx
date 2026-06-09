@@ -569,10 +569,10 @@ export function TaskDetailsModal({
               {/* Status & Priority Badge Panel */}
               <div className="flex items-center gap-3 flex-wrap bg-slate-950/30 border border-slate-800 p-4 rounded-2xl">
                 <span className="text-xs font-semibold text-slate-500">Status:</span>
-                <TaskStatusBadge status={task.status || task.task_status} />
+                <TaskStatusBadge status={task?.status || task?.task_status} />
                 
                 <span className="text-xs font-semibold text-slate-500 ml-2">Priority:</span>
-                <PriorityBadge priority={task.priority || task.priority_level} />
+                <PriorityBadge priority={task?.priority || task?.priority_level} />
               </div>
 
               {/* Scope/Description */}
@@ -616,15 +616,15 @@ export function TaskDetailsModal({
                           }`}>
                             <div className="flex items-center gap-2.5 min-w-0">
                               {col.profilePhoto ? (
-                                <img src={col.profilePhoto} alt={col.name} className="w-8 h-8 rounded-full object-cover shrink-0" />
+                                <img src={col.profilePhoto} alt={col.name || "User"} className="w-8 h-8 rounded-full object-cover shrink-0" />
                               ) : (
                                 <div className="w-8 h-8 rounded-full bg-slate-800 text-slate-400 flex items-center justify-center font-bold text-xs shrink-0">
-                                  {col.name.charAt(0)}
+                                  {(col.name || "U").charAt(0)}
                                 </div>
                               )}
                               <div className="min-w-0">
-                                <span className="text-xs font-bold text-white block truncate">{col.name}</span>
-                                <span className="text-[9px] text-slate-400 block truncate">{col.role} ✦ {col.department}</span>
+                                <span className="text-xs font-bold text-white block truncate">{col.name || "Unknown User"}</span>
+                                <span className="text-[9px] text-slate-400 block truncate">{col.role || "Role"} ✦ {col.department || "Department"}</span>
                               </div>
                             </div>
                             <div className="flex flex-col items-end gap-1 shrink-0">
