@@ -635,7 +635,7 @@ export function TaskDetailsModal({
                                 : col.status === 'BLOCKED' ? 'bg-red-500/10 text-red-400 border border-red-500/20'
                                 : 'bg-slate-800 text-slate-400'
                               }`}>
-                                {col.status.replace('_', ' ')}
+                                {(col.status || 'PENDING').replace('_', ' ')}
                               </span>
                               {isCurrentUser && (
                                 <span className="text-[8px] text-[#0066FF] font-extrabold uppercase tracking-wider">Current User</span>
