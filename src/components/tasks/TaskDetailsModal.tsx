@@ -128,7 +128,7 @@ export function TaskDetailsModal({
 
           const { data: emp } = await supabase
             .from('employees')
-            .select('employee_name, designation, departments(department_name), profile_photo')
+            .select('employee_name, designation, departments!department_id(department_name), profile_photo')
             .eq('id', assignee.user_id)
             .maybeSingle()
 
