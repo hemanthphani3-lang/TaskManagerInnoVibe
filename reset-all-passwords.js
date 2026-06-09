@@ -23,7 +23,7 @@ async function resetAllPasswords() {
   console.log(`Found ${users.length} users in Supabase Auth. Resetting passwords to '${DEFAULT_PASSWORD}'...`);
 
   const targetEmails = [
-    'admin@innovibe',
+    'admin@innovibe.com',
     'tech@innovibe',
     'admin2@innovibe',
     'srivaruntej@innovibe',

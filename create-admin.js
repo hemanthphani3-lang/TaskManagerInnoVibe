@@ -17,7 +17,7 @@ async function createAdmin() {
 
   // 1. Create auth user
   const { data: authData, error: authError } = await supabase.auth.admin.createUser({
-    email: 'admin@innovibe',
+    email: 'admin@innovibe.com',
     password: password,
     email_confirm: true
   });
@@ -27,7 +27,7 @@ async function createAdmin() {
       console.log("Auth user already exists. Looking up their ID...");
       const { data: { users }, error: listError } = await supabase.auth.admin.listUsers();
       if (listError) { console.error("Error fetching users:", listError.message); return; }
-      const existing = users.find(u => u.email === 'admin@innovibe');
+      const existing = users.find(u => u.email === 'admin@innovibe.com');
       if (existing) await insertIntoAdminsTable(existing.id);
     } else {
       console.error("Error creating auth user:", authError.message);
@@ -45,7 +45,7 @@ async function insertIntoAdminsTable(userId) {
     const { error: dbError } = await supabase.from('admins').upsert({
         id: userId,
         full_name: 'Admin User',
-        email: 'admin@innovibe'
+        email: 'admin@innovibe.com'
     });
 
     if (dbError) {
