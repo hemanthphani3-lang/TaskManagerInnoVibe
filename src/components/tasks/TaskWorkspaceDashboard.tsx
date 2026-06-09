@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState } from "react"
+import React, { useState, useEffect } from "react"
 import { TaskStatusBadge } from "./TaskStatusBadge"
 import { PriorityBadge } from "./PriorityBadge"
 import { CreateTaskDialog } from "./CreateTaskDialog"
@@ -61,6 +61,10 @@ export function TaskWorkspaceDashboard({
   currentUserDept
 }: TaskWorkspaceDashboardProps) {
   const [tasks, setTasks] = useState<Task[]>(initialTasks)
+
+  useEffect(() => {
+    setTasks(initialTasks)
+  }, [initialTasks])
   const [search, setSearch] = useState("")
   const [activeTab, setActiveTab] = useState<"assigned_to_me" | "assigned_by_me" | "pending_actions" | "overdue" | "completed" | "high_priority" | "all">("assigned_to_me")
   

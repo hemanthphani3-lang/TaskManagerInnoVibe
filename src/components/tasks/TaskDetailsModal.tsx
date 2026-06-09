@@ -281,68 +281,72 @@ export function TaskDetailsModal({
   useEffect(() => {
     if (!isOpen || !taskId) return
 
-    const channelName = `realtime_modal_comments_${taskId}_${Math.random().toString(36).substring(7)}`
+    const channelName = `realtime_modal_details_${taskId}_${Math.random().toString(36).substring(7)}`
     const channel = supabase
       .channel(channelName)
       .on(
         'postgres_changes',
         {
-          event: 'INSERT',
+          event: '*',
+          schema: 'public',
+          table: 'tasks',
+          filter: `id=eq.${taskId}`
+        },
+        () => {
+          console.log("[Realtime] Task updated, reloading details...")
+          loadTaskDetails()
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'task_assignees',
+          filter: `task_id=eq.${taskId}`
+        },
+        () => {
+          console.log("[Realtime] Task assignees updated, reloading details...")
+          loadTaskDetails()
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'task_subtasks',
+          filter: `task_id=eq.${taskId}`
+        },
+        () => {
+          console.log("[Realtime] Task subtasks updated, reloading details...")
+          loadTaskDetails()
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
           schema: 'public',
           table: 'task_comments',
           filter: `task_id=eq.${taskId}`
         },
-        async (payload) => {
-          const newComment = payload.new
-          
-          setComments(prev => {
-            // Check if comment is already in the list
-            if (prev.some(c => c.id === newComment.id)) {
-              return prev
-            }
-
-            const fetchSender = async () => {
-              let authorName = "System User"
-              let authorRole = "User"
-
-              const { data: emp } = await supabase.from('employees').select('employee_name').eq('id', newComment.user_id).maybeSingle()
-              if (emp) {
-                authorName = emp.employee_name
-                authorRole = "Employee"
-              } else {
-                const { data: dept } = await supabase.from('departments').select('department_head_name').eq('id', newComment.user_id).maybeSingle()
-                if (dept) {
-                  authorName = dept.department_head_name
-                  authorRole = "Dept Head"
-                } else {
-                  const { data: adm } = await supabase.from('admins').select('full_name').eq('id', newComment.user_id).maybeSingle()
-                  if (adm) {
-                    authorName = adm.full_name
-                    authorRole = "Admin"
-                  }
-                }
-              }
-
-              const formatted: any = {
-                id: newComment.id,
-                task_id: newComment.task_id,
-                user_id: newComment.user_id,
-                comment_text: newComment.comment_text,
-                attachment: newComment.attachment,
-                created_at: newComment.created_at,
-                authorName,
-                authorRole
-              }
-
-              setComments(current => {
-                if (current.some(c => c.id === formatted.id)) return current
-                return [...current, formatted]
-              })
-            }
-
-            fetchSender()
-            return prev
-          })
+        () => {
+          console.log("[Realtime] Task comments updated, reloading details...")
+          loadTaskDetails()
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'task_activity_logs',
+          filter: `task_id=eq.${taskId}`
+        },
+        () => {
+          console.log("[Realtime] Task activity logs updated, reloading details...")
+          loadTaskDetails()
         }
       )
       .subscribe()
