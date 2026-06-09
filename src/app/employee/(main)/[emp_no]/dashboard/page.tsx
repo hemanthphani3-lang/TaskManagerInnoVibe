@@ -4,7 +4,6 @@ import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 import { Clock, Calendar, CheckCircle2, UserCircle2, AlertCircle, Target, FileText, LogOut, Trophy, ShieldAlert, DownloadCloud } from "lucide-react"
 import { AnalyticsCard } from "@/components/dashboard/AnalyticsCard"
-import { ActivityFeed } from "@/components/dashboard/ActivityFeed"
 import { ScoreProgressBar } from "@/components/productivity/ScoreProgressBar"
 import { ProductivityBadge } from "@/components/productivity/ProductivityBadge"
 import { ReminderCard } from "@/components/productivity/ReminderCard"
@@ -60,7 +59,6 @@ export default async function EmployeeDashboard({ params }: { params: Promise<{ 
     { data: attendance },
     { data: logoutRequests },
     { data: rawTasks },
-    { data: activityFeed },
     { data: productivityData },
     { data: rankingData },
     { data: kpiData },
@@ -71,7 +69,6 @@ export default async function EmployeeDashboard({ params }: { params: Promise<{ 
     assignedTaskIds.length > 0
       ? supabase.from('tasks').select('*, task_assignees(*)').or(`id.in.(${assignedTaskIds.map(id => `"${id}"`).join(',')}),created_by.eq.${user.id}`).limit(100)
       : supabase.from('tasks').select('*, task_assignees(*)').or(`assigned_to.eq.${user.id},created_by.eq.${user.id}`).limit(100),
-    supabase.from('activity_feed').select('*').eq('department_id', employee?.department_id).order('created_at', { ascending: false }).limit(10),
     supabase.from('productivity_scores').select('*').eq('employee_id', user.id).maybeSingle(),
     supabase.from('rankings').select('*').eq('employee_id', user.id).maybeSingle(),
     supabase.from('kpi_metrics').select('*').eq('employee_id', user.id).maybeSingle(),
@@ -211,7 +208,7 @@ export default async function EmployeeDashboard({ params }: { params: Promise<{ 
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
-          <div className="col-span-1 lg:col-span-2 space-y-6">
+          <div className="col-span-1 lg:col-span-3 space-y-6">
             {/* Reminders */}
             <ReminderCard reminders={reminders || []} />
 
@@ -284,10 +281,6 @@ export default async function EmployeeDashboard({ params }: { params: Promise<{ 
                 )}
               </div>
             </div>
-          </div>
-          
-          <div className="col-span-1">
-            <ActivityFeed activities={activityFeed || []} />
           </div>
         </div>
       </div>

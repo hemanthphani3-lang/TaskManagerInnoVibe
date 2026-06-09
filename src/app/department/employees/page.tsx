@@ -27,7 +27,7 @@ export default async function DepartmentEmployeesPage() {
 
   // Fetch employees and today's attendance concurrently
   const [{ data: employees }, { data: todayAttendance }, { data: pendingLogouts }] = await Promise.all([
-    supabase.from('employees').select('*').order('created_at', { ascending: false }),
+    supabase.from('employees').select('*').eq('department_id', user.id).order('created_at', { ascending: false }),
     supabase.from('attendance').select('employee_id, work_status').gte('created_at', startUTC).lte('created_at', endUTC),
     supabase.from('logout_requests').select('employee_id').eq('attendance_date', todayIST).eq('approval_status', 'PENDING')
   ])
