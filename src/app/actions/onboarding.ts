@@ -121,7 +121,8 @@ export async function saveOnboardingProfile({ role, formData, isSubmit = false }
     'access_authority_level', 'office_location', 'administrative_responsibility',
     'marital_status', 'blood_group', 'languages_known', 'certifications',
     'experience', 'education', 'linkedin', 'resume', 'biography', 'alternate_phone',
-    'bank_details', 'onboarding_draft', 'last_saved_at', 'completed_fields'
+    'bank_details', 'onboarding_draft', 'last_saved_at', 'completed_fields',
+    'father_name', 'mother_name'
   ]
 
   const departmentAllowedKeys = [
@@ -134,7 +135,8 @@ export async function saveOnboardingProfile({ role, formData, isSubmit = false }
     'department_managed', 'team_size', 'leadership_role', 'managerial_level',
     'reporting_structure', 'marital_status', 'blood_group', 'languages_known',
     'certifications', 'experience', 'education', 'linkedin', 'resume', 'biography',
-    'alternate_phone', 'bank_details', 'onboarding_draft', 'last_saved_at', 'completed_fields'
+    'alternate_phone', 'bank_details', 'onboarding_draft', 'last_saved_at', 'completed_fields',
+    'father_name', 'mother_name'
   ]
 
   const employeeAllowedKeys = [
@@ -146,7 +148,8 @@ export async function saveOnboardingProfile({ role, formData, isSubmit = false }
     'city', 'state', 'pin_code', 'emergency_contact', 'reporting_manager', 'skills',
     'employment_type', 'work_mode', 'marital_status', 'blood_group', 'languages_known',
     'certifications', 'experience', 'education', 'linkedin', 'resume', 'biography',
-    'alternate_phone', 'bank_details', 'onboarding_draft', 'last_saved_at', 'completed_fields'
+    'alternate_phone', 'bank_details', 'onboarding_draft', 'last_saved_at', 'completed_fields',
+    'father_name', 'mother_name'
   ]
 
   let allowedKeys: string[] = []

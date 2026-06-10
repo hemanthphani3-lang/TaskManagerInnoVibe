@@ -828,6 +828,20 @@ export default function OnboardingPage() {
                   </select>
                 </div>
 
+                {/* Languages Known */}
+                <div className="space-y-2">
+                  <label className="text-xs font-semibold text-slate-600 dark:text-slate-300">
+                    Languages Known (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. English, Hindi, Telugu"
+                    value={formData.languages_known || ""}
+                    onChange={(e) => handleFieldChange('languages_known', e.target.value)}
+                    className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-sm focus:border-[#0066FF] focus:ring-1 focus:ring-[#0066FF] outline-none transition text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-600"
+                  />
+                </div>
+
               </div>
 
               {/* Professional Biography */}
