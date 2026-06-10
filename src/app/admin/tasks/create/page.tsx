@@ -20,5 +20,8 @@ export default async function AdminCreateTaskPage() {
     console.error("Error fetching employees:", error)
   }
 
-  return <AdminCreateTaskForm employees={(employees as any) || []} />
+  // Filter out the logged-in admin user from assignee options
+  const filteredEmployees = (employees || []).filter((emp: any) => emp.id !== user.id)
+
+  return <AdminCreateTaskForm employees={filteredEmployees as any} />
 }

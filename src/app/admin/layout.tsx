@@ -17,7 +17,6 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   } catch (error) {
     console.error("Error fetching pending leaves count in admin layout:", error)
   }
-
   const adminLinks = [
     { label: "Dashboard", href: "/admin/dashboard", iconName: "dashboard" },
     { label: "Tasks", href: "/admin/tasks", iconName: "tasks" },
@@ -29,8 +28,10 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     { label: "Announcements", href: "/admin/announcements", iconName: "megaphone" },
     { label: "Notifications", href: "/admin/notifications", iconName: "bell" },
     { label: "Reports", href: "/admin/reports", iconName: "file" },
+    { label: "Attendance", href: "/admin/attendance", iconName: "calendar" },
     { label: "Profile", href: "/admin/profile", iconName: "profile" },
-  ]
+  ];
+
 
   return (
     <TaskCountsProvider>

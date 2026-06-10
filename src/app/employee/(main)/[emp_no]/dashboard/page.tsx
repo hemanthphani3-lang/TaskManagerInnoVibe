@@ -33,7 +33,7 @@ export default async function EmployeeDashboard({ params }: { params: Promise<{ 
     .from('employees')
     .select('*, departments!department_id(department_name)')
     .eq('id', user.id)
-    .single()
+    .maybeSingle()
 
   if (!employee) redirect("/login")
 

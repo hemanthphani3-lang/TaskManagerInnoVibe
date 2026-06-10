@@ -24,7 +24,7 @@ export default async function EmployeeIdentityCheck() {
       departments!department_id(department_name)
     `)
     .eq('id', user!.id)
-    .single()
+    .maybeSingle()
 
   const departmentName = (employee?.departments as { department_name: string } | null)?.department_name || "Unassigned"
 

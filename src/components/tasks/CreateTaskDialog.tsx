@@ -22,9 +22,10 @@ interface CreateTaskDialogProps {
   onClose: () => void
   onSuccess: () => void
   currentUserId: string
+  currentUserRole?: "ADMIN" | "DEPARTMENT" | "EMPLOYEE"
 }
 
-export function CreateTaskDialog({ isOpen, onClose, onSuccess, currentUserId }: CreateTaskDialogProps) {
+export function CreateTaskDialog({ isOpen, onClose, onSuccess, currentUserId, currentUserRole }: CreateTaskDialogProps) {
   const supabase = createClient()
   const [loading, setLoading] = useState(false)
   const [usersLoading, setUsersLoading] = useState(true)
@@ -300,7 +301,9 @@ export function CreateTaskDialog({ isOpen, onClose, onSuccess, currentUserId }: 
               >
                 <option value="EMPLOYEE">Employee</option>
                 <option value="DEPARTMENT">Department Head</option>
-                <option value="ADMIN">System Administrator</option>
+                {currentUserRole !== "ADMIN" && (
+                  <option value="ADMIN">System Administrator</option>
+                )}
               </select>
             </div>
 

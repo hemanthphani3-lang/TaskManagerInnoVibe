@@ -29,6 +29,9 @@ export default async function CreateTaskPage({ searchParams }: { searchParams: P
     .eq('department_id', user.id)
     .order('employee_name')
 
+  // Filter out the logged-in department head from assignee options
+  const filteredEmployees = (employees || []).filter((emp: any) => emp.id !== user.id)
+
   return (
     <div className="min-h-screen bg-[#F8FAFC] p-4 sm:p-8">
       <div className="max-w-3xl mx-auto">
@@ -72,7 +75,7 @@ export default async function CreateTaskPage({ searchParams }: { searchParams: P
               />
             </div>
 
-            <AssigneeSelect employees={employees || []} />
+            <AssigneeSelect employees={filteredEmployees} />
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               <div className="space-y-2">

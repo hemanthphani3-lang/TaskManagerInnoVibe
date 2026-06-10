@@ -64,37 +64,43 @@ export async function getCrossRoleUsers() {
 
     if (admins) {
       admins.forEach(a => {
-        allUsers.push({
-          id: a.id,
-          name: a.full_name || 'System Admin',
-          email: a.email,
-          role: 'ADMIN',
-          department: 'Administration'
-        })
+        if (a.id !== user.id) {
+          allUsers.push({
+            id: a.id,
+            name: a.full_name || 'System Admin',
+            email: a.email,
+            role: 'ADMIN',
+            department: 'Administration'
+          })
+        }
       })
     }
 
     if (depts) {
       depts.forEach(d => {
-        allUsers.push({
-          id: d.id,
-          name: d.department_head_name || 'Dept Head',
-          email: d.department_email,
-          role: 'DEPARTMENT',
-          department: d.department_name || 'Department'
-        })
+        if (d.id !== user.id) {
+          allUsers.push({
+            id: d.id,
+            name: d.department_head_name || 'Dept Head',
+            email: d.department_email,
+            role: 'DEPARTMENT',
+            department: d.department_name || 'Department'
+          })
+        }
       })
     }
 
     if (employees) {
       employees.forEach(e => {
-        allUsers.push({
-          id: e.id,
-          name: e.employee_name || 'Employee',
-          email: e.employee_email,
-          role: 'EMPLOYEE',
-          department: (e.departments as any)?.department_name || 'Unassigned'
-        })
+        if (e.id !== user.id) {
+          allUsers.push({
+            id: e.id,
+            name: e.employee_name || 'Employee',
+            email: e.employee_email,
+            role: 'EMPLOYEE',
+            department: (e.departments as any)?.department_name || 'Unassigned'
+          })
+        }
       })
     }
 
@@ -204,12 +210,15 @@ export async function createCrossRoleTask(data: {
     const creator = profileRes.profile
     const creatorRole = profileRes.role
 
-    const assigneeIds = Array.isArray(data.assigned_to)
+    let assigneeIds = Array.isArray(data.assigned_to)
       ? data.assigned_to
       : (typeof data.assigned_to === 'string' && data.assigned_to ? data.assigned_to.split(',').map(s => s.trim()).filter(Boolean) : [])
 
+    // Filter out the creator (self) from the assignees list
+    assigneeIds = assigneeIds.filter(id => id !== user.id)
+
     if (assigneeIds.length === 0) {
-      return { success: false, error: "Please select at least one assignee user." }
+      return { success: false, error: "You cannot assign a task to yourself." }
     }
 
     const primaryAssigneeId = assigneeIds[0]

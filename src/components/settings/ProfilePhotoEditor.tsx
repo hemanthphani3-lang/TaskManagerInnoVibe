@@ -107,7 +107,7 @@ export function ProfilePhotoEditor({ currentPhoto, name, userId, onPhotoUpdated 
         {/* Avatar */}
         <div className="w-32 h-32 rounded-3xl overflow-hidden shadow-md bg-blue-100 flex items-center justify-center border border-slate-200">
           {displayPhoto ? (
-            <img src={`${displayPhoto}?t=${Date.now()}`} alt={name} className="w-full h-full object-cover" />
+            <img src={displayPhoto} alt={name} className="w-full h-full object-cover" />
           ) : (
             <span className="text-4xl font-black text-[#0066FF]">{initials}</span>
           )}
@@ -154,7 +154,7 @@ export function ProfilePhotoEditor({ currentPhoto, name, userId, onPhotoUpdated 
             </button>
             <div className="rounded-2xl overflow-hidden shadow-2xl bg-white w-full aspect-square flex items-center justify-center">
               {displayPhoto ? (
-                <img src={`${displayPhoto}?t=${Date.now()}`} alt={name} className="w-full h-full object-contain" />
+                <img src={displayPhoto} alt={name} className="w-full h-full object-contain" />
               ) : (
                 <span className="text-8xl font-black text-[#0066FF]">{initials}</span>
               )}
@@ -184,7 +184,7 @@ export function ProfilePhotoEditor({ currentPhoto, name, userId, onPhotoUpdated 
                 {previewUrl ? (
                   <img src={previewUrl} alt="Preview" className="w-full h-full object-cover" />
                 ) : displayPhoto ? (
-                  <img src={`${displayPhoto}?t=${Date.now()}`} alt={name} className="w-full h-full object-cover" />
+                  <img src={displayPhoto} alt={name} className="w-full h-full object-cover" />
                 ) : (
                   <div className="text-center">
                     <Upload className="w-6 h-6 text-slate-400 mx-auto mb-1" />

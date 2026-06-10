@@ -620,6 +620,7 @@ export function TaskWorkspaceDashboard({
         onClose={() => setIsCreateOpen(false)}
         onSuccess={handleRefresh}
         currentUserId={currentUserId}
+        currentUserRole={currentUserRole}
       />
 
       {/* Task Inspection Drawer Modal */}

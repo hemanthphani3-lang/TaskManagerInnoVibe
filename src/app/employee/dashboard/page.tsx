@@ -16,7 +16,7 @@ export default async function RedirectToEmployeeDashboard() {
     .from('employees')
     .select('employee_code')
     .eq('id', user.id)
-    .single()
+    .maybeSingle()
 
   if (employee?.employee_code) {
     redirect(`/employee/${employee.employee_code}/dashboard`)

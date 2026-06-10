@@ -35,9 +35,9 @@ export default async function DepartmentLayout({ children }: { children: React.R
     { label: "Announcements", href: "/department/announcements", iconName: "megaphone" },
     { label: "Reports", href: "/department/reports", iconName: "file" },
     { label: "Notifications", href: "/department/notifications", iconName: "bell" },
+    { label: "Attendance", href: "/department/attendance", iconName: "calendar" },
     { label: "Profile", href: "/department/profile", iconName: "profile" },
-  ]
-
+  ];
   return (
     <TaskCountsProvider>
       <DepartmentSessionManager links={departmentLinks}>

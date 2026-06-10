@@ -27,7 +27,7 @@ export default async function EmployeeLayout({ children }: { children: React.Rea
       .from('employees')
       .select('employee_code, onboarding_completed_at')
       .eq('id', user.id)
-      .single(),
+      .maybeSingle(),
     supabase
       .from('attendance')
       .select('work_status')
