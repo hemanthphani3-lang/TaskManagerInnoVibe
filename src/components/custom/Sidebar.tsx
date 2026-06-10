@@ -149,47 +149,54 @@ export function Sidebar({ title, links, onLogoutClick }: SidebarProps) {
           // Override badgeCount for notifications
           const displayBadgeCount = link.iconName === 'bell' ? unreadNotifications : link.badgeCount
   
-          return (
-            <Link
-              key={link.href}
-              href={isLocked ? "#" : link.href}
-              onClick={(e) => {
-                if (isLocked) {
-                  e.preventDefault()
-                  toast.error("Please complete your profile to 70% to unlock this section!")
-                  return
-                }
-                setIsOpen(false)
-              }}
-              title={isLocked ? "Complete profile to 70% to unlock" : undefined}
-              className={`relative flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 group ${
-                isLocked
-                  ? "text-slate-400 cursor-not-allowed opacity-55 select-none hover:bg-transparent"
-                  : isActive 
-                  ? "text-[#0066FF] bg-blue-50 font-semibold" 
-                  : "text-slate-500 hover:text-slate-900 hover:bg-slate-50 font-medium"
-              }`}
-            >
-              <Icon className={`w-5 h-5 transition-colors ${isLocked ? "text-slate-350" : isActive ? "text-[#0066FF]" : "text-slate-400 group-hover:text-slate-600"}`} />
-              <span className="flex-1">{link.label}</span>
-              
-              {isLocked && <Lock className="w-3.5 h-3.5 text-slate-300 shrink-0" />}
+            return (
+              <Link
+                key={link.href}
+                href={isLocked ? "#" : link.href}
+                onClick={(e) => {
+                  if (isLocked) {
+                    e.preventDefault()
+                    toast.error("Please complete your profile to 70% to unlock this section!")
+                    return
+                  }
+                  setIsOpen(false)
+                }}
+                title={isLocked ? "Complete profile to 70% to unlock" : undefined}
+                className={`relative flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all duration-200 group ${
+                  isLocked
+                    ? "text-slate-400 cursor-not-allowed opacity-55 select-none hover:bg-transparent"
+                    : isActive 
+                    ? "text-[#0066FF] font-semibold" 
+                    : "text-slate-500 hover:text-slate-900 hover:bg-slate-50/60 font-medium"
+                }`}
+              >
+                <Icon className={`w-5 h-5 transition-all duration-250 group-hover:scale-110 ${isLocked ? "text-slate-350" : isActive ? "text-[#0066FF]" : "text-slate-400 group-hover:text-slate-600"}`} />
+                <span className="flex-1 transition-all duration-250 group-hover:translate-x-0.5">{link.label}</span>
+                
+                {isLocked && <Lock className="w-3.5 h-3.5 text-slate-300 shrink-0" />}
 
-              {displayBadgeCount !== undefined && displayBadgeCount > 0 && !isLocked && (
-                <span className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm">
-                  {displayBadgeCount}
-                </span>
-              )}
-              
-              {isActive && !isLocked && (
-                <motion.div
-                  layoutId="sidebar-active"
-                  className="absolute inset-0 bg-blue-50 rounded-xl -z-10"
-                  transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                />
-              )}
-            </Link>
-          )
+                {displayBadgeCount !== undefined && displayBadgeCount > 0 && !isLocked && (
+                  <span className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm badge-pulse-red">
+                    {displayBadgeCount}
+                  </span>
+                )}
+                
+                {isActive && !isLocked && (
+                  <>
+                    <motion.div
+                      layoutId="sidebar-active"
+                      className="absolute inset-0 bg-blue-50/80 rounded-xl -z-10"
+                      transition={{ type: "spring", stiffness: 350, damping: 30 }}
+                    />
+                    <motion.div
+                      layoutId="sidebar-active-border"
+                      className="absolute left-0 top-2.5 bottom-2.5 w-1 bg-[#0066FF] rounded-r-full"
+                      transition={{ type: "spring", stiffness: 350, damping: 30 }}
+                    />
+                  </>
+                )}
+              </Link>
+            )
         })}
       </div>
 

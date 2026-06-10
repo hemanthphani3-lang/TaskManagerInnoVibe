@@ -77,3 +77,130 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Premium Button Micro-interactions */
+[data-slot="button"] {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+[data-slot="button"]:not(:disabled):hover {
+  transform: scale(1.02);
+  box-shadow: 0 4px 12px -2px rgba(0, 102, 255, 0.12), 0 2px 6px -1px rgba(0, 102, 255, 0.08);
+}
+[data-slot="button"]:not(:disabled):active {
+  transform: scale(0.97);
+}
+
+/* Premium Form Experience Improvements */
+[data-slot="input"], select, textarea {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+[data-slot="input"]:focus, select:focus, textarea:focus {
+  border-color: var(--color-primary) !important;
+  box-shadow: 0 0 0 3px rgba(0, 102, 255, 0.15) !important;
+}
+
+@keyframes inputShake {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-4px); }
+  40%, 80% { transform: translateX(4px); }
+}
+
+[aria-invalid="true"] {
+  animation: inputShake 0.4s ease-in-out;
+  border-color: var(--color-destructive) !important;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.15) !important;
+}
+
+/* Table Row Elevation & Animations */
+tbody tr {
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+tbody tr:hover {
+  transform: translateY(-1.5px);
+  background-color: rgba(0, 102, 255, 0.02) !important;
+  box-shadow: 0 6px 12px -3px rgba(0, 102, 255, 0.04), 0 2px 4px -2px rgba(0, 102, 255, 0.02);
+}
+
+/* Premium Shimmer Loaders */
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(226, 232, 240, 0.8) 25%,
+    rgba(241, 245, 249, 0.95) 50%,
+    rgba(226, 232, 240, 0.8) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.6s infinite linear;
+}
+
+.dark .shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(30, 41, 59, 0.8) 25%,
+    rgba(51, 65, 85, 0.95) 50%,
+    rgba(30, 41, 59, 0.8) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.6s infinite linear;
+}
+
+/* Status Badge Keyframes & Pulse effects */
+@keyframes badgePulseGreen {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 4px rgba(16, 185, 129, 0);
+  }
+}
+
+@keyframes badgePulseAmber {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 4px rgba(245, 158, 11, 0);
+  }
+}
+
+@keyframes badgePulseRed {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 4px rgba(239, 68, 68, 0);
+  }
+}
+
+.badge-pulse-green {
+  animation: badgePulseGreen 2s infinite;
+}
+
+.badge-pulse-amber {
+  animation: badgePulseAmber 2s infinite;
+}
+
+.badge-pulse-red {
+  animation: badgePulseRed 2s infinite;
+}
+
+/* Support for Reduced Motion Settings */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-delay: 0s !important;
+    animation-duration: 0s !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0s !important;
+    scroll-behavior: auto !important;
+    transform: none !important;
+  }
+}

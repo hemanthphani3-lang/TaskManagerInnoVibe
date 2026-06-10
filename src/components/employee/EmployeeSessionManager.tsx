@@ -7,6 +7,8 @@ import { Sidebar } from "@/components/custom/Sidebar"
 import { WorkSubmissionModal } from "@/components/employee/WorkSubmissionModal"
 import { BeforeUnloadPrompt } from "@/components/custom/BeforeUnloadPrompt"
 
+import { PageTransition } from "@/components/custom/PageTransition"
+
 export function EmployeeSessionManager({ children, links }: { children: React.ReactNode; links: { label: string; href: string; iconName: string; badgeCount?: number }[] }) {
   const supabase = createClient()
   const router = useRouter()
@@ -93,7 +95,7 @@ export function EmployeeSessionManager({ children, links }: { children: React.Re
       if (typeof window !== "undefined") {
         (window as any).__isLoggingOut = true
       }
-      await supabase.auth.signOut()
+      await supabase.signOut()
       router.push("/login")
       router.refresh()
     }
@@ -109,8 +111,10 @@ export function EmployeeSessionManager({ children, links }: { children: React.Re
       />
       
       <div className="md:pl-64 pt-16 md:pt-0 flex flex-col min-h-screen transition-all duration-300">
-        <main className="flex-1 w-full">
-          {children}
+        <main className="flex-1 w-full flex flex-col">
+          <PageTransition>
+            {children}
+          </PageTransition>
         </main>
       </div>
 
@@ -121,3 +125,4 @@ export function EmployeeSessionManager({ children, links }: { children: React.Re
     </div>
   )
 }
+

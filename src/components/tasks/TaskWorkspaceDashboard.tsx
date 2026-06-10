@@ -9,6 +9,8 @@ import { TaskStatusBadge } from "./TaskStatusBadge"
 import { PriorityBadge } from "./PriorityBadge"
 import { CreateTaskDialog } from "./CreateTaskDialog"
 import { TaskDetailsModal } from "./TaskDetailsModal"
+import { InteractiveCard } from "@/components/custom/InteractiveCard"
+import { AnimatedCounter } from "@/components/custom/AnimatedCounter"
 import { 
   ListTodo, 
   Calendar, 
@@ -302,55 +304,65 @@ export function TaskWorkspaceDashboard({
         {/* Metrics Grid Cards */}
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
           
-          <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 p-5 rounded-2xl shadow-sm flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-blue-50 dark:bg-blue-900/30 text-[#0066FF] flex items-center justify-center shrink-0">
+          <InteractiveCard className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 p-5 rounded-2xl shadow-sm flex items-center gap-4 h-full">
+            <div className="w-12 h-12 rounded-xl bg-blue-50 dark:bg-blue-900/30 text-[#0066FF] flex items-center justify-center shrink-0 transition-transform duration-300 group-hover/glow:scale-110">
               <Layers className="w-6 h-6" />
             </div>
             <div>
               <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest block">Total Tasks</span>
-              <h4 className="text-2xl font-black text-slate-900 dark:text-white">{totalCount}</h4>
+              <h4 className="text-2xl font-black text-slate-900 dark:text-white">
+                <AnimatedCounter value={totalCount} />
+              </h4>
             </div>
-          </div>
+          </InteractiveCard>
 
-          <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 p-5 rounded-2xl shadow-sm flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 flex items-center justify-center shrink-0">
+          <InteractiveCard className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 p-5 rounded-2xl shadow-sm flex items-center gap-4 h-full">
+            <div className="w-12 h-12 rounded-xl bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 flex items-center justify-center shrink-0 transition-transform duration-300 group-hover/glow:scale-110">
               <UserCheck className="w-6 h-6" />
             </div>
             <div>
               <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest block">Assigned To Me</span>
-              <h4 className="text-2xl font-black text-slate-900 dark:text-white">{assignedToMeCount}</h4>
+              <h4 className="text-2xl font-black text-slate-900 dark:text-white">
+                <AnimatedCounter value={assignedToMeCount} />
+              </h4>
             </div>
-          </div>
+          </InteractiveCard>
 
-          <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 p-5 rounded-2xl shadow-sm flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 flex items-center justify-center shrink-0">
+          <InteractiveCard className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 p-5 rounded-2xl shadow-sm flex items-center gap-4 h-full">
+            <div className="w-12 h-12 rounded-xl bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 flex items-center justify-center shrink-0 transition-transform duration-300 group-hover/glow:scale-110">
               <User className="w-6 h-6" />
             </div>
             <div>
               <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest block">Assigned By Me</span>
-              <h4 className="text-2xl font-black text-slate-900 dark:text-white">{assignedByMeCount}</h4>
+              <h4 className="text-2xl font-black text-slate-900 dark:text-white">
+                <AnimatedCounter value={assignedByMeCount} />
+              </h4>
             </div>
-          </div>
+          </InteractiveCard>
 
-          <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 p-5 rounded-2xl shadow-sm flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-amber-50 dark:bg-amber-900/30 text-amber-600 flex items-center justify-center shrink-0">
+          <InteractiveCard className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 p-5 rounded-2xl shadow-sm flex items-center gap-4 h-full">
+            <div className="w-12 h-12 rounded-xl bg-amber-50 dark:bg-amber-900/30 text-amber-600 flex items-center justify-center shrink-0 transition-transform duration-300 group-hover/glow:scale-110">
               <Clock className="w-6 h-6" />
             </div>
             <div>
               <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest block">Pending Tasks</span>
-              <h4 className="text-2xl font-black text-slate-900 dark:text-white">{pendingCount}</h4>
+              <h4 className="text-2xl font-black text-slate-900 dark:text-white">
+                <AnimatedCounter value={pendingCount} />
+              </h4>
             </div>
-          </div>
+          </InteractiveCard>
 
-          <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 p-5 rounded-2xl shadow-sm col-span-2 lg:col-span-1 flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-teal-50 dark:bg-teal-900/30 text-teal-600 flex items-center justify-center shrink-0">
+          <InteractiveCard className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 p-5 rounded-2xl shadow-sm col-span-2 lg:col-span-1 flex items-center gap-4 h-full">
+            <div className="w-12 h-12 rounded-xl bg-teal-50 dark:bg-teal-900/30 text-teal-600 flex items-center justify-center shrink-0 transition-transform duration-300 group-hover/glow:scale-110">
               <CheckCircle2 className="w-6 h-6" />
             </div>
             <div>
               <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest block">Completed Tasks</span>
-              <h4 className="text-2xl font-black text-slate-900 dark:text-white">{completedCount}</h4>
+              <h4 className="text-2xl font-black text-slate-900 dark:text-white">
+                <AnimatedCounter value={completedCount} />
+              </h4>
             </div>
-          </div>
+          </InteractiveCard>
 
         </div>
 
@@ -466,12 +478,24 @@ export function TaskWorkspaceDashboard({
 
             {/* Tasks Cards Grid layout */}
             {filteredTasks.length === 0 ? (
-              <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-16 text-center shadow-sm">
-                <ListTodo className="w-12 h-12 text-slate-300 dark:text-slate-700 mx-auto mb-3" />
-                <h4 className="text-slate-900 dark:text-white font-black">No tasks found</h4>
-                <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
-                  Either no tasks are assigned in this workspace segment, or search keywords do not yield any parameters.
-                </p>
+              <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-slate-200/60 dark:border-slate-800 rounded-3xl p-16 text-center shadow-sm max-w-xl mx-auto my-8 space-y-4">
+                <div className="w-16 h-16 bg-blue-50 dark:bg-blue-900/20 text-[#0066FF] rounded-2xl flex items-center justify-center mx-auto shadow-sm animate-bounce duration-1000">
+                  <ListTodo className="w-8 h-8" />
+                </div>
+                <div className="space-y-1">
+                  <h4 className="text-slate-900 dark:text-white font-extrabold text-lg">No tasks found in this view</h4>
+                  <p className="text-xs text-slate-500 max-w-sm mx-auto leading-relaxed">
+                    Either no tasks are assigned in this segment, or your search keywords and filter criteria did not yield any matches.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setIsCreateOpen(true)}
+                  className="inline-flex items-center gap-1.5 text-xs text-[#0066FF] hover:text-[#0052CC] font-bold py-2 px-4 bg-blue-50 hover:bg-blue-100/80 rounded-xl transition duration-200"
+                  data-slot="button"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Create a new task</span>
+                </button>
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">

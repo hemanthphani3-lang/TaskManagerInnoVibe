@@ -1,6 +1,7 @@
 import { Sidebar } from "@/components/custom/Sidebar"
 import { TaskCountsProvider } from "@/context/TaskCountsContext"
 import { createClient } from "@/lib/supabase/server"
+import { PageTransition } from "@/components/custom/PageTransition"
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient()
@@ -36,11 +37,14 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       <div className="min-h-screen bg-[#F8FAFC]">
         <Sidebar title="Admin Portal" links={adminLinks} />
         <div className="md:pl-64 pt-16 md:pt-0 flex flex-col min-h-screen transition-all duration-300">
-          <main className="flex-1 w-full">
-            {children}
+          <main className="flex-1 w-full flex flex-col">
+            <PageTransition>
+              {children}
+            </PageTransition>
           </main>
         </div>
       </div>
     </TaskCountsProvider>
   )
 }
+
