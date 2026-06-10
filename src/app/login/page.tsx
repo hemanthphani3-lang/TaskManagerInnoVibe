@@ -198,6 +198,7 @@ export default function LoginPage() {
                       ? `${r.border} ${r.bg} ring-2 ${r.ring} shadow-sm`
                       : `border-slate-200 ${r.hover} hover:bg-slate-50`
                   }`}
+                  suppressHydrationWarning
                 >
                   <Icon
                     className={`w-5 h-5 sm:w-6 sm:h-6 mb-1 sm:mb-1.5 transition-colors ${isSelected ? r.color : 'text-slate-400'}`}
@@ -257,6 +258,7 @@ export default function LoginPage() {
                   onChange={(e) => setEmail(e.target.value)}
                   className="w-full pl-9 pr-4 py-2 sm:py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
                   placeholder="name@company.com"
+                  suppressHydrationWarning
                 />
               </div>
             </div>
@@ -276,11 +278,13 @@ export default function LoginPage() {
                   onChange={(e) => setPassword(e.target.value)}
                   className="w-full pl-9 pr-10 py-2 sm:py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-medium tracking-wide"
                   placeholder="••••••••"
+                  suppressHydrationWarning
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 transition-colors"
+                  suppressHydrationWarning
                 >
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
@@ -307,6 +311,7 @@ export default function LoginPage() {
                 type="button"
                 onClick={handleForgotPassword}
                 className="text-[12px] font-semibold text-blue-600 hover:text-blue-700 transition-colors bg-transparent border-none cursor-pointer p-0 outline-none"
+                suppressHydrationWarning
               >
                 Forgot Password?
               </button>
@@ -318,6 +323,7 @@ export default function LoginPage() {
               id="login-submit"
               disabled={loading}
               className="w-full bg-[#0D5EF4] hover:bg-[#0B4FD3] text-white font-semibold text-[14px] py-2.5 sm:py-3 rounded-xl transition-all duration-200 flex items-center justify-center shadow-lg shadow-blue-500/25 disabled:opacity-70 disabled:cursor-not-allowed"
+              suppressHydrationWarning
             >
               {loading ? (
                 <div className="flex items-center gap-2">
