@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic'
 import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 import { PageHeader } from "@/components/custom/PageHeader"
-import { UserAvatar } from "@/components/custom/UserAvatar"
+import { ProfilePhotoEditor } from "@/components/settings/ProfilePhotoEditor"
 import { Card } from "@/components/ui/card"
 import { Settings, Shield, Mail } from "lucide-react"
 import Link from "next/link"
@@ -17,6 +17,15 @@ export default async function AdminProfilePage() {
   const { data: { user } } = await supabase.auth.getUser()
 
   if (!user) redirect("/login")
+
+  const { data: adminData } = await supabase
+    .from('admins')
+    .select('full_name, profile_photo')
+    .eq('id', user.id)
+    .maybeSingle()
+
+  const displayName = adminData?.full_name || user.email || "Admin"
+  const currentPhoto = adminData?.profile_photo
 
   return (
     <div className="p-4 md:p-8 max-w-4xl mx-auto space-y-8">
@@ -45,12 +54,11 @@ export default async function AdminProfilePage() {
 
       <Card className="p-8 rounded-2xl bg-white shadow-sm border-slate-200">
         <div className="flex flex-col md:flex-row gap-8 items-start">
-          <div className="flex-shrink-0">
-            <UserAvatar 
-              name={user.email || "Admin"} 
-              className="w-32 h-32 rounded-3xl text-4xl shadow-md"
-            />
-          </div>
+          <ProfilePhotoEditor
+            currentPhoto={currentPhoto}
+            name={displayName}
+            userId={user.id}
+          />
           <div className="flex-1 space-y-6">
             <div>
               <h2 className="text-3xl font-black text-slate-900 mb-1">System Administrator</h2>

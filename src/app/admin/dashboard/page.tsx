@@ -13,6 +13,7 @@ import type { LeaderboardEntry } from "@/components/productivity/LeaderboardTabl
 import Link from "next/link"
 import { RealtimeAdminTaskCards } from "@/components/dashboard/RealtimeAdminTaskCards"
 import { RealtimeAdminDeptTaskCards } from "@/components/dashboard/RealtimeAdminDeptTaskCards"
+import { UserAvatar } from "@/components/custom/UserAvatar"
 
 export default async function AdminDashboard(props: { searchParams: Promise<{ [key: string]: string | string[] | undefined }> }) {
   try {
@@ -529,13 +530,11 @@ export default async function AdminDashboard(props: { searchParams: Promise<{ [k
                           <tr key={emp.id} className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
                             <td className="py-4">
                               <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 font-bold overflow-hidden">
-                                  {emp.profile_photo ? (
-                                    <img src={emp.profile_photo} alt={emp.employee_name || 'User'} className="w-full h-full object-cover" />
-                                  ) : (
-                                    (emp.employee_name || 'U').charAt(0)
-                                  )}
-                                </div>
+                                <UserAvatar 
+                                  url={emp.profile_photo} 
+                                  name={emp.employee_name} 
+                                  className="w-10 h-10 rounded-full" 
+                                />
                                 <div>
                                   <p className="font-semibold text-slate-900">{emp.employee_name}</p>
                                   <p className="text-xs text-slate-500">{emp.designation}</p>

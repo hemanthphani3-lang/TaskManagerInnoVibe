@@ -28,6 +28,20 @@ export default async function DepartmentProfilePage() {
   if (!dept) return <div>Profile not found</div>
 
   // Map onboarding audit fields for Department Head
+  let emergencyContact = dept.emergency_contact
+  if (typeof emergencyContact === 'string') {
+    try {
+      emergencyContact = JSON.parse(emergencyContact)
+    } catch (e) {
+      emergencyContact = {}
+    }
+  }
+  if (!emergencyContact || typeof emergencyContact !== 'object') {
+    emergencyContact = {}
+  }
+
+  const uploadedDocs = Array.isArray(dept.uploaded_documents) ? dept.uploaded_documents : []
+
   const allFields = [
     { key: 'department_head_name', label: 'Full Legal Name', value: dept.department_head_name || dept.full_name },
     { key: 'department_email', label: 'Email Address', value: dept.department_email || dept.email },
@@ -38,8 +52,8 @@ export default async function DepartmentProfilePage() {
     { key: 'city', label: 'City', value: dept.city },
     { key: 'state', label: 'State', value: dept.state },
     { key: 'pin_code', label: 'Pincode / Postal Code', value: dept.pin_code },
-    { key: 'emergency_contact_name', label: 'Emergency Contact Name', value: dept.emergency_contact?.name },
-    { key: 'emergency_contact_phone', label: 'Emergency Contact Phone', value: dept.emergency_contact?.phone },
+    { key: 'emergency_contact_name', label: 'Emergency Contact Name', value: emergencyContact?.name },
+    { key: 'emergency_contact_phone', label: 'Emergency Contact Phone', value: emergencyContact?.phone },
     { key: 'father_name', label: "Father's Name", value: dept.father_name },
     { key: 'mother_name', label: "Mother's Name", value: dept.mother_name },
     { key: 'aadhaar_number', label: 'Aadhaar Card Number', value: dept.aadhaar_number },
@@ -57,10 +71,10 @@ export default async function DepartmentProfilePage() {
     { key: 'education', label: 'Highest Level of Education', value: dept.education },
     { key: 'biography', label: 'Professional Biography', value: dept.biography },
     { key: 'alternate_phone', label: 'Alternate Phone Number', value: dept.alternate_phone },
-    { key: 'doc_aadhaar', label: 'Aadhaar Card Attachment', value: dept.uploaded_documents?.find((d: any) => d.type === 'aadhaar') ? 'Uploaded' : null },
-    { key: 'doc_pan', label: 'PAN Card Attachment', value: dept.uploaded_documents?.find((d: any) => d.type === 'pan') ? 'Uploaded' : null },
-    { key: 'doc_resume', label: 'Resume PDF Copy', value: dept.uploaded_documents?.find((d: any) => d.type === 'resume') ? 'Uploaded' : null },
-    { key: 'doc_certificate', label: 'Degree Certificate', value: dept.uploaded_documents?.find((d: any) => d.type === 'certificate') ? 'Uploaded' : null },
+    { key: 'doc_aadhaar', label: 'Aadhaar Card Attachment', value: uploadedDocs.find((d: any) => d.type === 'aadhaar') ? 'Uploaded' : null },
+    { key: 'doc_pan', label: 'PAN Card Attachment', value: uploadedDocs.find((d: any) => d.type === 'pan') ? 'Uploaded' : null },
+    { key: 'doc_resume', label: 'Resume PDF Copy', value: uploadedDocs.find((d: any) => d.type === 'resume') ? 'Uploaded' : null },
+    { key: 'doc_certificate', label: 'Degree Certificate', value: uploadedDocs.find((d: any) => d.type === 'certificate') ? 'Uploaded' : null },
   ]
 
   const enteredFields = allFields.filter(f => f.value && String(f.value).trim() !== '')

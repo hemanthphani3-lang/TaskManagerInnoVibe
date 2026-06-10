@@ -1,26 +1,41 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // Onboarding Helper Functions for Client and Server
 
-export function calculateCompletionPercentage(role: 'ADMIN' | 'DEPARTMENT' | 'EMPLOYEE', data: Record<string, any>) {
+export function calculateCompletionPercentage(role: 'ADMIN' | 'DEPARTMENT' | 'EMPLOYEE', data: Record<string, any> = {}) {
+  const safeData = data || {}
   let score = 0
   const completedMandatoryFields: string[] = []
 
+  // Resolve name and email based on role
+  let nameValue = ""
+  let emailValue = ""
+  if (role === 'EMPLOYEE') {
+    nameValue = safeData.employee_name || safeData.full_name || ""
+    emailValue = safeData.employee_email || safeData.email || ""
+  } else if (role === 'DEPARTMENT') {
+    nameValue = safeData.department_head_name || safeData.full_name || ""
+    emailValue = safeData.department_email || safeData.email || ""
+  } else {
+    nameValue = safeData.full_name || safeData.employee_name || ""
+    emailValue = safeData.email || safeData.employee_email || ""
+  }
+
   // 11 Mandatory Fields (together contribute 70% to the total score)
   const mandatoryFields = [
-    { field: 'name', value: role === 'EMPLOYEE' ? data.employee_name : data.full_name },
-    { field: 'email', value: role === 'EMPLOYEE' ? data.employee_email : data.email },
-    { field: 'phone_number', value: data.phone_number },
-    { field: 'dob', value: data.dob },
-    { field: 'gender', value: data.gender },
-    { field: 'address', value: data.address },
-    { field: 'city', value: data.city },
-    { field: 'state', value: data.state },
-    { field: 'pin_code', value: data.pin_code },
+    { field: 'name', value: nameValue },
+    { field: 'email', value: emailValue },
+    { field: 'phone_number', value: safeData.phone_number },
+    { field: 'dob', value: safeData.dob },
+    { field: 'gender', value: safeData.gender },
+    { field: 'address', value: safeData.address },
+    { field: 'city', value: safeData.city },
+    { field: 'state', value: safeData.state },
+    { field: 'pin_code', value: safeData.pin_code },
     { 
       field: 'emergency_contact', 
-      value: data.emergency_contact?.name && data.emergency_contact?.phone ? 'filled' : null 
+      value: safeData.emergency_contact?.name && safeData.emergency_contact?.phone ? 'filled' : null 
     },
-    { field: 'profile_photo', value: data.profile_photo }
+    { field: 'profile_photo', value: safeData.profile_photo }
   ]
 
   let completedMandatoryCount = 0
@@ -34,25 +49,31 @@ export function calculateCompletionPercentage(role: 'ADMIN' | 'DEPARTMENT' | 'EM
   const mandatoryScore = (completedMandatoryCount / 11) * 70
 
   const hasDocType = (type: string) => {
-    return Array.isArray(data.uploaded_documents) && data.uploaded_documents.some((d: any) => d.type === type)
+    return Array.isArray(safeData.uploaded_documents) && safeData.uploaded_documents.some((d: any) => d.type === type)
   }
 
-  // 10 Optional Fields (each contributes 3%, max 30%)
-  const optionalFields = [
-    { field: 'pan', value: data.pan_number || hasDocType('pan') },
-    { field: 'resume', value: data.resume || hasDocType('resume') },
-    { field: 'linkedin', value: data.linkedin },
-    { field: 'certifications', value: data.certifications || hasDocType('certificate') },
-    { field: 'skills', value: data.skills },
-    { field: 'marital_status', value: data.marital_status },
-    { field: 'blood_group', value: data.blood_group },
-    { field: 'alternate_phone', value: data.alternate_phone },
-    { field: 'biography', value: data.biography },
+  // Base Optional Fields (9 fields)
+  const baseOptionalFields = [
+    { field: 'pan', value: safeData.pan_number || hasDocType('pan') },
+    { field: 'resume', value: safeData.resume || hasDocType('resume') },
+    { field: 'linkedin', value: safeData.linkedin },
+    { field: 'certifications', value: safeData.certifications || hasDocType('certificate') },
+    { field: 'marital_status', value: safeData.marital_status },
+    { field: 'blood_group', value: safeData.blood_group },
+    { field: 'alternate_phone', value: safeData.alternate_phone },
+    { field: 'biography', value: safeData.biography },
     { 
       field: 'additional_documents', 
-      value: data.aadhaar_number || hasDocType('aadhaar') || (Array.isArray(data.uploaded_documents) && data.uploaded_documents.some((d: any) => !['pan', 'resume', 'certificate'].includes(d.type)))
+      value: safeData.aadhaar_number || hasDocType('aadhaar') || (Array.isArray(safeData.uploaded_documents) && safeData.uploaded_documents.some((d: any) => !['pan', 'resume', 'certificate'].includes(d.type)))
     }
   ]
+
+  const optionalFields = [...baseOptionalFields]
+  if (role === 'EMPLOYEE') {
+    optionalFields.push({ field: 'skills', value: safeData.skills })
+  }
+
+  const totalOptionalCount = optionalFields.length
 
   let completedOptionalCount = 0
   optionalFields.forEach(item => {
@@ -61,7 +82,8 @@ export function calculateCompletionPercentage(role: 'ADMIN' | 'DEPARTMENT' | 'EM
     }
   })
 
-  const optionalScore = completedOptionalCount * 3
+  // Optional fields contribute 30% to total score
+  const optionalScore = totalOptionalCount > 0 ? (completedOptionalCount / totalOptionalCount) * 30 : 0
 
   score = Math.round(mandatoryScore + optionalScore)
 

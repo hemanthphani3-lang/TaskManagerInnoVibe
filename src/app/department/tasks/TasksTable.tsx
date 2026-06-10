@@ -6,6 +6,7 @@ import { TaskStatusBadge } from "@/components/tasks/TaskStatusBadge"
 import { PriorityBadge } from "@/components/tasks/PriorityBadge"
 import { Calendar, ListTodo, Search, AlertOctagon } from "lucide-react"
 import { motion } from "framer-motion"
+import { UserAvatar } from "@/components/custom/UserAvatar"
 
 interface Employee {
   employee_name: string
@@ -93,14 +94,11 @@ export function TasksTable({ tasks, basePath = "/department/tasks" }: TasksTable
                     </td>
                     <td className="p-4">
                       <div className="flex items-center gap-2">
-                        {emp?.profile_photo ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={emp.profile_photo} alt="" className="w-6 h-6 rounded-full object-cover" />
-                        ) : (
-                          <div className="w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-900/30 text-[#0066FF] dark:text-blue-400 flex items-center justify-center text-[10px] font-bold">
-                            {emp?.employee_name?.charAt(0) || '?'}
-                          </div>
-                        )}
+                        <UserAvatar 
+                          url={emp?.profile_photo} 
+                          name={emp?.employee_name} 
+                          className="w-6 h-6 rounded-full" 
+                        />
                         <div className="flex flex-col">
                           <span className="font-medium text-slate-700 dark:text-slate-300">{emp?.employee_name}</span>
                           {emp?.departments?.department_name && (

@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from "react"
 import { Send, Loader2 } from "lucide-react"
 import { addComment } from "@/app/actions/tasks"
 import { createClient } from "@/lib/supabase/client"
+import { UserAvatar } from "@/components/custom/UserAvatar"
 
 interface Comment {
   id: string
@@ -191,20 +192,11 @@ export function TaskCommentBox({
                 {/* Avatar — hide for current user, only show for others on last in a group */}
                 {!isMe && (
                   <div className="w-8 flex-shrink-0 self-end mb-1">
-                    {showSender && (
-                      comment.sender_avatar ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={comment.sender_avatar}
-                          alt={senderName}
-                          className="w-8 h-8 rounded-full object-cover border-2 border-white dark:border-slate-800 shadow-sm"
-                        />
-                      ) : (
-                        <div className={`w-8 h-8 rounded-full ${avatarColor} text-white flex items-center justify-center text-[10px] font-bold shadow-sm`}>
-                          {initials}
-                        </div>
-                      )
-                    )}
+                      <UserAvatar 
+                        url={comment.sender_avatar} 
+                        name={senderName} 
+                        className="w-8 h-8 rounded-full border-2 border-white dark:border-slate-800 shadow-sm" 
+                      />
                   </div>
                 )}
 

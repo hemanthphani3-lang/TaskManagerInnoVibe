@@ -106,6 +106,14 @@ export default function OnboardingPage() {
           if (res.profile.onboarding_draft && typeof res.profile.onboarding_draft === 'object') {
             merged = { ...merged, ...res.profile.onboarding_draft }
           }
+          // Fallbacks for role-specific names/emails
+          if (res.role === 'DEPARTMENT') {
+            merged.full_name = merged.full_name || merged.department_head_name || ""
+            merged.email = merged.email || merged.department_email || ""
+          } else if (res.role === 'EMPLOYEE') {
+            merged.employee_name = merged.employee_name || merged.full_name || ""
+            merged.employee_email = merged.employee_email || merged.email || ""
+          }
           // Handle emergency contact fallback
           if (!merged.emergency_contact || typeof merged.emergency_contact !== 'object') {
             merged.emergency_contact = { name: "", phone: "" }
@@ -315,6 +323,11 @@ export default function OnboardingPage() {
     if (role === 'EMPLOYEE') {
       sanitizedData.employee_name = sanitizedData.employee_name || sanitizedData.full_name
       sanitizedData.employee_email = sanitizedData.employee_email || sanitizedData.email
+    } else if (role === 'DEPARTMENT') {
+      sanitizedData.department_head_name = sanitizedData.full_name || sanitizedData.department_head_name
+      sanitizedData.department_email = sanitizedData.email || sanitizedData.department_email
+      sanitizedData.full_name = sanitizedData.full_name
+      sanitizedData.email = sanitizedData.email
     } else {
       sanitizedData.full_name = sanitizedData.full_name || sanitizedData.employee_name
       sanitizedData.email = sanitizedData.email || sanitizedData.employee_email
@@ -343,6 +356,11 @@ export default function OnboardingPage() {
     if (role === 'EMPLOYEE') {
       sanitizedData.employee_name = sanitizedData.employee_name || sanitizedData.full_name
       sanitizedData.employee_email = sanitizedData.employee_email || sanitizedData.email
+    } else if (role === 'DEPARTMENT') {
+      sanitizedData.department_head_name = sanitizedData.full_name || sanitizedData.department_head_name
+      sanitizedData.department_email = sanitizedData.email || sanitizedData.department_email
+      sanitizedData.full_name = sanitizedData.full_name
+      sanitizedData.email = sanitizedData.email
     } else {
       sanitizedData.full_name = sanitizedData.full_name || sanitizedData.employee_name
       sanitizedData.email = sanitizedData.email || sanitizedData.employee_email
@@ -1499,7 +1517,118 @@ export default function OnboardingPage() {
 
         </form>
 
+        {/* Debug Utility Card - visible in dev environment or via ?debug=true query param */}
+        {(typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.search.includes('debug=true'))) && (
+          <details className="mt-8 bg-slate-100 dark:bg-slate-900/40 border border-dashed border-slate-350 dark:border-slate-800 rounded-3xl p-6 transition-all duration-300">
+            <summary className="text-sm font-bold text-slate-700 dark:text-slate-300 cursor-pointer select-none outline-none hover:text-[#0066FF] flex items-center gap-2">
+              🔧 Debug Profile Completion Breakdown (Developer Only)
+            </summary>
+            
+            <div className="mt-4 space-y-4 text-xs">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Mandatory Fields Breakdown */}
+                <div className="bg-white dark:bg-slate-950/40 p-4 rounded-2xl border border-slate-200 dark:border-slate-800/80">
+                  <h4 className="font-extrabold text-[#0066FF] mb-2 uppercase tracking-wider text-[10px]">
+                    Mandatory Section (Weight: 70%)
+                  </h4>
+                  <div className="space-y-1.5">
+                    {calculateCompletionPercentage(role, formData).completedMandatoryFields.map(f => (
+                      <div key={f} className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
+                        <span className="font-bold">✓</span>
+                        <span>{f} (Completed)</span>
+                      </div>
+                    ))}
+                    {calculateCompletionPercentage(role, formData).missingMandatoryFields.map(f => (
+                      <div key={f} className="flex items-center gap-1.5 text-red-500 dark:text-red-400">
+                        <span className="font-bold">✗</span>
+                        <span>{f} (Missing)</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
 
+                {/* Optional Fields Breakdown */}
+                <div className="bg-white dark:bg-slate-950/40 p-4 rounded-2xl border border-slate-200 dark:border-slate-800/80">
+                  <h4 className="font-extrabold text-[#00D4FF] mb-2 uppercase tracking-wider text-[10px]">
+                    Optional Section (Weight: 30%)
+                  </h4>
+                  <div className="space-y-1.5">
+                    {(() => {
+                      const hasDocType = (type: string) => {
+                        return Array.isArray(formData.uploaded_documents) && formData.uploaded_documents.some((d: any) => d.type === type)
+                      }
+                      const baseOptionalFields = [
+                        { field: 'pan', value: formData.pan_number || hasDocType('pan') },
+                        { field: 'resume', value: formData.resume || hasDocType('resume') },
+                        { field: 'linkedin', value: formData.linkedin },
+                        { field: 'certifications', value: formData.certifications || hasDocType('certificate') },
+                        { field: 'marital_status', value: formData.marital_status },
+                        { field: 'blood_group', value: formData.blood_group },
+                        { field: 'alternate_phone', value: formData.alternate_phone },
+                        { field: 'biography', value: formData.biography },
+                        { 
+                          field: 'additional_documents', 
+                          value: formData.aadhaar_number || hasDocType('aadhaar') || (Array.isArray(formData.uploaded_documents) && formData.uploaded_documents.some((d: any) => !['pan', 'resume', 'certificate'].includes(d.type)))
+                        }
+                      ]
+                      const opts = [...baseOptionalFields]
+                      if (role === 'EMPLOYEE') {
+                        opts.push({ field: 'skills', value: formData.skills })
+                      }
+                      return opts.map(item => {
+                        const filled = item.value && String(item.value).trim() !== '' && String(item.value) !== 'false'
+                        return (
+                          <div key={item.field} className={`flex items-center gap-1.5 ${filled ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-450 dark:text-slate-605'}`}>
+                            <span className="font-bold">{filled ? '✓' : '•'}</span>
+                            <span>{item.field} ({filled ? 'Completed' : 'Missing'})</span>
+                          </div>
+                        )
+                      })
+                    })()}
+                  </div>
+                </div>
+              </div>
+
+              {/* Summary Stats */}
+              <div className="bg-slate-50 dark:bg-slate-950 p-4 rounded-2xl border border-slate-200 dark:border-slate-800">
+                <p className="font-bold text-slate-850 dark:text-slate-355">
+                  Current Role: <span className="text-[#0066FF]">{role}</span>
+                </p>
+                <p className="font-bold text-slate-850 dark:text-slate-355 mt-1">
+                  Formula Breakdown:
+                </p>
+                <ul className="list-disc pl-5 mt-1 space-y-1 text-slate-600 dark:text-slate-400">
+                  <li>Mandatory: ({11 - calculateCompletionPercentage(role, formData).missingMandatoryFields.length} / 11) * 70 = {((11 - calculateCompletionPercentage(role, formData).missingMandatoryFields.length) / 11 * 70).toFixed(2)}%</li>
+                  <li>
+                    Optional: {(() => {
+                      const hasDocType = (type: string) => Array.isArray(formData.uploaded_documents) && formData.uploaded_documents.some((d: any) => d.type === type)
+                      const baseOptionalFields = [
+                        { field: 'pan', value: formData.pan_number || hasDocType('pan') },
+                        { field: 'resume', value: formData.resume || hasDocType('resume') },
+                        { field: 'linkedin', value: formData.linkedin },
+                        { field: 'certifications', value: formData.certifications || hasDocType('certificate') },
+                        { field: 'marital_status', value: formData.marital_status },
+                        { field: 'blood_group', value: formData.blood_group },
+                        { field: 'alternate_phone', value: formData.alternate_phone },
+                        { field: 'biography', value: formData.biography },
+                        { 
+                          field: 'additional_documents', 
+                          value: formData.aadhaar_number || hasDocType('aadhaar') || (Array.isArray(formData.uploaded_documents) && formData.uploaded_documents.some((d: any) => !['pan', 'resume', 'certificate'].includes(d.type)))
+                        }
+                      ]
+                      const opts = [...baseOptionalFields]
+                      if (role === 'EMPLOYEE') opts.push({ field: 'skills', value: formData.skills })
+                      const completedCount = opts.filter(item => item.value && String(item.value).trim() !== '' && String(item.value) !== 'false').length
+                      const totalCount = opts.length
+                      return `(${completedCount} / ${totalCount}) * 30 = ${((completedCount / totalCount) * 30).toFixed(2)}%`
+                    })()}
+                  </li>
+                  <li>Total Combined Score: <span className="font-extrabold text-[#0066FF]">{progress}%</span></li>
+                </ul>
+              </div>
+            </div>
+          </details>
+        )}
 
       </main>
     </div>

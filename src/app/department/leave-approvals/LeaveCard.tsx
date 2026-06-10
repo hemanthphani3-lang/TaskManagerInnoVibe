@@ -4,6 +4,7 @@ import { useState } from "react"
 import { CheckCircle2, XCircle, Clock } from "lucide-react"
 import { useRouter } from 'next/navigation';
 import { updateLeaveStatus } from "@/app/actions/leave"
+import { UserAvatar } from "@/components/custom/UserAvatar"
 
 interface LeaveCardProps {
   leave: { id: string, approval_status: string, leave_type: string, start_date: string, end_date: string, reason: string }
@@ -51,14 +52,11 @@ export function LeaveCard({ leave, emp }: LeaveCardProps) {
       'bg-slate-50'
     }`}>
       <div className="flex items-start gap-4 flex-1 opacity-100 transition-opacity">
-        {emp?.profile_photo ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={emp.profile_photo} alt="Profile" className="w-12 h-12 rounded-full object-cover ring-2 ring-white shadow-sm" />
-        ) : (
-          <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-lg ring-2 ring-white shadow-sm">
-            {emp?.employee_name?.charAt(0) || '?'}
-          </div>
-        )}
+        <UserAvatar 
+          url={emp?.profile_photo} 
+          name={emp?.employee_name} 
+          className="w-12 h-12 rounded-full ring-2 ring-white shadow-sm" 
+        />
         <div>
           <h4 className="font-bold text-slate-900 text-lg">{emp?.employee_name || 'Unknown'}</h4>
           <div className="flex items-center gap-2 text-sm text-slate-500 mt-1">

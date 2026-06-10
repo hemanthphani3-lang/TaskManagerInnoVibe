@@ -45,6 +45,18 @@ export async function saveOnboardingProfile({ role, formData, isSubmit = false }
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { success: false, error: "Unauthorized" }
 
+  // Align role-specific name and email fields
+  if (role === 'DEPARTMENT') {
+    formData.department_head_name = formData.department_head_name || formData.full_name || formData.employee_name
+    formData.department_email = formData.department_email || formData.email || formData.employee_email
+  } else if (role === 'EMPLOYEE') {
+    formData.employee_name = formData.employee_name || formData.full_name
+    formData.employee_email = formData.employee_email || formData.email
+  } else if (role === 'ADMIN') {
+    formData.full_name = formData.full_name || formData.employee_name
+    formData.email = formData.email || formData.employee_email
+  }
+
   // Security check: Verify user matches the role table
   let tableName: 'admins' | 'departments' | 'employees' = 'employees'
   if (role === 'ADMIN') {

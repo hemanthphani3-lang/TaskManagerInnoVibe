@@ -13,6 +13,7 @@ import { TaskCommentBox } from "@/components/tasks/TaskCommentBox"
 import { AlertOctagon } from "lucide-react"
 import { DeescalateTaskButton } from "@/components/tasks/DeescalateTaskButton"
 import { DeleteTaskButton } from "@/components/admin/DeleteTaskButton"
+import { UserAvatar } from "@/components/custom/UserAvatar"
 
 export default async function AdminTaskDetailsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: taskId } = await params
@@ -205,14 +206,11 @@ export default async function AdminTaskDetailsPage({ params }: { params: Promise
             <div className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm">
               <h3 className="font-bold text-slate-900 mb-4">Assignee</h3>
               <div className="flex items-center gap-4">
-                {emp?.profile_photo ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={emp.profile_photo} alt="" className="w-12 h-12 rounded-full object-cover" />
-                ) : (
-                  <div className="w-12 h-12 rounded-full bg-blue-100 text-[#0066FF] flex items-center justify-center text-lg font-bold">
-                    {emp?.employee_name?.charAt(0) || '?'}
-                  </div>
-                )}
+                <UserAvatar 
+                  url={emp?.profile_photo} 
+                  name={emp?.employee_name} 
+                  className="w-12 h-12 rounded-full" 
+                />
                 <div>
                   <p className="font-semibold text-slate-900">{emp?.employee_name}</p>
                   <p className="text-sm text-slate-500">{emp?.designation}</p>

@@ -62,6 +62,20 @@ export default async function EmployeeProfilePage() {
   }
 
   // Map onboarding audit fields
+  let emergencyContact = emp.emergency_contact
+  if (typeof emergencyContact === 'string') {
+    try {
+      emergencyContact = JSON.parse(emergencyContact)
+    } catch (e) {
+      emergencyContact = {}
+    }
+  }
+  if (!emergencyContact || typeof emergencyContact !== 'object') {
+    emergencyContact = {}
+  }
+
+  const uploadedDocs = Array.isArray(emp.uploaded_documents) ? emp.uploaded_documents : []
+
   const allFields = [
     { key: 'employee_name', label: 'Full Legal Name', value: emp.employee_name || emp.full_name },
     { key: 'employee_email', label: 'Email Address', value: emp.employee_email || emp.email },
@@ -72,8 +86,8 @@ export default async function EmployeeProfilePage() {
     { key: 'city', label: 'City', value: emp.city },
     { key: 'state', label: 'State', value: emp.state },
     { key: 'pin_code', label: 'Pincode / Postal Code', value: emp.pin_code },
-    { key: 'emergency_contact_name', label: 'Emergency Contact Name', value: emp.emergency_contact?.name },
-    { key: 'emergency_contact_phone', label: 'Emergency Contact Phone', value: emp.emergency_contact?.phone },
+    { key: 'emergency_contact_name', label: 'Emergency Contact Name', value: emergencyContact?.name },
+    { key: 'emergency_contact_phone', label: 'Emergency Contact Phone', value: emergencyContact?.phone },
     { key: 'father_name', label: "Father's Name", value: emp.father_name },
     { key: 'mother_name', label: "Mother's Name", value: emp.mother_name },
     { key: 'aadhaar_number', label: 'Aadhaar Card Number', value: emp.aadhaar_number },
@@ -91,10 +105,10 @@ export default async function EmployeeProfilePage() {
     { key: 'skills', label: 'Core Technical Skills', value: emp.skills },
     { key: 'employment_type', label: 'Employment Type', value: emp.employment_type },
     { key: 'work_mode', label: 'Work Mode Setup', value: emp.work_mode },
-    { key: 'doc_aadhaar', label: 'Aadhaar Card Attachment', value: emp.uploaded_documents?.find((d: any) => d.type === 'aadhaar') ? 'Uploaded' : null },
-    { key: 'doc_pan', label: 'PAN Card Attachment', value: emp.uploaded_documents?.find((d: any) => d.type === 'pan') ? 'Uploaded' : null },
-    { key: 'doc_resume', label: 'Resume PDF Copy', value: emp.uploaded_documents?.find((d: any) => d.type === 'resume') ? 'Uploaded' : null },
-    { key: 'doc_certificate', label: 'Degree Certificate', value: emp.uploaded_documents?.find((d: any) => d.type === 'certificate') ? 'Uploaded' : null },
+    { key: 'doc_aadhaar', label: 'Aadhaar Card Attachment', value: uploadedDocs.find((d: any) => d.type === 'aadhaar') ? 'Uploaded' : null },
+    { key: 'doc_pan', label: 'PAN Card Attachment', value: uploadedDocs.find((d: any) => d.type === 'pan') ? 'Uploaded' : null },
+    { key: 'doc_resume', label: 'Resume PDF Copy', value: uploadedDocs.find((d: any) => d.type === 'resume') ? 'Uploaded' : null },
+    { key: 'doc_certificate', label: 'Degree Certificate', value: uploadedDocs.find((d: any) => d.type === 'certificate') ? 'Uploaded' : null },
   ]
 
   const enteredFields = allFields.filter(f => f.value && String(f.value).trim() !== '')

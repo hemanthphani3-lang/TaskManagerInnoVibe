@@ -114,7 +114,7 @@ export default function AdminWorkforceProfileViewer() {
   const isFullyCompleted = score === 100
   const isUnlocked = score >= 70
 
-  // 16 Mandatory Fields mapping
+  // 11 Mandatory Fields mapping
   const mandatoryFieldsKeys = [
     { key: 'name', label: 'Full Name' },
     { key: 'email', label: 'Email Address' },
@@ -125,19 +125,8 @@ export default function AdminWorkforceProfileViewer() {
     { key: 'city', label: 'City' },
     { key: 'state', label: 'State' },
     { key: 'pin_code', label: 'Pincode' },
-    { key: 'aadhaar_number', label: 'Aadhaar Number' },
-    { key: 'pan_number', label: 'PAN Card Number' },
-    { key: 'father_name', label: "Father's Name" },
-    { key: 'mother_name', label: "Mother's Name" },
     { key: 'emergency_contact', label: 'Emergency Contact' },
-    // Role specific
-    ...(role === 'DEPARTMENT' ? [
-      { key: 'department_managed', label: 'Department Managed' },
-      { key: 'managerial_level', label: 'Managerial Level' }
-    ] : [
-      { key: 'designation', label: 'Designation' },
-      { key: 'reporting_manager', label: 'Reporting Manager' }
-    ])
+    { key: 'profile_photo', label: 'Profile Photo' }
   ]
 
   const missingFields = mandatoryFieldsKeys.filter(
