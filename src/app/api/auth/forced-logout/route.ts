@@ -117,12 +117,12 @@ export async function POST(req: NextRequest) {
             })
             .eq('session_id', activeSession.session_id)
 
-          // 3. Complete attendance record
-          const logoutTimeStr = now.toLocaleTimeString('en-US', { hour12: false, timeZone: 'Asia/Kolkata' })
+          // 3. Complete attendance record (logout_time is a TIME column — store as IST HH:MM:SS)
+          const logoutISTStr = now.toLocaleTimeString('en-US', { hour12: false, timeZone: 'Asia/Kolkata' })
           await adminSupabase
             .from('attendance')
             .update({
-              logout_time: logoutTimeStr,
+              logout_time: logoutISTStr,
               work_status: 'LOGGED_OUT'
             })
             .eq('id', attendance.id)

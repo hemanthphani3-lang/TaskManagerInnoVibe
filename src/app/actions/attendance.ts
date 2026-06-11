@@ -216,9 +216,12 @@ function formatISTTime(utcString: string | null): string | null {
 
 function formatTimeField(timeStr: string | null, dateStr: string): string | null {
   if (!timeStr) return null
-  if (timeStr.includes('T') || timeStr.includes('Z')) {
+  // If it's already a full ISO timestamp or contains timezone info, convert via formatISTTime (UTC→IST)
+  if (timeStr.includes('T') || timeStr.includes('Z') || timeStr.includes('+')) {
     return formatISTTime(timeStr)
   }
+  // Plain HH:MM:SS string — stored as IST time in the DB (TIME column)
+  // Reconstruct as a proper IST datetime so formatISTTime returns it unchanged
   const d = new Date(`${dateStr}T${timeStr}+05:30`)
   if (isNaN(d.getTime())) return timeStr
   return formatISTTime(d.toISOString())
