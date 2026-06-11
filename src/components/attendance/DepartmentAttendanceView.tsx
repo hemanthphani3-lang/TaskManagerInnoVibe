@@ -7,6 +7,7 @@ import AttendanceTable from './AttendanceTable';
 import AttendanceStatsCard from './AttendanceStatsCard';
 import ExportButton from './ExportButton';
 import AttendanceDetailModal from './AttendanceDetailModal';
+import AttendanceDrillDownModal from './AttendanceDrillDownModal';
 import { Calendar, Users, UserCheck, Clock, UserX, Loader2 } from 'lucide-react';
 
 // IST helpers
@@ -23,6 +24,14 @@ const getPastDateIST = (daysAgo: number) => {
   return istTime.toISOString().split('T')[0];
 };
 
+const formatDateLabel = (dateStr: string) => {
+  if (!dateStr) return '';
+  const [year, month, day] = dateStr.split('-');
+  const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const mIndex = parseInt(month, 10) - 1;
+  return `${day}-${monthNames[mIndex] || month}-${year}`;
+};
+
 export default function DepartmentAttendanceView() {
   const supabase = createClient();
   
@@ -30,7 +39,7 @@ export default function DepartmentAttendanceView() {
   const [deptId, setDeptId] = useState<string | null>(null);
 
   // Date ranges
-  const [preset, setPreset] = useState<'today' | '7days' | '30days' | 'custom'>('today');
+  const [preset, setPreset] = useState<'today' | '7days' | '30days' | 'custom' | 'specific'>('today');
   const [startDate, setStartDate] = useState(getISTToday());
   const [endDate, setEndDate] = useState(getISTToday());
   const [selectedDate, setSelectedDate] = useState(getISTToday());
@@ -48,6 +57,8 @@ export default function DepartmentAttendanceView() {
 
   // Detail Modal state
   const [selectedRecord, setSelectedRecord] = useState<any | null>(null);
+  const [drillDownType, setDrillDownType] = useState<'totalStrength' | 'present' | 'late' | 'absent' | null>(null);
+  const [departmentName, setDepartmentName] = useState<string>('Department');
 
   // Fetch department head user info to get ID
   useEffect(() => {
@@ -55,6 +66,15 @@ export default function DepartmentAttendanceView() {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         setDeptId(user.id);
+        // Fetch the department name
+        const { data: dept } = await supabase
+          .from('departments')
+          .select('department_name')
+          .eq('id', user.id)
+          .maybeSingle();
+        if (dept?.department_name) {
+          setDepartmentName(dept.department_name);
+        }
       }
     }
     loadUser();
@@ -75,6 +95,9 @@ export default function DepartmentAttendanceView() {
       setStartDate(getPastDateIST(29));
       setEndDate(today);
       setSelectedDate(today);
+    } else if (preset === 'specific') {
+      setStartDate(selectedDate);
+      setEndDate(selectedDate);
     }
   }, [preset]);
 
@@ -104,6 +127,11 @@ export default function DepartmentAttendanceView() {
   useEffect(() => {
     if (!deptId) return;
 
+    const today = getISTToday();
+    if (selectedDate !== today) {
+      return; // No realtime updates for historical dates
+    }
+
     const channelName = `realtime_attendance_dept_${deptId}_${Date.now()}`;
     const channel = supabase.channel(channelName)
       .on(
@@ -118,12 +146,24 @@ export default function DepartmentAttendanceView() {
           fetchReport();
         }
       )
+      .on(
+        'postgres_changes',
+        { 
+          event: '*', 
+          schema: 'public', 
+          table: 'attendance',
+          filter: `department_id=eq.${deptId}`
+        },
+        () => {
+          fetchReport();
+        }
+      )
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [supabase, deptId, fetchReport]);
+  }, [supabase, deptId, selectedDate, fetchReport]);
 
   if (!deptId) {
     return (
@@ -180,10 +220,42 @@ export default function DepartmentAttendanceView() {
           >
             Custom Range
           </button>
+          <button
+            onClick={() => setPreset('specific')}
+            className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all ${
+              preset === 'specific' 
+                ? 'bg-indigo-600 text-white shadow-md shadow-indigo-100' 
+                : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
+            }`}
+          >
+            📅 Specific Date
+          </button>
         </div>
 
         {/* Custom Date Inputs */}
         <div className="flex flex-wrap items-center gap-3">
+          {preset === 'specific' && (
+            <div className="flex items-center space-x-2 bg-gray-50 px-3 py-1.5 rounded-xl border border-gray-100">
+              <Calendar className="w-4 h-4 text-gray-400" />
+              <input
+                type="date"
+                value={selectedDate}
+                max={getISTToday()}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val) {
+                    const today = getISTToday();
+                    const targetDate = val > today ? today : val;
+                    setSelectedDate(targetDate);
+                    setStartDate(targetDate);
+                    setEndDate(targetDate);
+                  }
+                }}
+                className="bg-transparent text-sm font-semibold text-gray-700 focus:outline-none cursor-pointer"
+              />
+            </div>
+          )}
+
           {preset === 'custom' && (
             <div className="flex items-center space-x-2 bg-gray-50 px-3 py-1.5 rounded-xl border border-gray-100">
               <Calendar className="w-4 h-4 text-gray-400" />
@@ -226,33 +298,55 @@ export default function DepartmentAttendanceView() {
           title="Department Strength" 
           value={summary.totalStrength} 
           icon={<Users className="w-6 h-6 text-indigo-600" />}
+          onClick={() => setDrillDownType('totalStrength')}
         />
         <AttendanceStatsCard 
           title="Present Today" 
           value={summary.presentCount} 
           icon={<UserCheck className="w-6 h-6 text-green-600" />}
           subtitle={`Includes ${summary.lateCount} Late`}
+          onClick={() => setDrillDownType('present')}
         />
         <AttendanceStatsCard 
           title="Late Check-ins" 
           value={summary.lateCount} 
           icon={<Clock className="w-6 h-6 text-amber-600" />}
+          onClick={() => setDrillDownType('late')}
         />
         <AttendanceStatsCard 
           title="Absent Today" 
           value={summary.absentCount} 
           icon={<UserX className="w-6 h-6 text-red-600" />}
+          onClick={() => setDrillDownType('absent')}
         />
       </div>
 
       {/* Export & Actions bar */}
-      <div className="flex justify-between items-center bg-transparent">
-        <h2 className="text-lg font-bold text-gray-800 flex items-center">
-          Department Roll Call
-          <span className="text-xs bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-md ml-2 font-semibold font-mono">
-            {selectedDate}
-          </span>
-        </h2>
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-transparent">
+        <div className="flex items-center gap-3">
+          <h2 className="text-lg font-bold text-gray-800">Department Roll Call</h2>
+          <div className="relative flex items-center bg-indigo-50 hover:bg-indigo-100 text-indigo-700 px-3 py-1 rounded-xl font-semibold transition-all border border-indigo-100 shadow-sm cursor-pointer" title="Click to pick specific date">
+            <Calendar className="w-3.5 h-3.5 mr-1.5" />
+            <span className="text-xs font-mono select-none">{formatDateLabel(selectedDate)}</span>
+            <input
+              type="date"
+              value={selectedDate}
+              max={getISTToday()}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val) {
+                  const today = getISTToday();
+                  const targetDate = val > today ? today : val;
+                  setSelectedDate(targetDate);
+                  setPreset('specific');
+                  setStartDate(targetDate);
+                  setEndDate(targetDate);
+                }
+              }}
+              className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+            />
+          </div>
+        </div>
         
         <ExportButton 
           records={records}
@@ -285,6 +379,18 @@ export default function DepartmentAttendanceView() {
           record={selectedRecord}
           selectedDate={selectedDate}
           onClose={() => setSelectedRecord(null)}
+        />
+      )}
+
+      {/* Drill Down Modal */}
+      {drillDownType && (
+        <AttendanceDrillDownModal
+          isOpen={!!drillDownType}
+          onClose={() => setDrillDownType(null)}
+          type={drillDownType}
+          records={records}
+          selectedDate={selectedDate}
+          departmentName={departmentName}
         />
       )}
     </div>

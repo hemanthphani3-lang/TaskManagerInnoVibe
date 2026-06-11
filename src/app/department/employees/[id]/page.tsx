@@ -25,7 +25,7 @@ export default async function EmployeeDetailsPage({ params }: { params: Promise<
     .eq('department_id', user.id) // Security check: must belong to the department head's department
     .single()
 
-  if (!employee) {
+  if (!employee || employee.designation === 'Department Head') {
     return (
       <div className="p-8 text-center text-slate-500 font-semibold">
         Employee profile not found or unauthorized access.

@@ -112,11 +112,18 @@ export default async function AdminDashboard(props: { searchParams: Promise<{ [k
       console.warn("Onboarding database columns not yet created. Skipping onboarding analytics fetch.", e)
     }
 
+  // Extract Department Head IDs to filter them out of employee lists & stats
+  const deptHeadIds = new Set(
+    (globalEmployees || [])
+      .filter(e => e.designation === 'Department Head')
+      .map(e => e.id)
+  )
+
   // Calculate onboarding statistics safely
   const allUsersOnboarding = [
     ...onboardingAdmins.map(a => ({ id: a.id, name: a.full_name || 'Admin', email: a.email || '', role: 'ADMIN', completed: !!a.onboarding_completed, percentage: a.profile_completion_percentage || 0, mandatoryFields: a.mandatory_fields_completed || [] })),
     ...onboardingDepts.map(d => ({ id: d.id, name: d.department_head_name || d.department_name || 'Dept Head', email: '', role: 'DEPT HEAD', completed: !!d.onboarding_completed, percentage: d.profile_completion_percentage || 0, mandatoryFields: d.mandatory_fields_completed || [] })),
-    ...onboardingEmps.map(e => ({ id: e.id, name: e.employee_name || 'Employee', email: e.employee_email || '', role: 'EMPLOYEE', completed: !!e.onboarding_completed, percentage: e.profile_completion_percentage || 0, mandatoryFields: e.mandatory_fields_completed || [] }))
+    ...onboardingEmps.filter(e => e.designation !== 'Department Head').map(e => ({ id: e.id, name: e.employee_name || 'Employee', email: e.employee_email || '', role: 'EMPLOYEE', completed: !!e.onboarding_completed, percentage: e.profile_completion_percentage || 0, mandatoryFields: e.mandatory_fields_completed || [] }))
   ]
 
   const completedOnboarding = allUsersOnboarding.filter(u => u.completed).length
@@ -126,44 +133,12 @@ export default async function AdminDashboard(props: { searchParams: Promise<{ [k
   const totalDepartments = departments?.length || 0
 
   const rawGlobalTodayAttendance = globalAttendance?.filter(a => a.created_at.startsWith(today)) || []
-  const globalTodayAttendance = Array.from(new Map(rawGlobalTodayAttendance.map(a => [a.employee_id, a])).values())
+  const globalTodayAttendance = Array.from(new Map(rawGlobalTodayAttendance.map(a => [a.employee_id, a])).values()).filter(a => !deptHeadIds.has(a.employee_id))
 
-  // Synthesize department heads as employees
-  const deptHeadsAsEmployees = departments?.map(d => ({
-    id: d.id, // Department head user_id is the department ID
-    department_id: d.id,
-    employee_name: d.department_head_name && d.department_head_name !== '-' ? d.department_head_name : `${d.department_name} Head`,
-    designation: 'Department Head',
-    profile_photo: null,
-    isDeptHead: true
-  })) || []
+  const combinedEmployees = (globalEmployees || []).filter(e => e.designation !== 'Department Head')
 
-  const combinedEmployees = [
-    ...(globalEmployees || []),
-    ...deptHeadsAsEmployees
-  ]
-
-  // Synthesize department head attendance from active sessions globally
-  const presentHeadsAttendanceGlobal = deptHeadsAsEmployees.map(head => {
-    const headSession = todaySessions?.find(s => s.user_id === head.id)
-    if (headSession) {
-      return {
-        employee_id: head.id,
-        department_id: head.department_id,
-        attendance_status: 'PRESENT',
-        work_status: headSession.status === 'COMPLETED' ? 'LOGGED_OUT' : 'ACTIVE',
-        working_hours: headSession.duration || null,
-        created_at: headSession.login_time
-      }
-    }
-    return null
-  }).filter(Boolean) as any[]
-
-  // Combine raw global attendance with department head presence
-  const combinedGlobalTodayAttendance = [
-    ...globalTodayAttendance,
-    ...presentHeadsAttendanceGlobal
-  ]
+  // Combine raw global attendance
+  const combinedGlobalTodayAttendance = globalTodayAttendance
 
   // Drill-down data
   const employees = dept_id ? combinedEmployees.filter(e => e.department_id === dept_id) : combinedEmployees
@@ -171,14 +146,9 @@ export default async function AdminDashboard(props: { searchParams: Promise<{ [k
 
   const attendance = dept_id ? globalAttendance?.filter(a => a.department_id === dept_id) : globalAttendance
   const rawTodayAttendance = attendance?.filter(a => a.created_at.startsWith(today)) || []
-  const todayAttendance = Array.from(new Map(rawTodayAttendance.map(a => [a.employee_id, a])).values())
+  const todayAttendance = Array.from(new Map(rawTodayAttendance.map(a => [a.employee_id, a])).values()).filter(a => !deptHeadIds.has(a.employee_id))
 
-  const activePresentHeadsAttendance = presentHeadsAttendanceGlobal.filter(h => dept_id ? h.department_id === dept_id : true)
-
-  const combinedTodayAttendance = [
-    ...todayAttendance,
-    ...activePresentHeadsAttendance
-  ]
+  const combinedTodayAttendance = todayAttendance
 
   const presentCount = combinedTodayAttendance.filter(a => a.attendance_status === 'PRESENT' || a.attendance_status === 'HALF_DAY').length
   const lateCount = combinedTodayAttendance.filter(a => a.attendance_status === 'LATE').length
@@ -204,8 +174,9 @@ export default async function AdminDashboard(props: { searchParams: Promise<{ [k
   const completedTasks = tasks?.filter(t => t.task_status === 'COMPLETED').length || 0
   const delayedTasks = tasks?.filter(t => t.task_status === 'DELAYED').length || 0
 
-  // Build Employee Leaderboard
-  const employeeLeaderboard: LeaderboardEntry[] = (productivityScores || []).map((score, idx) => {
+  // Build Employee Leaderboard (excluding Department Heads)
+  const filteredProductivityScores = (productivityScores || []).filter(score => !deptHeadIds.has(score.employee_id))
+  const employeeLeaderboard: LeaderboardEntry[] = filteredProductivityScores.map((score, idx) => {
     const emp = globalEmployees?.find(e => e.id === score.employee_id)
     const dept = departments?.find(d => d.id === score.department_id)
     return {
@@ -218,15 +189,15 @@ export default async function AdminDashboard(props: { searchParams: Promise<{ [k
     }
   })
 
-  // Org-wide productivity percentage
-  const orgProductivity = productivityScores && productivityScores.length > 0
-    ? productivityScores.reduce((sum, s) => sum + (s.productivity_score ?? 0), 0) / productivityScores.length
+  // Org-wide productivity percentage (excluding Department Heads)
+  const orgProductivity = filteredProductivityScores.length > 0
+    ? filteredProductivityScores.reduce((sum, s) => sum + (s.productivity_score ?? 0), 0) / filteredProductivityScores.length
     : 0
 
   // Chart Data
   const attendanceChartData = last7Days.map(date => {
     const dayRecordsRaw = attendance?.filter(a => a.created_at.startsWith(date)) || []
-    const dayRecords = Array.from(new Map(dayRecordsRaw.map(a => [a.employee_id, a])).values())
+    const dayRecords = Array.from(new Map(dayRecordsRaw.map(a => [a.employee_id, a])).values()).filter(a => !deptHeadIds.has(a.employee_id))
     const present = dayRecords.filter(a => ['PRESENT', 'HALF_DAY', 'LATE'].includes(a.attendance_status)).length
     return {
       date: new Date(date).toLocaleDateString('en-US', { weekday: 'short', timeZone: 'Asia/Kolkata' }),
@@ -425,7 +396,7 @@ export default async function AdminDashboard(props: { searchParams: Promise<{ [k
                     if (emp.percentage >= 40) progressColor = 'bg-amber-500'
 
                     return (
-                      <div key={emp.id} className="flex flex-col sm:flex-row sm:items-center justify-between py-3.5 gap-4">
+                      <div key={`${emp.id}-${emp.role}`} className="flex flex-col sm:flex-row sm:items-center justify-between py-3.5 gap-4">
                         <div className="flex items-center gap-3">
                           <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center font-bold text-slate-600 uppercase border border-slate-200">
                             {emp.name.charAt(0)}
@@ -515,7 +486,7 @@ export default async function AdminDashboard(props: { searchParams: Promise<{ [k
                       {employees?.map((emp) => {
                          const empAttendance = combinedTodayAttendance.find(a => a.employee_id === emp.id)
                          const empScore = productivityScores?.find(s => s.employee_id === emp.id)?.productivity_score ?? 0
-                         const isHead = (emp as any).isDeptHead
+                         const isHead = emp.designation === 'Department Head'
                          const empTasks = tasks?.filter(t => isHead ? (t.assigned_to === emp.id || t.assigned_employee_id === emp.id) : t.assigned_employee_id === emp.id) || []
                          const completed = empTasks.filter(t => t.task_status === 'COMPLETED').length
                          const total = empTasks.length

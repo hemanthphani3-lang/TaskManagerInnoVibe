@@ -95,7 +95,7 @@ export function EmployeeSessionManager({ children, links }: { children: React.Re
       if (typeof window !== "undefined") {
         (window as any).__isLoggingOut = true
       }
-      await supabase.signOut()
+      await supabase.auth.signOut()
       router.push("/login")
       router.refresh()
     }

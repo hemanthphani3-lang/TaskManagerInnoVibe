@@ -49,6 +49,27 @@ export async function createDepartmentAccount(data: Record<string, string>) {
       throw new Error(dbError.message)
     }
 
+    // 3. Sync Department Head to employees table
+    const { error: empError } = await getSupabaseAdmin()
+      .from('employees')
+      .insert({
+        id: userId,
+        employee_name: data.department_head_name,
+        employee_email: data.department_email,
+        designation: 'Department Head',
+        employee_code: `${data.department_code}-HEAD`,
+        profile_photo: data.profile_photo,
+        department_id: userId,
+        created_by_department: userId
+      })
+
+    if (empError) {
+      // Rollback Auth user and department record if employee insert fails
+      await getSupabaseAdmin().from('departments').delete().eq('id', userId)
+      await getSupabaseAdmin().auth.admin.deleteUser(userId)
+      throw new Error(empError.message)
+    }
+
     return { success: true, userId }
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Unknown error"

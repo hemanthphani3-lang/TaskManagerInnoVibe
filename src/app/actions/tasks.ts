@@ -202,6 +202,17 @@ export async function createCrossRoleTask(data: {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return { success: false, error: "Unauthorized" }
 
+    // Validate target due date/deadline is not in the past
+    const today = new Date()
+    const yyyy = today.getFullYear()
+    const mm = String(today.getMonth() + 1).padStart(2, '0')
+    const dd = String(today.getDate()).padStart(2, '0')
+    const todayStr = `${yyyy}-${mm}-${dd}`
+    const targetDate = data.due_date || data.deadline
+    if (targetDate && targetDate < todayStr) {
+      return { success: false, error: "The deadline/due date cannot be in the past. Please select today or a future date." }
+    }
+
     const profileRes = await getCurrentUserRoleAndProfile()
     if (!profileRes.success || !profileRes.role || !profileRes.profile) {
       return { success: false, error: profileRes.error || "Failed to fetch creator profile" }

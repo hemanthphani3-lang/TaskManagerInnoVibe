@@ -26,25 +26,29 @@ export async function requestLogoutAndSubmitWork(formData: FormData) {
     return { success: false, error: "Work Summary is required." }
   }
 
-  // Get employee data
-  const { data: employee } = await supabase
-    .from('employees')
-    .select('department_id, employee_code, employee_name, departments!department_id(department_name)')
+  // Get department data to check if this is a Department Head
+  const { data: dept } = await supabase
+    .from('departments')
+    .select('id, department_name, department_head_name')
     .eq('id', user.id)
     .maybeSingle()
 
+  let employee = null
   let departmentHead = null
-  if (!employee) {
-    const { data: dept } = await supabase
-      .from('departments')
-      .select('id, department_name, department_head_name')
+
+  if (dept) {
+    departmentHead = dept
+  } else {
+    const { data: emp } = await supabase
+      .from('employees')
+      .select('department_id, employee_code, employee_name, departments!department_id(department_name)')
       .eq('id', user.id)
       .maybeSingle()
     
-    if (!dept) {
+    if (!emp) {
       return { success: false, error: "User profile not found." }
     }
-    departmentHead = dept
+    employee = emp
   }
 
   // Get today's attendance record (IST-aware)
@@ -57,31 +61,29 @@ export async function requestLogoutAndSubmitWork(formData: FormData) {
   let checkInTime = new Date(`${todayIST}T09:00:00+05:30`).toISOString()
   let attendanceId = null
 
-  if (employee) {
-    const { data: attendances } = await supabase
-      .from('attendance')
-      .select('id, check_in_time, work_status')
-      .eq('employee_id', user.id)
-      .gte('created_at', startUTC)
-      .lte('created_at', endUTC)
-      .order('created_at', { ascending: false })
-      .limit(1)
+  const { data: attendances } = await supabase
+    .from('attendance')
+    .select('id, check_in_time, work_status')
+    .eq('employee_id', user.id)
+    .gte('created_at', startUTC)
+    .lte('created_at', endUTC)
+    .order('created_at', { ascending: false })
+    .limit(1)
 
-    const attendance = attendances?.[0]
+  const attendance = attendances?.[0]
 
-    if (!attendance) {
-      return { success: false, error: "You have not checked in today." }
-    }
-
-    if (attendance.work_status === 'LOGGED_OUT') {
-      return { success: false, error: "You are already logged out." }
-    }
-
-    if (attendance.check_in_time) {
-      checkInTime = new Date(attendance.check_in_time).toISOString()
-    }
-    attendanceId = attendance.id
+  if (!attendance) {
+    return { success: false, error: "You have not checked in today." }
   }
+
+  if (attendance.work_status === 'LOGGED_OUT') {
+    return { success: false, error: "You are already logged out." }
+  }
+
+  if (attendance.check_in_time) {
+    checkInTime = new Date(attendance.check_in_time).toISOString()
+  }
+  attendanceId = attendance.id
 
   // Handle File Upload
   let attachmentsList: any[] = []
@@ -203,8 +205,8 @@ export async function requestLogoutAndSubmitWork(formData: FormData) {
     })
     .eq('session_id', sessionId)
 
-  // 4. Update attendance (only if employee)
-  if (employee && attendanceId) {
+  // 4. Update attendance
+  if (attendanceId) {
     const { error: attUpdateErr } = await supabaseAdmin
       .from('attendance')
       .update({

@@ -27,13 +27,13 @@ export default async function DepartmentTasksPage() {
 
   const deptName = dept?.department_name || ""
 
-  // Fetch all employee IDs in the department
+  // Fetch all employee IDs in the department (excluding Department Heads)
   const { data: emps } = await supabaseAdmin
     .from('employees')
-    .select('id')
+    .select('id, designation')
     .eq('department_id', user.id)
 
-  const empIds = emps?.map(e => e.id) || []
+  const empIds = emps?.filter(e => e.designation !== 'Department Head').map(e => e.id) || []
 
   // Fetch task IDs where any employee or department head is assigned
   const { data: assigneeRecords } = await supabaseAdmin

@@ -35,7 +35,7 @@ export async function updateSession(request: NextRequest) {
     const isLoginRoute = pathname.startsWith('/login')
     const isAdminRoute = pathname.startsWith('/admin')
     const isDeptRoute = pathname.startsWith('/department')
-    const isEmployeeRoute = pathname.startsWith('/employee')
+    const isEmployeeRoute = pathname.startsWith('/employee') && !pathname.startsWith('/employee/identity-check')
     const isOnboardingRoute =
       pathname.startsWith('/onboarding') ||
       pathname.startsWith('/admin/onboarding') ||

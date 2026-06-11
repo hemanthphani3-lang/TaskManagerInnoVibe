@@ -17,15 +17,18 @@ export async function POST(req: NextRequest) {
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     )
 
-    // Check if the user is an Employee
+    // Check if the user is an Employee/Department Head
     const { data: employee } = await adminSupabase
       .from('employees')
-      .select('department_id, employee_code, employee_name')
+      .select('department_id, employee_code, employee_name, designation')
       .eq('id', user.id)
       .maybeSingle()
 
-    // If they are an Employee, perform forced logout reporting and check-out
+    // If they are an Employee/Department Head, perform forced logout reporting and check-out
     if (employee) {
+      const isDeptHead = employee.designation === 'Department Head'
+      const role = isDeptHead ? 'DEPARTMENT' : 'EMPLOYEE'
+
       // Get today's attendance record (IST-aware)
       const now = new Date()
       const istOffset = 5.5 * 60 * 60 * 1000
@@ -44,7 +47,7 @@ export async function POST(req: NextRequest) {
 
       const attendance = attendances?.[0]
 
-      // Check if employee is actively checked in
+      // Check if user is actively checked in
       if (attendance && attendance.work_status === 'ACTIVE') {
         // Find or create active session
         const { data: activeSessions } = await adminSupabase
@@ -65,7 +68,7 @@ export async function POST(req: NextRequest) {
             .insert({
               user_id: user.id,
               user_name: employee.employee_name || 'Employee',
-              user_role: 'EMPLOYEE',
+              user_role: role,
               login_time: checkInTime,
               department_id: employee.department_id,
               status: 'ACTIVE',
@@ -128,83 +131,9 @@ export async function POST(req: NextRequest) {
           await adminSupabase.from('activity_feed').insert({
             activity_type: 'LOGOUT',
             activity_user: user.id,
-            activity_user_name: employee.employee_name || 'Employee',
+            activity_user_name: employee.employee_name || (isDeptHead ? 'Department Head' : 'Employee'),
             activity_description: `Forced logout due to browser close.`,
             department_id: employee.department_id
-          })
-        }
-      }
-    } else {
-      // Check if they are a Department Head
-      const { data: dept } = await adminSupabase
-        .from('departments')
-        .select('id, department_name, department_head_name')
-        .eq('id', user.id)
-        .maybeSingle()
-
-      if (dept) {
-        const now = new Date()
-        const istOffset = 5.5 * 60 * 60 * 1000
-        const todayIST = new Date(now.getTime() + istOffset).toISOString().split('T')[0]
-        const checkInTime = new Date(`${todayIST}T09:00:00+05:30`).toISOString()
-
-        const durationMs = now.getTime() - new Date(checkInTime).getTime()
-        const durationHrs = Math.floor(durationMs / (1000 * 60 * 60))
-        const durationMins = Math.floor((durationMs % (1000 * 60 * 60)) / (1000 * 60))
-        const durationStr = `${durationHrs}h ${durationMins}m`
-
-        // Create active work session and blank report on the fly for Department Head
-        const { data: activeSession } = await adminSupabase
-          .from('work_sessions')
-          .insert({
-            user_id: user.id,
-            user_name: dept.department_head_name || 'Department Head',
-            user_role: 'DEPARTMENT',
-            login_time: checkInTime,
-            logout_time: now.toISOString(),
-            duration: durationStr,
-            status: 'COMPLETED',
-            department_id: dept.id,
-            department: dept.department_name,
-            report_submitted: true
-          })
-          .select('session_id')
-          .single()
-
-        if (activeSession) {
-          const { data: newReport } = await adminSupabase
-            .from('logout_reports')
-            .insert({
-              session_id: activeSession.session_id,
-              user_id: user.id,
-              summary: "No report was sent due to forced logout.",
-              completed_tasks: "",
-              pending_tasks: "",
-              blockers: "",
-              notes: "System-generated report due to user closing browser without logging out.",
-              attachments: [],
-              time_spent_notes: "",
-              submitted_at: now.toISOString()
-            })
-            .select('report_id')
-            .single()
-
-          if (newReport) {
-            await adminSupabase
-              .from('work_sessions')
-              .update({
-                report_id: newReport.report_id
-              })
-              .eq('session_id', activeSession.session_id)
-          }
-
-          // Add to Activity Feed
-          await adminSupabase.from('activity_feed').insert({
-            activity_type: 'LOGOUT',
-            activity_user: user.id,
-            activity_user_name: dept.department_head_name || 'Department Head',
-            activity_description: `Forced logout due to browser close.`,
-            department_id: dept.id
           })
         }
       }

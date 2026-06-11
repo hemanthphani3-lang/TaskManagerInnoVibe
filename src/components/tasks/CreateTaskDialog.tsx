@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react"
 import { getCrossRoleUsers, createCrossRoleTask } from "@/app/actions/tasks"
 import { createClient } from "@/lib/supabase/client"
 import { toast } from "sonner"
+import { DeadlineDatePicker } from "./DeadlineDatePicker"
 import { 
   X, 
   UserPlus, 
@@ -419,16 +420,14 @@ export function CreateTaskDialog({ isOpen, onClose, onSuccess, currentUserId, cu
             {/* Target Deadline */}
             <div className="space-y-2">
               <label className="text-xs font-bold uppercase tracking-wider text-slate-400">Deadline Target</label>
-              <div className="relative">
-                <input 
-                  type="date"
-                  required
-                  min={new Date().toISOString().split('T')[0]}
-                  value={dueDate}
-                  onChange={e => setDueDate(e.target.value)}
-                  className={`w-full bg-slate-950 border focus:ring-1 rounded-xl px-4 py-3 text-sm text-white outline-none transition ${validationErrors.some(e => e.includes("deadline")) ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : 'border-slate-800 focus:border-[#0066FF] focus:ring-[#0066FF]'}`}
-                />
-              </div>
+              <DeadlineDatePicker 
+                name="due_date"
+                id="due_date"
+                required
+                value={dueDate}
+                onChange={setDueDate}
+                className={`w-full bg-slate-950 border text-white focus:ring-1 ${validationErrors.some(e => e.includes("deadline")) ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : 'border-slate-800 focus:border-[#0066FF] focus:ring-[#0066FF]'}`}
+              />
             </div>
 
           </div>

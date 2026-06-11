@@ -3,7 +3,6 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import type { Database } from "@/types/supabase";
 
 type SupabaseClient = ReturnType<typeof createClient>;
 
@@ -33,7 +32,7 @@ export async function getDailySessions(
 
   if (error) {
     console.error("Failed to fetch daily sessions", error);
-    return [] as Database["public"]["Tables"]["work_sessions"]["Row"][];
+    return [] as any[];
   }
   return data ?? [];
 }

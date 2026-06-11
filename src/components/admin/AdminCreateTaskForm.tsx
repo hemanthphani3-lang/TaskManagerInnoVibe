@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { PageHeader } from "@/components/custom/PageHeader"
 import { createAdminTask } from "@/app/actions/tasks"
@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card } from "@/components/ui/card"
-import { ArrowLeft, Loader2, Users, UploadCloud } from "lucide-react"
+import { ArrowLeft, Loader2, Users, UploadCloud, Calendar } from "lucide-react"
 import Link from "next/link"
 import { toast } from "sonner"
 
@@ -25,6 +25,13 @@ interface Employee {
 
 export function AdminCreateTaskForm({ employees }: { employees: Employee[] }) {
   const router = useRouter()
+  const dateInputRef = useRef<HTMLInputElement>(null)
+  
+  const today = new Date()
+  const yyyy = today.getFullYear()
+  const mm = String(today.getMonth() + 1).padStart(2, '0')
+  const dd = String(today.getDate()).padStart(2, '0')
+  const todayStr = `${yyyy}-${mm}-${dd}`
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [selectedEmployees, setSelectedEmployees] = useState<any[]>([])
@@ -78,6 +85,12 @@ export function AdminCreateTaskForm({ employees }: { employees: Employee[] }) {
     setError(null)
 
     const formData = new FormData(e.currentTarget)
+    const dueDate = formData.get('due_date') as string
+    if (dueDate && dueDate < todayStr) {
+      setError("The due date cannot be in the past. Please select today or a future date.")
+      setLoading(false)
+      return
+    }
     
     // Check if employee is selected
     if (selectedEmployees.length === 0) {
@@ -278,7 +291,39 @@ export function AdminCreateTaskForm({ employees }: { employees: Employee[] }) {
 
               <div className="space-y-2">
                 <Label htmlFor="due_date" className="dark:text-slate-200">Due Date</Label>
-                <Input id="due_date" name="due_date" type="date" required className="dark:bg-slate-900 dark:border-slate-700 dark:text-slate-200" />
+                <div className="flex gap-2">
+                  <Input 
+                    ref={dateInputRef}
+                    id="due_date" 
+                    name="due_date" 
+                    type="date" 
+                    required 
+                    min={todayStr}
+                    onChange={(e) => {
+                      const selectedDate = e.target.value;
+                      if (selectedDate && selectedDate < todayStr) {
+                        toast.error("Back-date selection is blocked. Please select today or a future date.");
+                        e.target.value = "";
+                      }
+                    }}
+                    className="dark:bg-slate-900 dark:border-slate-700 dark:text-slate-200 flex-1" 
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      try {
+                        dateInputRef.current?.showPicker();
+                      } catch (e) {
+                        dateInputRef.current?.focus();
+                      }
+                    }}
+                    className="border-slate-200 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800 flex items-center gap-2 font-medium shrink-0 bg-white"
+                  >
+                    <Calendar className="w-4 h-4 text-[#0066FF]" />
+                    Select Date
+                  </Button>
+                </div>
               </div>
 
               <div className="space-y-2">

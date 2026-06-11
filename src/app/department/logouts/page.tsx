@@ -60,10 +60,12 @@ export default async function LogoutApprovalsPage() {
 
   // Format distinct lists (only their own department)
   const departmentsList = [deptProfile.department_name]
-  const employeesList = (employeesRes.data || []).map(e => ({
-    id: e.id,
-    name: e.employee_name
-  }))
+  const employeesList = (employeesRes.data || [])
+    .filter(e => e.designation !== 'Department Head')
+    .map(e => ({
+      id: e.id,
+      name: e.employee_name
+    }))
 
   return (
     <div className="p-4 sm:p-8 pb-20">

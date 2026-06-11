@@ -9,6 +9,7 @@ import { createTask } from "@/app/actions/tasks"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { AssigneeSelect } from "@/components/tasks/AssigneeSelect"
+import { DeadlineDatePicker } from "@/components/tasks/DeadlineDatePicker"
 
 export default async function CreateTaskPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
   const { error } = await searchParams
@@ -30,7 +31,7 @@ export default async function CreateTaskPage({ searchParams }: { searchParams: P
     .order('employee_name')
 
   // Filter out the logged-in department head from assignee options
-  const filteredEmployees = (employees || []).filter((emp: any) => emp.id !== user.id)
+  const filteredEmployees = (employees || []).filter((emp: any) => emp.designation !== 'Department Head' && emp.id !== user.id)
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] p-4 sm:p-8">
@@ -95,12 +96,7 @@ export default async function CreateTaskPage({ searchParams }: { searchParams: P
 
               <div className="space-y-2">
                 <label className="text-sm font-semibold text-slate-700">Due Date</label>
-                <input 
-                  type="date" 
-                  name="due_date" 
-                  required 
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white outline-none focus:ring-2 focus:ring-[#0066FF]/20 transition-all text-sm" 
-                />
+                <DeadlineDatePicker name="due_date" id="due_date" required />
               </div>
             </div>
 

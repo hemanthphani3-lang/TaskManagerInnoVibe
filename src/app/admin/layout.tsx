@@ -19,16 +19,14 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   }
   const adminLinks = [
     { label: "Dashboard", href: "/admin/dashboard", iconName: "dashboard" },
-    { label: "Tasks", href: "/admin/tasks", iconName: "tasks" },
+    { label: "Attendance", href: "/admin/attendance", iconName: "calendar" },
     { label: "Departments", href: "/admin/departments", iconName: "departments" },
     { label: "Employees", href: "/admin/employees", iconName: "employees" },
     { label: "Leave Approvals", href: "/admin/leaves", iconName: "calendar", badgeCount: pendingLeavesCount },
-    { label: "Logout reports", href: "/admin/logouts", iconName: "identity" },
-    { label: "Holidays", href: "/admin/holidays", iconName: "calendar" },
+    { label: "Reports", href: "/admin/reports", iconName: "file" },
+    { label: "Logout Reports", href: "/admin/logouts", iconName: "identity" },
     { label: "Announcements", href: "/admin/announcements", iconName: "megaphone" },
     { label: "Notifications", href: "/admin/notifications", iconName: "bell" },
-    { label: "Reports", href: "/admin/reports", iconName: "file" },
-    { label: "Attendance", href: "/admin/attendance", iconName: "calendar" },
     { label: "Profile", href: "/admin/profile", iconName: "profile" },
   ];
 

@@ -51,13 +51,14 @@ export default async function DepartmentDashboard() {
   const startUTC = new Date(`${todayIST}T00:00:00+05:30`).toISOString()
   const endUTC = new Date(`${todayIST}T23:59:59+05:30`).toISOString()
 
-  // Fetch all employee IDs under this department
-  const { data: employees } = await supabaseAdmin
+  // Fetch all employee IDs under this department (excluding the Department Head themselves)
+  const { data: rawEmployees } = await supabaseAdmin
     .from('employees')
     .select('id, employee_name, designation, profile_photo')
     .eq('department_id', user.id)
 
-  const empIds = employees?.map(e => e.id) || []
+  const employees = (rawEmployees || []).filter(e => e.designation !== 'Department Head')
+  const empIds = employees.map(e => e.id)
 
   // Fetch task IDs where any employee or department head is assigned
   const { data: assigneeRecords } = await supabaseAdmin
@@ -97,16 +98,16 @@ export default async function DepartmentDashboard() {
     supabaseAdmin.from('work_sessions').select('session_id, user_id, login_time, logout_time, status, duration').eq('department_id', user.id).gte('login_time', startUTC).lte('login_time', endUTC)
   ])
 
-  // Calculate today's team sessions statistics
-  const activeTeamSessionsList = (todayTeamSessions || []).filter(s => s.status === 'ACTIVE' && s.logout_time === null)
+  // Calculate today's team sessions statistics (excluding Department Head)
+  const activeTeamSessionsList = (todayTeamSessions || []).filter(s => s.status === 'ACTIVE' && s.logout_time === null && s.user_id !== user.id)
   const teamOnline = new Set(activeTeamSessionsList.map(s => s.user_id)).size
-  const teamReportsSubmitted = (todayTeamSessions || []).filter(s => s.status === 'COMPLETED').length
+  const teamReportsSubmitted = (todayTeamSessions || []).filter(s => s.status === 'COMPLETED' && s.user_id !== user.id).length
   // Team session hours calculation removed
 
   // ── Computed Stats ────────────────────────────────────────────────────────
-  const totalEmployees = employees?.length || 0
+  const totalEmployees = employees.length
 
-  const rawTodayAttendance = attendance?.filter(a => a.created_at.startsWith(today)) || []
+  const rawTodayAttendance = attendance?.filter(a => a.created_at.startsWith(today) && a.employee_id !== user.id) || []
   const todayAttendance = Array.from(new Map(rawTodayAttendance.map(a => [a.employee_id, a])).values())
 
   const presentCount = todayAttendance.filter(a => a.attendance_status === 'PRESENT' || a.attendance_status === 'HALF_DAY').length || 0
@@ -124,7 +125,7 @@ export default async function DepartmentDashboard() {
 
   // Chart data
   const attendanceChartData = last7Days.map(date => {
-    const dayRecordsRaw = attendance?.filter(a => a.created_at.startsWith(date)) || []
+    const dayRecordsRaw = attendance?.filter(a => a.created_at.startsWith(date) && a.employee_id !== user.id) || []
     const dayRecords = Array.from(new Map(dayRecordsRaw.map(a => [a.employee_id, a])).values())
     const present = dayRecords.filter(a => ['PRESENT', 'HALF_DAY', 'LATE'].includes(a.attendance_status)).length
     return {
@@ -134,10 +135,13 @@ export default async function DepartmentDashboard() {
     }
   })
 
+  // Filter out the Department Head's own productivity scores
+  const filteredScores = (productivityScores || []).filter(s => s.employee_id !== user.id)
+
   // Leaderboard
-  const leaderboardEntries = (productivityScores || [])
+  const leaderboardEntries = filteredScores
     .map((score, idx) => {
-      const emp = employees?.find(e => e.id === score.employee_id)
+      const emp = employees.find(e => e.id === score.employee_id)
       const rank = rankings?.find(r => r.employee_id === score.employee_id)
       return {
         id: score.employee_id,
@@ -152,11 +156,11 @@ export default async function DepartmentDashboard() {
 
   // Delayed employees
   const delayedEmployeeIds = [...new Set((tasks || []).filter(t => t.task_status === 'DELAYED').map(t => t.assigned_employee_id))]
-  const delayedEmployees = employees?.filter(e => delayedEmployeeIds.includes(e.id)) || []
+  const delayedEmployees = employees.filter(e => delayedEmployeeIds.includes(e.id))
 
   // Avg productivity score
-  const avgScore = productivityScores && productivityScores.length > 0
-    ? productivityScores.reduce((sum, s) => sum + (s.productivity_score ?? 0), 0) / productivityScores.length
+  const avgScore = filteredScores.length > 0
+    ? filteredScores.reduce((sum, s) => sum + (s.productivity_score ?? 0), 0) / filteredScores.length
     : 0
 
   // ── Render ────────────────────────────────────────────────────────────────

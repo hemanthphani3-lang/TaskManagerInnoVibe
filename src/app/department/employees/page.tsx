@@ -32,6 +32,8 @@ export default async function DepartmentEmployeesPage() {
     supabase.from('logout_requests').select('employee_id').eq('attendance_date', todayIST).eq('approval_status', 'PENDING')
   ])
 
+  const displayEmployees = (employees || []).filter(e => e.designation !== 'Department Head')
+
   // Build lookup maps for fast access
   const attendanceMap = new Map(todayAttendance?.map(a => [a.employee_id, a.work_status]))
   const pendingLogoutSet = new Set(pendingLogouts?.map(r => r.employee_id))
@@ -61,7 +63,7 @@ export default async function DepartmentEmployeesPage() {
           }
         />
 
-        {employees?.length === 0 ? (
+        {displayEmployees.length === 0 ? (
           <div className="bg-white rounded-2xl border border-dashed border-slate-300 p-12 text-center">
             <h3 className="text-lg font-semibold text-slate-900 mb-2">No employees found</h3>
             <p className="text-slate-500 mb-6 max-w-sm mx-auto">Get started by creating your first employee account to grant them access to the platform.</p>
@@ -75,7 +77,7 @@ export default async function DepartmentEmployeesPage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {employees?.map((emp) => (
+            {displayEmployees.map((emp) => (
               <EmployeeCard
                 key={emp.id}
                 id={emp.id}

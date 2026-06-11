@@ -10,9 +10,10 @@ import { checkInEmployee } from "@/app/actions/attendance"
 interface ActionButtonsProps {
   employeeId: string
   departmentId: string
+  isDepartmentHead?: boolean
 }
 
-export default function ActionButtons({ employeeId, departmentId }: ActionButtonsProps) {
+export default function ActionButtons({ employeeId, departmentId, isDepartmentHead = false }: ActionButtonsProps) {
   const router = useRouter()
   const supabase = createClient()
   const [loading, setLoading] = useState(false)
@@ -38,7 +39,7 @@ export default function ActionButtons({ employeeId, departmentId }: ActionButton
         console.error("Failed to set sessionStorage:", e)
       }
       // Hard redirect — avoids router.push + router.refresh double-load
-      window.location.href = "/employee/dashboard"
+      window.location.href = isDepartmentHead ? "/department/dashboard" : "/employee/dashboard"
     } else {
       setError(result.error || "Failed to check in.")
       setLoading(false)

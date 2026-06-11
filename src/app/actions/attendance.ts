@@ -10,26 +10,26 @@ export async function checkInEmployee(employeeId: string, departmentId: string) 
   let deptName = 'Operations'
   let isEmployee = true
 
-  const { data: employee } = await supabase
-    .from('employees')
-    .select('employee_name, department_id, departments!department_id(department_name)')
+  const { data: dept } = await supabase
+    .from('departments')
+    .select('department_head_name, department_name')
     .eq('id', employeeId)
     .maybeSingle()
 
-  if (employee) {
-    empName = employee.employee_name || 'Employee'
-    deptName = (employee.departments as any)?.department_name || 'Operations'
+  if (dept) {
+    empName = dept.department_head_name || 'Department Head'
+    deptName = dept.department_name || 'Department'
+    isEmployee = false
   } else {
-    // Check if Department Head
-    const { data: dept } = await supabase
-      .from('departments')
-      .select('department_head_name, department_name')
+    const { data: employee } = await supabase
+      .from('employees')
+      .select('employee_name, department_id, departments!department_id(department_name)')
       .eq('id', employeeId)
       .maybeSingle()
-    if (dept) {
-      empName = dept.department_head_name || 'Department Head'
-      deptName = dept.department_name || 'Department'
-      isEmployee = false
+
+    if (employee) {
+      empName = employee.employee_name || 'Employee'
+      deptName = (employee.departments as any)?.department_name || 'Operations'
     } else {
       return { success: false, error: "User profile not found." }
     }
@@ -45,68 +45,60 @@ export async function checkInEmployee(employeeId: string, departmentId: string) 
   let existing = null
   let checkInCutoff = '09:30:00'
 
-  if (isEmployee) {
-    const [{ data: existingAttendance }, { data: deptData }] = await Promise.all([
-      supabase
-        .from('attendance')
-        .select('id, work_status')
-        .eq('employee_id', employeeId)
-        .gte('created_at', startUTC)
-        .lte('created_at', endUTC)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle(),
-      supabase
-        .from('departments')
-        .select('check_in_cutoff_time')
-        .eq('id', departmentId)
-        .single()
-    ])
-    existing = existingAttendance
-    checkInCutoff = deptData?.check_in_cutoff_time || '09:30:00'
-  } else {
-    // Check if Department Head has checked in today (meaning they have an active work session)
-    const { data: activeSession } = await supabase
-      .from('work_sessions')
-      .select('session_id, status')
-      .eq('user_id', employeeId)
-      .eq('status', 'ACTIVE')
-      .is('logout_time', null)
+  const [{ data: existingAttendance }, { data: deptData }] = await Promise.all([
+    supabase
+      .from('attendance')
+      .select('id, work_status')
+      .eq('employee_id', employeeId)
+      .gte('created_at', startUTC)
+      .lte('created_at', endUTC)
+      .order('created_at', { ascending: false })
       .limit(1)
+      .maybeSingle(),
+    supabase
+      .from('departments')
+      .select('check_in_cutoff_time')
+      .eq('id', isEmployee ? departmentId : employeeId)
       .maybeSingle()
-
-    if (activeSession) {
-      existing = { id: activeSession.session_id, work_status: 'ACTIVE' }
-    } else {
-      // Also check if they checked out today (have a completed session today)
-      const { data: completedSession } = await supabase
-        .from('work_sessions')
-        .select('session_id')
-        .eq('user_id', employeeId)
-        .gte('login_time', startUTC)
-        .lte('login_time', endUTC)
-        .limit(1)
-        .maybeSingle()
-
-      if (completedSession) {
-        existing = { id: completedSession.session_id, work_status: 'LOGGED_OUT' }
-      }
-    }
-  }
+  ])
+  existing = existingAttendance
+  checkInCutoff = deptData?.check_in_cutoff_time || '09:30:00'
 
   // Helper to trigger notifications and session logging
   const createLoginSessionAndNotifications = async () => {
     // Check if there is already an active session for this user to prevent duplicates
     const { data: activeSession } = await supabase
       .from('work_sessions')
-      .select('session_id')
+      .select('session_id, login_time')
       .eq('user_id', employeeId)
       .eq('status', 'ACTIVE')
       .is('logout_time', null)
       .limit(1)
       .maybeSingle()
 
-    if (!activeSession) {
+    let shouldCreateNew = true
+    if (activeSession) {
+      const sessionDay = getISTDateStringFromUTC(activeSession.login_time)
+      if (sessionDay === todayIST) {
+        shouldCreateNew = false
+      } else {
+        // Stale session from a previous day! Close it.
+        const loginDate = new Date(activeSession.login_time)
+        const autoLogoutTime = new Date(loginDate.getTime() + 9 * 60 * 60 * 1000)
+        await supabase
+          .from('work_sessions')
+          .update({
+            logout_time: autoLogoutTime.toISOString(),
+            status: 'COMPLETED',
+            duration: '9h 0m',
+            report_submitted: true,
+            report_id: null
+          })
+          .eq('session_id', activeSession.session_id)
+      }
+    }
+
+    if (shouldCreateNew) {
       // 1. Create a work session
       await supabase
         .from('work_sessions')
@@ -167,13 +159,11 @@ export async function checkInEmployee(employeeId: string, departmentId: string) 
 
   if (existing) {
     if (existing.work_status === 'LOGGED_OUT' || existing.work_status === 'LOGOUT_REQUESTED') {
-      if (isEmployee) {
-        const { error } = await supabase
-          .from('attendance')
-          .update({ work_status: 'ACTIVE' })
-          .eq('id', existing.id)
-        if (error) return { success: false, error: error.message }
-      }
+      const { error } = await supabase
+        .from('attendance')
+        .update({ work_status: 'ACTIVE' })
+        .eq('id', existing.id)
+      if (error) return { success: false, error: error.message }
       
       await createLoginSessionAndNotifications()
       return { success: true }
@@ -188,23 +178,18 @@ export async function checkInEmployee(employeeId: string, departmentId: string) 
   const minutes = nowIST.getUTCMinutes()
   const status = (hour > cutoffHour || (hour === cutoffHour && minutes > cutoffMinute)) ? 'LATE' : 'PRESENT'
 
-  if (isEmployee) {
-    const { error } = await supabase
-      .from('attendance')
-      .insert({
-        employee_id: employeeId,
-        department_id: departmentId,
-        login_time: now.toISOString(),
-        check_in_time: now.toISOString(),
-        attendance_status: status,
-        work_status: 'ACTIVE'
-      })
+  const { error } = await supabase
+    .from('attendance')
+    .insert({
+      employee_id: employeeId,
+      department_id: isEmployee ? departmentId : employeeId,
+      login_time: now.toISOString(),
+      check_in_time: now.toISOString(),
+      attendance_status: status,
+      work_status: 'ACTIVE'
+    })
 
-    if (error) return { success: false, error: error.message }
-  } else {
-    // For Department Heads, we don't have attendance row due to table constraints,
-    // so their attendance status and existence is derived from work_sessions (Presenter)
-  }
+  if (error) return { success: false, error: error.message }
 
   await createLoginSessionAndNotifications()
   return { success: true }
@@ -227,6 +212,16 @@ function formatISTTime(utcString: string | null): string | null {
     hour12: true,
     timeZone: 'Asia/Kolkata'
   })
+}
+
+function formatTimeField(timeStr: string | null, dateStr: string): string | null {
+  if (!timeStr) return null
+  if (timeStr.includes('T') || timeStr.includes('Z')) {
+    return formatISTTime(timeStr)
+  }
+  const d = new Date(`${dateStr}T${timeStr}+05:30`)
+  if (isNaN(d.getTime())) return timeStr
+  return formatISTTime(d.toISOString())
 }
 
 export async function getAttendanceReport(
@@ -261,13 +256,13 @@ export async function getAttendanceReport(
   }
 
   // 2. Fetch all employees & department heads we need to display
-  let usersList: { id: string; name: string; role: string; departmentId: string; departmentName: string }[] = []
+  let usersList: { id: string; name: string; role: string; departmentId: string; departmentName: string; employeeCode: string }[] = []
 
   if (targetDepartmentId) {
     const [employeesRes, targetDeptRes] = await Promise.all([
       supabase
         .from('employees')
-        .select('id, employee_name, designation, department_id, departments!department_id(department_name)')
+        .select('id, employee_name, designation, department_id, employee_code, departments!department_id(department_name)')
         .eq('department_id', targetDepartmentId),
       supabase
         .from('departments')
@@ -276,58 +271,77 @@ export async function getAttendanceReport(
         .maybeSingle()
     ])
 
+    let headEmpRecord: any = null
     if (employeesRes.data) {
       employeesRes.data.forEach(e => {
+        if (e.designation === 'Department Head') {
+          headEmpRecord = e
+          return
+        }
         usersList.push({
           id: e.id,
           name: e.employee_name,
           role: 'Employee',
           departmentId: e.department_id,
-          departmentName: (e.departments as any)?.department_name || 'Operations'
+          departmentName: (e.departments as any)?.department_name || 'Operations',
+          employeeCode: e.employee_code || e.id.substring(0, 8)
         })
       })
     }
 
     if (targetDeptRes.data) {
-      usersList.push({
-        id: targetDeptRes.data.id,
-        name: targetDeptRes.data.department_head_name || 'Department Head',
-        role: 'Department Head',
-        departmentId: targetDeptRes.data.id,
-        departmentName: targetDeptRes.data.department_name
-      })
+      const headName = targetDeptRes.data.department_head_name
+      if (headName && headName !== '-') {
+        usersList.push({
+          id: targetDeptRes.data.id,
+          name: headName,
+          role: 'Department Head',
+          departmentId: targetDeptRes.data.id,
+          departmentName: targetDeptRes.data.department_name,
+          employeeCode: headEmpRecord?.employee_code || `${targetDeptRes.data.department_name.substring(0, 3).toUpperCase()}-HEAD`
+        })
+      }
     }
   } else {
     // Admin with no department filter -> fetch all employees and all department heads
     const [employeesRes, deptsRes] = await Promise.all([
       supabase
         .from('employees')
-        .select('id, employee_name, designation, department_id, departments!department_id(department_name)'),
+        .select('id, employee_name, designation, department_id, employee_code, departments!department_id(department_name)'),
       supabase
         .from('departments')
         .select('id, department_name, department_head_name')
     ])
 
+    const deptHeadEmployeeMap = new Map<string, any>()
     if (employeesRes.data) {
       employeesRes.data.forEach(e => {
+        if (e.designation === 'Department Head') {
+          deptHeadEmployeeMap.set(e.id, e)
+          return
+        }
         usersList.push({
           id: e.id,
           name: e.employee_name,
           role: 'Employee',
           departmentId: e.department_id,
-          departmentName: (e.departments as any)?.department_name || 'Operations'
+          departmentName: (e.departments as any)?.department_name || 'Operations',
+          employeeCode: e.employee_code || e.id.substring(0, 8)
         })
       })
     }
 
     if (deptsRes.data) {
       deptsRes.data.forEach(d => {
+        if (!d.department_head_name || d.department_head_name === '-') return
+        const headEmpRecord = deptHeadEmployeeMap.get(d.id)
         usersList.push({
           id: d.id,
-          name: d.department_head_name || 'Department Head',
+          name: d.department_head_name,
           role: 'Department Head',
           departmentId: d.id,
-          departmentName: d.department_name
+          departmentName: d.department_name,
+          employeeCode: headEmpRecord?.employee_code || `${d.department_name.substring(0, 3).toUpperCase()}-HEAD`
         })
       })
     }
@@ -341,22 +355,51 @@ export async function getAttendanceReport(
     }
   }
 
-  // 4. Fetch all work sessions for these users in the date range
+  // 4. Fetch all work sessions and daily attendance records in the date range
   const startUTC = new Date(`${startDate}T00:00:00+05:30`).toISOString()
   const endUTC = new Date(`${endDate}T23:59:59.999+05:30`).toISOString()
   const userIds = usersList.map(u => u.id)
 
-  const { data: sessions, error: sessionsErr } = await supabase
-    .from('work_sessions')
-    .select('session_id, user_id, login_time, logout_time, status')
-    .in('user_id', userIds)
-    .gte('login_time', startUTC)
-    .lte('login_time', endUTC)
-    .order('login_time', { ascending: true })
+  const [sessionsRes, attendanceRes, leavesRes] = await Promise.all([
+    supabase
+      .from('work_sessions')
+      .select('session_id, user_id, login_time, logout_time, status')
+      .in('user_id', userIds)
+      .gte('login_time', startUTC)
+      .lte('login_time', endUTC)
+      .order('login_time', { ascending: true }),
+    supabase
+      .from('attendance')
+      .select('id, employee_id, login_time, check_in_time, attendance_status, work_status, logout_time, created_at')
+      .in('employee_id', userIds)
+      .gte('created_at', startUTC)
+      .lte('created_at', endUTC),
+    supabase
+      .from('leave_requests')
+      .select('employee_id, leave_type, approval_status, start_date, end_date')
+      .in('employee_id', userIds)
+      .lte('start_date', selectedDate)
+      .gte('end_date', selectedDate)
+  ])
 
-  if (sessionsErr) {
-    throw new Error(sessionsErr.message)
+  if (sessionsRes.error) {
+    throw new Error(sessionsRes.error.message)
   }
+  if (attendanceRes.error) {
+    throw new Error(attendanceRes.error.message)
+  }
+
+  const sessions = sessionsRes.data
+  const attendanceRecords = attendanceRes.data
+  const leaves = leavesRes.data || []
+
+  const leaveMap: Record<string, { type: string; status: string }> = {}
+  leaves.forEach(l => {
+    leaveMap[l.employee_id] = {
+      type: l.leave_type,
+      status: l.approval_status
+    }
+  })
 
   // 5. Fetch all department cutoffs
   const { data: deptCutoffs } = await supabase
@@ -381,7 +424,6 @@ export async function getAttendanceReport(
 
   const todayIST = new Date(new Date().getTime() + 5.5 * 60 * 60 * 1000).toISOString().split('T')[0]
 
-  // Helper for IST time comparison
   const getISTTimeComponents = (utcString: string) => {
     const d = new Date(utcString)
     const ist = new Date(d.getTime() + 5.5 * 60 * 60 * 1000)
@@ -410,29 +452,38 @@ export async function getAttendanceReport(
     })
   }
 
+  // Group attendance records by user_id and day
+  const userAttendanceMap: Record<string, Record<string, any>> = {}
+  usersList.forEach(u => {
+    userAttendanceMap[u.id] = {}
+  })
+
+  if (attendanceRecords) {
+    attendanceRecords.forEach(a => {
+      if (!userAttendanceMap[a.employee_id]) return
+      const dayStr = getISTDateStringFromUTC(a.created_at)
+      if (dayStr) {
+        userAttendanceMap[a.employee_id][dayStr] = a
+      }
+    })
+  }
+
   // Calculate stats for each user
   const records = usersList.map(u => {
     const history: Record<string, 'Present' | 'Late' | 'Absent'> = {}
     let presentDays = 0
     let totalDaysSoFar = 0
 
-    const cutoff = cutoffMap[u.role === 'Department Head' ? u.id : u.departmentId] || '09:30:00'
-    const [cutoffHour, cutoffMinute] = cutoff.split(':').map(Number)
-
     daysList.forEach(day => {
       if (day > todayIST) return // Don't track future days
 
       totalDaysSoFar++
-      const daySessions = userSessionsMap[u.id][day]
+      const attRecord = userAttendanceMap[u.id][day]
 
-      if (daySessions.length === 0) {
+      if (!attRecord) {
         history[day] = 'Absent'
       } else {
-        const firstLogin = daySessions[0].login_time
-        const { hour, minute } = getISTTimeComponents(firstLogin)
-        const isLate = (hour > cutoffHour || (hour === cutoffHour && minute > cutoffMinute))
-        const statusStr = isLate ? 'Late' : 'Present'
-        
+        const statusStr = attRecord.attendance_status === 'LATE' ? 'Late' : 'Present'
         history[day] = statusStr
         presentDays++
       }
@@ -444,11 +495,22 @@ export async function getAttendanceReport(
 
     // Selected date details
     const selectedDateSessions = userSessionsMap[u.id][selectedDate] || []
+    const attRecordOnSelectedDate = userAttendanceMap[u.id][selectedDate]
     let statusOnSelectedDate: 'Present' | 'Late' | 'Absent' = 'Absent'
     let firstCheckIn: string | null = null
     let lastCheckOut: string | null = null
 
-    if (selectedDateSessions.length > 0) {
+    if (attRecordOnSelectedDate) {
+      statusOnSelectedDate = attRecordOnSelectedDate.attendance_status === 'LATE' ? 'Late' : 'Present'
+      firstCheckIn = formatISTTime(attRecordOnSelectedDate.login_time || attRecordOnSelectedDate.check_in_time)
+      
+      if (attRecordOnSelectedDate.work_status === 'ACTIVE') {
+        lastCheckOut = 'Active'
+      } else {
+        lastCheckOut = formatTimeField(attRecordOnSelectedDate.logout_time, selectedDate)
+      }
+    } else if (selectedDateSessions.length > 0) {
+      // Fallback to work sessions just in case
       statusOnSelectedDate = history[selectedDate] || 'Present'
       firstCheckIn = formatISTTime(selectedDateSessions[0].login_time)
       
@@ -457,6 +519,37 @@ export async function getAttendanceReport(
         lastCheckOut = 'Active'
       } else {
         lastCheckOut = formatISTTime(lastSession.logout_time)
+      }
+    }
+
+    // Expected reporting cutoff
+    const cutoff = cutoffMap[u.role === 'Department Head' ? u.id : u.departmentId] || '09:30:00'
+    const [cutoffHour, cutoffMinute] = cutoff.split(':').map(Number)
+    const formattedCutoff = formatTimeField(cutoff, selectedDate) || '09:30 AM'
+
+    // Delay duration
+    let delayDuration: string | null = null
+    const firstLogin = attRecordOnSelectedDate?.login_time || attRecordOnSelectedDate?.check_in_time || (selectedDateSessions.length > 0 ? selectedDateSessions[0].login_time : null)
+    if (statusOnSelectedDate === 'Late' && firstLogin) {
+      const { hour, minute } = getISTTimeComponents(firstLogin)
+      const checkInTotalMins = hour * 60 + minute
+      const cutoffTotalMins = cutoffHour * 60 + cutoffMinute
+      const diffMins = checkInTotalMins - cutoffTotalMins
+      if (diffMins > 0) {
+        const diffHrs = Math.floor(diffMins / 60)
+        const mins = diffMins % 60
+        delayDuration = diffHrs > 0 ? `${diffHrs}h ${mins}m` : `${mins}m`
+      }
+    }
+
+    // Leave status
+    const leaveInfo = leaveMap[u.id]
+    let leaveStatus: 'Leave Approved' | 'Leave Pending' | 'No Leave Submitted' = 'No Leave Submitted'
+    if (leaveInfo) {
+      if (leaveInfo.status === 'APPROVED') {
+        leaveStatus = 'Leave Approved'
+      } else if (leaveInfo.status === 'PENDING') {
+        leaveStatus = 'Leave Pending'
       }
     }
 
@@ -478,7 +571,12 @@ export async function getAttendanceReport(
       lastCheckOut,
       attendancePercentage,
       history,
-      sessions: formattedSessions
+      sessions: formattedSessions,
+      employeeCode: u.employeeCode,
+      sessionStatus: lastCheckOut === 'Active' ? 'Active' : 'Logged Out',
+      cutoffTime: formattedCutoff,
+      delayDuration,
+      leaveStatus
     }
   })
 

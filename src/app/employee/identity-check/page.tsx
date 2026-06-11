@@ -16,17 +16,44 @@ export default async function EmployeeIdentityCheck() {
 
   if (!user) redirect("/login")
 
-  // Fetch employee profile + department name
-  const { data: employee } = await supabase
-    .from('employees')
-    .select(`
-      *,
-      departments!department_id(department_name)
-    `)
+  // Fetch profile
+  let employee = null
+  let isDeptHead = false
+  let departmentName = "Unassigned"
+
+  // 1. Try to fetch from departments first (representing Department Heads)
+  const { data: dept } = await supabase
+    .from('departments')
+    .select('id, department_name, department_head_name, profile_photo, leadership_role')
     .eq('id', user!.id)
     .maybeSingle()
 
-  const departmentName = (employee?.departments as { department_name: string } | null)?.department_name || "Unassigned"
+  if (dept) {
+    isDeptHead = true
+    departmentName = dept.department_name || "Department"
+    employee = {
+      id: dept.id,
+      employee_name: dept.department_head_name,
+      designation: dept.leadership_role || "Department Head",
+      profile_photo: dept.profile_photo,
+      department_id: dept.id
+    }
+  } else {
+    // 2. Fetch standard employee profile
+    const { data: emp } = await supabase
+      .from('employees')
+      .select(`
+        *,
+        departments!department_id(department_name)
+      `)
+      .eq('id', user!.id)
+      .maybeSingle()
+
+    if (emp) {
+      employee = emp
+      departmentName = (emp?.departments as any)?.department_name || "Unassigned"
+    }
+  }
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] flex items-center justify-center p-4">
@@ -66,6 +93,7 @@ export default async function EmployeeIdentityCheck() {
         <ActionButtons
           employeeId={employee?.id || ""}
           departmentId={employee?.department_id || ""}
+          isDepartmentHead={isDeptHead}
         />
       </div>
     </div>

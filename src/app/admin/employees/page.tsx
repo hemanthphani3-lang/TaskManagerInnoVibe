@@ -41,6 +41,7 @@ export default async function AdminEmployeesPage() {
 
   if (employees) {
     employees.forEach((emp) => {
+      if (emp.designation === 'Department Head') return
       workforce.push({
         id: emp.id,
         name: emp.employee_name || "Unknown Employee",

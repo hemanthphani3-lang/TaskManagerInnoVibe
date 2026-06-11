@@ -26,12 +26,12 @@ export default async function DepartmentLeaveApprovalsPage() {
       .order('created_at', { ascending: false }),
     supabase
       .from('employees')
-      .select('id, employee_name, profile_photo')
+      .select('id, employee_name, profile_photo, designation')
       .eq('department_id', user.id)
   ])
 
   const leaves = leavesRes.data || []
-  const employees = employeesRes.data || []
+  const employees = (employeesRes.data || []).filter(e => e.designation !== 'Department Head')
 
   // Filter out leaves that are not pending
   const pendingLeaves = leaves.filter(leave => {

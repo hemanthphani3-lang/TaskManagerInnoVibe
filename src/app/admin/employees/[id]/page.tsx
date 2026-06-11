@@ -56,7 +56,7 @@ export default function AdminWorkforceProfileViewer() {
         .eq('id', id)
         .maybeSingle()
 
-      if (empData) {
+      if (empData && empData.designation !== 'Department Head') {
         setProfile(empData)
         setRole('EMPLOYEE')
         setLoading(false)
@@ -414,7 +414,7 @@ export default function AdminWorkforceProfileViewer() {
             </div>
 
             {/* Attendance & Session History */}
-            {role === 'EMPLOYEE' && (
+            {(role === 'EMPLOYEE' || role === 'DEPARTMENT') && (
               <AttendanceSessionHistorySection employeeId={id} />
             )}
 
