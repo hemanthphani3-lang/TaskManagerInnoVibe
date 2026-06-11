@@ -111,7 +111,7 @@ export async function requestLogoutAndSubmitWork(formData: FormData) {
   }
 
   const logoutDate = new Date()
-  const logoutTimeStr = logoutDate.toLocaleTimeString('en-US', { hour12: false })
+  const logoutTimeStr = logoutDate.toLocaleTimeString('en-US', { hour12: false, timeZone: 'Asia/Kolkata' })
 
   // Find existing active session for this user to update
   const { data: existingSession } = await supabaseAdmin
