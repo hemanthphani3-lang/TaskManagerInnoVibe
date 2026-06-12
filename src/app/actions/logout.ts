@@ -263,6 +263,17 @@ export async function requestLogoutAndSubmitWork(formData: FormData) {
     department_id: employee ? employee.department_id : (departmentHead?.id || null)
   })
 
+  // Trigger productivity calculation
+  const finalDeptId = employee ? employee.department_id : (departmentHead?.id || null)
+  if (finalDeptId) {
+    try {
+      const { ProductivityEngine } = await import("@/lib/services/ProductivityEngine")
+      await ProductivityEngine.calculateEmployeeProductivity(user.id, finalDeptId)
+    } catch (err) {
+      console.error("Failed to calculate productivity after logout:", err)
+    }
+  }
+
   if (employee?.employee_code) {
     revalidatePath(`/employee/${employee.employee_code}/dashboard`)
   }

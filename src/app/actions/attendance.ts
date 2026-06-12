@@ -166,6 +166,15 @@ export async function checkInEmployee(employeeId: string, departmentId: string) 
       if (error) return { success: false, error: error.message }
       
       await createLoginSessionAndNotifications()
+      
+      // Trigger productivity calculation
+      try {
+        const { ProductivityEngine } = await import("@/lib/services/ProductivityEngine")
+        await ProductivityEngine.calculateEmployeeProductivity(employeeId, isEmployee ? departmentId : employeeId)
+      } catch (err) {
+        console.error("Failed to calculate productivity after check-in:", err)
+      }
+
       return { success: true }
     }
     return { success: false, error: "Already checked in today." }
@@ -192,6 +201,15 @@ export async function checkInEmployee(employeeId: string, departmentId: string) 
   if (error) return { success: false, error: error.message }
 
   await createLoginSessionAndNotifications()
+
+  // Trigger productivity calculation
+  try {
+    const { ProductivityEngine } = await import("@/lib/services/ProductivityEngine")
+    await ProductivityEngine.calculateEmployeeProductivity(employeeId, isEmployee ? departmentId : employeeId)
+  } catch (err) {
+    console.error("Failed to calculate productivity after check-in:", err)
+  }
+
   return { success: true }
 }
 

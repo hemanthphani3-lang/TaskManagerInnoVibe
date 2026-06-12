@@ -358,6 +358,18 @@ export async function createCrossRoleTask(data: {
     // Broadcast realtime updates for dashboard task counts
     await broadcastTaskCounts()
 
+    // Recalculate productivity for all assignees
+    if (assigneeIds && assigneeIds.length > 0) {
+      try {
+        const { ProductivityEngine } = await import("@/lib/services/ProductivityEngine")
+        for (const uid of assigneeIds) {
+          await ProductivityEngine.calculateEmployeeProductivity(uid)
+        }
+      } catch (err) {
+        console.error("Failed to recalculate productivity after task creation:", err)
+      }
+    }
+
     return { success: true, taskId: task.id }
   } catch (err: any) {
     console.error("Create task error:", err)
@@ -495,6 +507,14 @@ export async function respondToTask(
 
     // Broadcast realtime updates for dashboard task counts
     await broadcastTaskCounts()
+
+    // Recalculate productivity
+    try {
+      const { ProductivityEngine } = await import("@/lib/services/ProductivityEngine")
+      await ProductivityEngine.calculateEmployeeProductivity(user.id)
+    } catch (err) {
+      console.error("Failed to recalculate productivity after respond task:", err)
+    }
 
     return { success: true }
   } catch (err: any) {
@@ -648,6 +668,26 @@ export async function updateCrossRoleTaskStatus(taskId: string, nextStatus: stri
 
     // Broadcast realtime updates for dashboard task counts
     await broadcastTaskCounts()
+
+    // Recalculate productivity for assignees
+    try {
+      const { ProductivityEngine } = await import("@/lib/services/ProductivityEngine")
+      if (assigneeRecord) {
+        await ProductivityEngine.calculateEmployeeProductivity(user.id)
+      } else {
+        const { data: assignees } = await getSupabaseAdmin()
+          .from('task_assignees')
+          .select('user_id')
+          .eq('task_id', taskId)
+        if (assignees && assignees.length > 0) {
+          for (const a of assignees) {
+            await ProductivityEngine.calculateEmployeeProductivity(a.user_id)
+          }
+        }
+      }
+    } catch (err) {
+      console.error("Failed to recalculate productivity after task status update:", err)
+    }
 
     return { success: true }
   } catch (err: any) {

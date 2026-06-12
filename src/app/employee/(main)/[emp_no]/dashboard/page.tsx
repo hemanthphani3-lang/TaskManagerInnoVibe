@@ -5,8 +5,7 @@ import { createServiceClient } from "@/lib/supabase/service"
 import { redirect } from "next/navigation"
 import { Clock, Calendar, CheckCircle2, UserCircle2, AlertCircle, Target, FileText, LogOut, Trophy, ShieldAlert, DownloadCloud } from "lucide-react"
 import { AnalyticsCard } from "@/components/dashboard/AnalyticsCard"
-import { ScoreProgressBar } from "@/components/productivity/ScoreProgressBar"
-import { ProductivityBadge } from "@/components/productivity/ProductivityBadge"
+import { RealtimeProductivityCard } from "@/components/dashboard/RealtimeProductivityCard"
 import { ReminderCard } from "@/components/productivity/ReminderCard"
 import { DashboardProfileCompletionCard } from "@/components/dashboard/DashboardProfileCompletionCard"
 import { calculateCompletionPercentage } from "@/lib/onboarding-utils"
@@ -232,33 +231,13 @@ export default async function EmployeeDashboard({ params }: { params: Promise<{ 
           </div>
 
           {/* Productivity Score Card */}
-          <div className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm flex flex-col justify-between h-full">
-            <div>
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-base font-bold text-[#0A1A2F]">Productivity Score</h3>
-                {employeeRank && (
-                  <div className="flex items-center gap-1.5 text-amber-600 bg-amber-50 px-2.5 py-1 rounded-full border border-amber-100">
-                    <Trophy className="w-3.5 h-3.5" />
-                    <span className="text-[10px] font-bold">Rank #{employeeRank}</span>
-                  </div>
-                )}
-              </div>
-              <ScoreProgressBar score={productivityScore} />
-              <div className="mt-3">
-                <ProductivityBadge score={productivityScore} />
-              </div>
-            </div>
-            <div className="mt-4 grid grid-cols-2 gap-3">
-              <div className="bg-slate-50 rounded-xl p-2.5 border border-slate-100 text-center">
-                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Attendance</p>
-                <p className="text-base font-black text-slate-800 mt-0.5">{attendanceRate.toFixed(0)}%</p>
-              </div>
-              <div className="bg-slate-50 rounded-xl p-2.5 border border-slate-100 text-center">
-                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Completion</p>
-                <p className="text-base font-black text-slate-800 mt-0.5">{completionRate.toFixed(0)}%</p>
-              </div>
-            </div>
-          </div>
+          <RealtimeProductivityCard 
+            employeeId={user.id}
+            initialProductivityScore={productivityScore}
+            initialAttendanceRate={attendanceRate}
+            initialCompletionRate={completionRate}
+            initialRank={employeeRank}
+          />
 
           {/* Logout Report Card */}
           <LogoutReportCard 

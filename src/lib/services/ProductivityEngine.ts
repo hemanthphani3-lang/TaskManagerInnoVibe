@@ -8,8 +8,32 @@ export class ProductivityEngine {
    * Uses the user-scoped client to READ data (respects RLS for reads),
    * and the service-role client to WRITE results (bypasses RLS for upserts).
    */
-  static async calculateEmployeeProductivity(employeeId: string, departmentId: string) {
+  static async calculateEmployeeProductivity(employeeId: string, departmentId?: string) {
     const admin = createServiceClient()     // uses service role, bypasses RLS and cookies
+
+    let resolvedDeptId = departmentId
+    if (!resolvedDeptId) {
+      const { data: emp } = await admin
+        .from('employees')
+        .select('department_id')
+        .eq('id', employeeId)
+        .maybeSingle()
+      
+      if (emp && emp.department_id) {
+        resolvedDeptId = emp.department_id
+      } else {
+        const { data: dept } = await admin
+          .from('departments')
+          .select('id')
+          .eq('id', employeeId)
+          .maybeSingle()
+        if (dept) {
+          resolvedDeptId = dept.id
+        }
+      }
+    }
+
+    const deptId = resolvedDeptId || employeeId // fallback
 
     const now = new Date()
     const istOffset = 5.5 * 60 * 60 * 1000
@@ -21,28 +45,62 @@ export class ProductivityEngine {
     const startOfMonthIST = new Date(nowIST.getFullYear(), nowIST.getMonth(), 1)
     const startOfMonthUTC = new Date(startOfMonthIST.getTime() - istOffset).toISOString()
 
-    // 1. Fetch Task Statistics (Current Month)
-    const { data: tasks } = await admin
-      .from('tasks')
-      .select('task_status, due_date')
-      .eq('assigned_employee_id', employeeId)
-      .gte('created_at', startOfMonthUTC)
+    // 1. Fetch Task Statistics (using task_assignees for dashboard consistency)
+    const { data: assigneeRecords } = await admin
+      .from('task_assignees')
+      .select('task_id, status, completed_at')
+      .eq('user_id', employeeId)
+
+    const userAssignedTaskIds = assigneeRecords?.map(r => r.task_id) || []
+    
+    let dbTasks = []
+    if (userAssignedTaskIds.length > 0) {
+      const { data } = await admin
+        .from('tasks')
+        .select('*, task_assignees(*)')
+        .or(`id.in.(${userAssignedTaskIds.map(id => `"${id}"`).join(',')}),assigned_to.eq.${employeeId}`)
+      dbTasks = data || []
+    } else {
+      const { data } = await admin
+        .from('tasks')
+        .select('*, task_assignees(*)')
+        .eq('assigned_to', employeeId)
+      dbTasks = data || []
+    }
+
+    // Filter tasks that are relevant to this assignee
+    const tasks = dbTasks.filter(t => 
+      (t.task_assignees as any[])?.some(a => a.user_id === employeeId) || 
+      t.assigned_to === employeeId
+    )
 
     let completedTasks = 0
     let delayedTasks = 0
     const reopenedTasks = 0
+    const todayStr = nowIST.toISOString().split('T')[0]
 
-    if (tasks) {
-      tasks.forEach(task => {
-        if (task.task_status === 'COMPLETED') {
-          completedTasks++
-        } else if (task.task_status === 'DELAYED') {
+    tasks.forEach(task => {
+      const assignees = (task.task_assignees as any[]) || []
+      const userAssignee = assignees.find(a => a.user_id === employeeId)
+      const status = userAssignee?.status || task.status || task.task_status || 'PENDING'
+      const dueDate = task.deadline || task.due_date || ''
+
+      if (status === 'COMPLETED') {
+        completedTasks++
+        // Check if overall task is delayed
+        if (task.status === 'DELAYED' || task.task_status === 'DELAYED') {
           delayedTasks++
         }
-      })
-    }
+      } else {
+        if (dueDate && dueDate < todayStr) {
+          delayedTasks++ // Overdue counts as delayed
+        } else if (status === 'DELAYED') {
+          delayedTasks++
+        }
+      }
+    })
 
-    // 2. Fetch Daily Updates (Activity Feed entries by this employee today — IST-aware)
+    // 2. Fetch Daily Updates (Activity Feed entries today)
     const { count: dailyUpdates } = await admin
       .from('activity_feed')
       .select('*', { count: 'exact', head: true })
@@ -52,52 +110,58 @@ export class ProductivityEngine {
     const updatesCount = dailyUpdates || 0
 
     // 3. Fetch Attendance Percentage (Current Month)
-    // Count PRESENT, HALF_DAY, and LATE all as attended days
+    // Working Days in current month up to today (weekdays Mon-Fri)
+    let workingDaysCount = 0
+    for (let d = 1; d <= nowIST.getDate(); d++) {
+      const dateToCheck = new Date(nowIST.getFullYear(), nowIST.getMonth(), d)
+      const dayOfWeek = dateToCheck.getDay() // 0 = Sunday, 6 = Saturday
+      if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+        workingDaysCount++
+      }
+    }
+    if (workingDaysCount === 0) workingDaysCount = 1 // Prevent division by zero
+
     const { data: attendance } = await admin
       .from('attendance')
       .select('attendance_status')
       .eq('employee_id', employeeId)
       .gte('created_at', startOfMonthUTC)
 
-    const totalDays = attendance?.length || 0
     const attendedDays = attendance?.filter(a =>
       a.attendance_status === 'PRESENT' ||
       a.attendance_status === 'HALF_DAY' ||
       a.attendance_status === 'LATE'
     ).length || 0
-    const attendancePercentage = totalDays > 0 ? (attendedDays / totalDays) * 100 : 0
+
+    const attendancePercentage = Math.min(100, (attendedDays / workingDaysCount) * 100)
 
     // 4. Calculate Productivity Score
-    let score = 0;
-    
-    const totalTasks = tasks?.length || 0;
-    const completionRate = totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0;
-    const delayPercentage = totalTasks > 0 ? (delayedTasks / totalTasks) * 100 : 0;
+    let score = 0
+    const totalTasks = tasks.length
+    const completionRate = totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0
+    const delayPercentage = totalTasks > 0 ? (delayedTasks / totalTasks) * 100 : 0
 
     // Weighting: 60% Task Completion, 40% Attendance
     if (totalTasks > 0) {
-      score = (completionRate * 0.6) + (attendancePercentage * 0.4);
-      
-      // Penalize for delayed tasks (e.g., subtracting half the delay percentage)
-      score -= (delayPercentage * 0.5);
+      score = (completionRate * 0.6) + (attendancePercentage * 0.4)
+      // Penalize for delayed tasks
+      score -= (delayPercentage * 0.5)
     } else {
-      // If no tasks are assigned this month, base productivity fully on attendance
-      score = attendancePercentage;
+      score = attendancePercentage
     }
 
-    // Add a small engagement bonus (up to +5%) for daily activity updates today
-    const engagementBonus = Math.min(5, updatesCount * 1.5);
-    score += engagementBonus;
+    // Engagement bonus: up to +5%
+    const engagementBonus = Math.min(5, updatesCount * 1.5)
+    score += engagementBonus
 
-    // Ensure the final score stays strictly between 0 and 100
-    score = Math.max(0, Math.min(100, Math.round(score)));
+    score = Math.max(0, Math.min(100, Math.round(score)))
 
-    // 5. Upsert Productivity Scores (service client bypasses RLS)
+    // 5. Upsert Productivity Scores
     await admin
       .from('productivity_scores')
       .upsert({
         employee_id: employeeId,
-        department_id: departmentId,
+        department_id: deptId,
         productivity_score: score,
         completed_tasks: completedTasks,
         delayed_tasks: delayedTasks,
@@ -107,11 +171,12 @@ export class ProductivityEngine {
         calculated_at: new Date().toISOString()
       }, { onConflict: 'employee_id' })
 
+    // 6. Upsert KPI Metrics
     await admin
       .from('kpi_metrics')
       .upsert({
         employee_id: employeeId,
-        department_id: departmentId,
+        department_id: deptId,
         completion_rate: completionRate,
         attendance_rate: attendancePercentage,
         delay_percentage: delayPercentage,
@@ -120,7 +185,7 @@ export class ProductivityEngine {
       }, { onConflict: 'employee_id' })
 
     // 7. Update Department Rankings
-    await this.calculateDepartmentRankings(departmentId)
+    await this.calculateDepartmentRankings(deptId)
 
     return score
   }
