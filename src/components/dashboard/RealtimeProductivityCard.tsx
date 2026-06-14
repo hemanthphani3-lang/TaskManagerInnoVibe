@@ -108,13 +108,13 @@ export function RealtimeProductivityCard({
         <div className="bg-slate-50 rounded-xl p-2.5 border border-slate-100 text-center">
           <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Attendance</p>
           <p className="text-base font-black text-slate-800 mt-0.5">
-            <CountUp to={attendanceRate} duration={1} />%
+            <CountUp to={Math.round(attendanceRate)} duration={1} />%
           </p>
         </div>
         <div className="bg-slate-50 rounded-xl p-2.5 border border-slate-100 text-center">
           <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Completion</p>
           <p className="text-base font-black text-slate-800 mt-0.5">
-            <CountUp to={completionRate} duration={1} />%
+            <CountUp to={Math.round(completionRate)} duration={1} />%
           </p>
         </div>
       </div>
