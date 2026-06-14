@@ -168,83 +168,16 @@ export default function LoginPage() {
         <div className="w-full bg-white rounded-[32px] shadow-[0_24px_70px_rgba(0,10,60,0.08)] border border-white/80 overflow-hidden flex flex-col md:flex-row transition-all duration-300">
           
           {/* Left Branding Panel (45%) */}
-          <div className="relative md:w-[45%] bg-gradient-to-b from-[#001B5C] via-[#032E84] to-[#0A4DC2] p-8 md:p-12 flex flex-col justify-between overflow-hidden text-white shrink-0">
-            
-            {/* Background Ornaments / Tech-inspired radial glow & dot/network pattern */}
-            <div className="absolute top-0 right-0 w-[300px] h-[300px] bg-blue-400/20 rounded-full blur-[80px] pointer-events-none" />
-            <div className="absolute bottom-1/4 left-0 w-[250px] h-[250px] bg-indigo-500/20 rounded-full blur-[80px] pointer-events-none" />
-            
-            {/* Dot Grid Background */}
-            <div className="absolute inset-0 opacity-10 pointer-events-none">
-              <svg className="w-full h-full" xmlns="http://www.w3.org/2000/svg">
-                <defs>
-                  <pattern id="dot-grid" width="20" height="20" patternUnits="userSpaceOnUse">
-                    <circle cx="2" cy="2" r="1" fill="white" />
-                  </pattern>
-                </defs>
-                <rect width="100%" height="100%" fill="url(#dot-grid)" />
-              </svg>
-            </div>
-
-            {/* Smart Mobility Network Graphics */}
-            <div className="absolute top-1/3 right-10 w-96 h-96 opacity-15 pointer-events-none">
-              <svg viewBox="0 0 200 200" fill="none" className="w-full h-full text-blue-300">
-                <circle cx="100" cy="100" r="80" stroke="currentColor" strokeWidth="0.5" strokeDasharray="4 4" />
-                <circle cx="100" cy="100" r="50" stroke="currentColor" strokeWidth="0.75" />
-                <circle cx="100" cy="100" r="20" stroke="currentColor" strokeWidth="1" />
-                <path d="M100 20v160M20 100h160" stroke="currentColor" strokeWidth="0.5" strokeDasharray="2 2" />
-              </svg>
-            </div>
-
-            {/* Logo Area */}
-            <div className="relative z-10 flex items-start gap-3">
-              <div className="p-2 bg-white/10 rounded-2xl backdrop-blur-md border border-white/20 shadow-inner flex items-center justify-center">
-                <svg className="w-8 h-8 text-[#35F2B5]" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" stroke="currentColor" strokeWidth="2" fill="none" />
-                  <path d="M11.5 7.5L9 12h3.5L11 16.5l3.5-5H11l.5-4z" fill="currentColor" />
-                </svg>
-              </div>
-              <div>
-                <div className="font-extrabold text-[22px] leading-tight tracking-tight flex flex-col">
-                  <span className="text-white">InnoVibe</span>
-                  <span className="text-[#35F2B5] font-black">Care.EV</span>
-                </div>
-                <p className="text-[10px] text-white/60 font-bold tracking-wider mt-0.5 uppercase">Your EV, Our Expert Care</p>
-              </div>
-            </div>
-
-            {/* Hero Content */}
-            <div className="relative z-10 my-auto py-12 md:py-0">
-              <div className="space-y-6">
-                <h1 className="text-4xl md:text-[44px] font-black tracking-tight leading-[1.12] text-left">
-                  <span className="block text-white">CONNECTED.</span>
-                  <span className="block text-white">INTELLIGENT.</span>
-                  <span className="block text-[#35F2B5]">ALWAYS AHEAD.</span>
-                </h1>
-                <p className="text-white/80 text-sm md:text-[15px] max-w-sm font-medium leading-relaxed">
-                  Empowering electric mobility with connected technology and real-time intelligence.
-                </p>
-                <div className="h-[3px] w-16 bg-gradient-to-r from-[#2563FF] to-[#35F2B5] rounded-full" />
-              </div>
-            </div>
-
-            {/* Illustration Section (Bottom) */}
-            <div className="relative mt-auto md:-mx-12 md:-mb-12 overflow-hidden flex justify-center">
-              <div className="absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-[#0A4DC2] via-[#0A4DC2]/20 to-transparent z-10 pointer-events-none" />
-              <motion.img
-                initial={{ y: 20, opacity: 0.8 }}
-                animate={{ y: 0, opacity: 1 }}
-                transition={{ duration: 1.2, ease: "easeOut" }}
-                src="/ev_scooter_login.png"
-                alt="EV Scooter Smart Mobility"
-                className="w-full max-w-[400px] md:max-w-full h-auto object-cover select-none relative z-0 transition-transform duration-700 hover:scale-[1.03]"
-              />
-            </div>
-
+          <div className="relative md:w-[45%] overflow-hidden shrink-0 hidden md:block">
+            <img
+              src="/left-branding.png"
+              alt="InnoVibe Care.EV"
+              className="w-full h-full object-cover select-none pointer-events-none"
+            />
           </div>
 
           {/* Right Login Panel (55%) */}
-          <div className="md:w-[55%] bg-white p-8 md:p-16 flex flex-col justify-between shrink-0">
+          <div className="w-full md:w-[55%] bg-white p-8 md:p-16 flex flex-col justify-between shrink-0">
             
             {/* Header / Welcome */}
             <div>
