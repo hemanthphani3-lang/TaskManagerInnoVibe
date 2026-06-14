@@ -204,3 +204,50 @@ tbody tr:hover {
     transform: none !important;
   }
 }
+
+/* MagicBento border glow styling for ecosystem boxes/cards */
+[data-slot="card"], 
+.bg-white.rounded-2xl, 
+.bg-white.rounded-3xl, 
+.bg-slate-50.rounded-xl, 
+.bg-white.rounded-xl {
+  position: relative;
+  overflow: hidden;
+  transition: box-shadow 0.3s ease, border-color 0.3s ease;
+  
+  /* Defaults for spotlight positions */
+  --glow-x: 50%;
+  --glow-y: 50%;
+  --glow-intensity: 0;
+  --glow-radius: 300px;
+}
+
+[data-slot="card"]::after, 
+.bg-white.rounded-2xl::after, 
+.bg-white.rounded-3xl::after, 
+.bg-slate-50.rounded-xl::after, 
+.bg-white.rounded-xl::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  padding: 1.5px; /* Subtle glowing border thickness */
+  background: radial-gradient(
+    var(--glow-radius) circle at var(--glow-x) var(--glow-y),
+    rgba(0, 102, 255, calc(var(--glow-intensity) * 0.95)) 0%,
+    rgba(0, 102, 255, calc(var(--glow-intensity) * 0.45)) 30%,
+    transparent 65%
+  );
+  border-radius: inherit;
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
+  opacity: 1;
+  transition: opacity 0.3s ease;
+  z-index: 40; /* Placed over contents so the glowing border is fully visible */
+}
