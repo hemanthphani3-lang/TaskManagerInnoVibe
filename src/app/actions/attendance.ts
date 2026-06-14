@@ -81,6 +81,7 @@ export async function checkInEmployee(employeeId: string, departmentId: string) 
       const sessionDay = getISTDateStringFromUTC(activeSession.login_time)
       if (sessionDay === todayIST) {
         shouldCreateNew = false
+      } else {
         // Stale session from a previous day! Close it.
         const loginDate = new Date(activeSession.login_time)
         const autoLogoutTime = new Date(loginDate.getTime() + 9 * 60 * 60 * 1000)
