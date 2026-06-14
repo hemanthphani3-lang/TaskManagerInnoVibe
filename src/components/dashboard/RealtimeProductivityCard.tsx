@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client"
 import { Trophy } from "lucide-react"
 import { ScoreProgressBar } from "@/components/productivity/ScoreProgressBar"
 import { ProductivityBadge } from "@/components/productivity/ProductivityBadge"
+import CountUp from "@/components/ui/CountUp"
  
 interface RealtimeProductivityCardProps {
   employeeId: string
@@ -106,11 +107,15 @@ export function RealtimeProductivityCard({
       <div className="mt-4 grid grid-cols-2 gap-3">
         <div className="bg-slate-50 rounded-xl p-2.5 border border-slate-100 text-center">
           <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Attendance</p>
-          <p className="text-base font-black text-slate-800 mt-0.5">{attendanceRate.toFixed(0)}%</p>
+          <p className="text-base font-black text-slate-800 mt-0.5">
+            <CountUp to={attendanceRate} duration={1} />%
+          </p>
         </div>
         <div className="bg-slate-50 rounded-xl p-2.5 border border-slate-100 text-center">
           <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Completion</p>
-          <p className="text-base font-black text-slate-800 mt-0.5">{completionRate.toFixed(0)}%</p>
+          <p className="text-base font-black text-slate-800 mt-0.5">
+            <CountUp to={completionRate} duration={1} />%
+          </p>
         </div>
       </div>
     </div>

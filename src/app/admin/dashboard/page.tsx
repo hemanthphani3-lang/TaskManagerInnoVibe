@@ -14,6 +14,7 @@ import Link from "next/link"
 import { RealtimeAdminTaskCards } from "@/components/dashboard/RealtimeAdminTaskCards"
 import { RealtimeAdminDeptTaskCards } from "@/components/dashboard/RealtimeAdminDeptTaskCards"
 import { UserAvatar } from "@/components/custom/UserAvatar"
+import { AnimatedCounter } from "@/components/custom/AnimatedCounter"
 
 export default async function AdminDashboard(props: { searchParams: Promise<{ [key: string]: string | string[] | undefined }> }) {
   try {
@@ -254,7 +255,9 @@ export default async function AdminDashboard(props: { searchParams: Promise<{ [k
             <AnalyticsCard title="Total Workforce" value={globalEmployees?.length || 0} icon={Users} colorClass="text-indigo-600" bgClass="bg-indigo-50" delay={1} />
             <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm">
               <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Org Productivity</p>
-              <p className="text-3xl font-black text-[#0A1A2F]">{orgProductivity.toFixed(0)}</p>
+              <p className="text-3xl font-black text-[#0A1A2F]">
+                <AnimatedCounter value={orgProductivity} />
+              </p>
               <ProductivityBadge score={orgProductivity} className="mt-2" />
             </div>
             <AnalyticsCard title="Active Users Today" value={activeUsersToday} icon={Activity} colorClass="text-emerald-600" bgClass="bg-emerald-50" />
@@ -459,7 +462,9 @@ export default async function AdminDashboard(props: { searchParams: Promise<{ [k
             <AnalyticsCard title="Avg Work Hours" value={avgHoursDisplay} icon={Clock} colorClass="text-purple-600" bgClass="bg-purple-50" />
             <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm">
               <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Dept Score</p>
-              <p className="text-3xl font-black text-[#0A1A2F]">{orgProductivity.toFixed(0)}</p>
+              <p className="text-3xl font-black text-[#0A1A2F]">
+                <AnimatedCounter value={orgProductivity} />
+              </p>
               <ProductivityBadge score={orgProductivity} className="mt-2" />
             </div>
           </div>

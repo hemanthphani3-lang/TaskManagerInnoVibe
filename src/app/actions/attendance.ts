@@ -81,10 +81,28 @@ export async function checkInEmployee(employeeId: string, departmentId: string) 
       const sessionDay = getISTDateStringFromUTC(activeSession.login_time)
       if (sessionDay === todayIST) {
         shouldCreateNew = false
-      } else {
         // Stale session from a previous day! Close it.
         const loginDate = new Date(activeSession.login_time)
         const autoLogoutTime = new Date(loginDate.getTime() + 9 * 60 * 60 * 1000)
+
+        // 1. Create a default report to prevent broken/silent failures in the UI
+        const { data: newReport } = await supabase
+          .from('logout_reports')
+          .insert({
+            session_id: activeSession.session_id,
+            user_id: employeeId,
+            summary: "No detailed work report was submitted. System-generated report due to stale session auto-closure.",
+            completed_tasks: "",
+            pending_tasks: "",
+            blockers: "",
+            notes: "This session was closed automatically by the system because it was left open from a previous day.",
+            attachments: [],
+            time_spent_notes: "",
+            submitted_at: autoLogoutTime.toISOString()
+          })
+          .select('report_id')
+          .single()
+
         await supabase
           .from('work_sessions')
           .update({
@@ -92,7 +110,7 @@ export async function checkInEmployee(employeeId: string, departmentId: string) 
             status: 'COMPLETED',
             duration: '9h 0m',
             report_submitted: true,
-            report_id: null
+            report_id: newReport?.report_id || null
           })
           .eq('session_id', activeSession.session_id)
       }

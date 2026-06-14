@@ -12,6 +12,7 @@ import { ProductivityBadge } from "@/components/productivity/ProductivityBadge"
 import { DashboardProfileCompletionCard } from "@/components/dashboard/DashboardProfileCompletionCard"
 import { calculateCompletionPercentage } from "@/lib/onboarding-utils"
 import { RealtimeDepartmentTaskCards } from "@/components/dashboard/RealtimeDepartmentTaskCards"
+import { AnimatedCounter } from "@/components/custom/AnimatedCounter"
 
 export default async function DepartmentDashboard() {
   // ── Auth ──────────────────────────────────────────────────────────────────
@@ -227,7 +228,9 @@ export default async function DepartmentDashboard() {
                 />
               </svg>
               <div className="absolute flex flex-col items-center">
-                <span className="text-3xl font-bold text-[#0A1A2F]">{attendancePercentage}%</span>
+                <span className="text-3xl font-bold text-[#0A1A2F]">
+                  <AnimatedCounter value={attendancePercentage} />%
+                </span>
                 <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-widest mt-0.5">Today</span>
               </div>
             </div>

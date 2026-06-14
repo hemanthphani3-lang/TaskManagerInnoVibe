@@ -19,17 +19,27 @@ export function SessionHistoryList({ sessions }: SessionHistoryListProps) {
 
   const handleOpenReport = (session: any) => {
     const report = Array.isArray(session.logout_reports) 
-      ? session.logout_reports[0] 
-      : session.logout_reports
+      ? (session.logout_reports[0] || null)
+      : (session.logout_reports || null)
     
-    if (report) {
-      setSelectedReport({
-        ...report,
-        login_time: session.login_time,
-        logout_time: session.logout_time
-      })
-      setIsModalOpen(true)
+    const fallbackReport = {
+      summary: "No detailed work report was submitted.",
+      completed_tasks: "",
+      pending_tasks: "",
+      blockers: "",
+      time_spent_notes: "",
+      notes: "System-generated or auto-closed session report.",
+      attachments: []
     }
+
+    const reportData = report || fallbackReport
+
+    setSelectedReport({
+      ...reportData,
+      login_time: session.login_time,
+      logout_time: session.logout_time
+    })
+    setIsModalOpen(true)
   }
 
   return (
