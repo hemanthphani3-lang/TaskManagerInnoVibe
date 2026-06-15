@@ -192,7 +192,7 @@ export default async function AdminDashboard(props: { searchParams: Promise<{ [k
 
   // Org-wide productivity percentage (excluding Department Heads)
   const orgProductivity = filteredProductivityScores.length > 0
-    ? filteredProductivityScores.reduce((sum, s) => sum + (s.productivity_score ?? 0), 0) / filteredProductivityScores.length
+    ? Math.round(filteredProductivityScores.reduce((sum, s) => sum + (s.productivity_score ?? 0), 0) / filteredProductivityScores.length)
     : 0
 
   // Chart Data

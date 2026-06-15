@@ -161,7 +161,7 @@ export default async function DepartmentDashboard() {
 
   // Avg productivity score
   const avgScore = filteredScores.length > 0
-    ? filteredScores.reduce((sum, s) => sum + (s.productivity_score ?? 0), 0) / filteredScores.length
+    ? Math.round(filteredScores.reduce((sum, s) => sum + (s.productivity_score ?? 0), 0) / filteredScores.length)
     : 0
 
   // ── Render ────────────────────────────────────────────────────────────────
