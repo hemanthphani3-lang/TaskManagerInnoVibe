@@ -29,9 +29,10 @@ interface SidebarProps {
   title: string
   links: { label: string; href: string; iconName: string; badgeCount?: number }[]
   onLogoutClick?: () => void
+  floating?: boolean
 }
 
-export function Sidebar({ title, links, onLogoutClick }: SidebarProps) {
+export function Sidebar({ title, links, onLogoutClick, floating = false }: SidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
   const supabase = createClient()
@@ -127,7 +128,11 @@ export function Sidebar({ title, links, onLogoutClick }: SidebarProps) {
       )}
 
       {/* Sidebar Content */}
-      <aside className={`fixed inset-y-0 left-0 w-64 bg-white border-r border-slate-200 z-50 flex flex-col transition-transform duration-300 ${isOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0 pt-16 md:pt-0`}>
+      <aside className={`fixed inset-y-0 left-0 w-64 bg-white border-r border-slate-200 z-50 flex flex-col transition-transform duration-300 ${isOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0 pt-16 md:pt-0 ${
+        floating 
+          ? 'md:inset-y-4 md:left-4 md:w-60 md:h-[calc(100vh-2rem)] md:rounded-2xl md:border md:border-slate-200/80 md:shadow-sm md:border-r-slate-200/80' 
+          : ''
+      }`}>
         {/* Desktop Logo & Title */}
         <div className="p-6 border-b border-slate-100 hidden md:block">
         <div className="flex items-center gap-3">
@@ -212,6 +217,56 @@ export function Sidebar({ title, links, onLogoutClick }: SidebarProps) {
         </button>
       </div>
     </aside>
+
+    {/* Mobile Bottom Navigation Bar */}
+    <div className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-white border-t border-slate-200 z-40 flex justify-around items-center px-2 shadow-[0_-2px_10px_rgba(0,0,0,0.05)] pb-safe">
+      {[
+        { label: "Dashboard", iconName: "dashboard" },
+        { label: "Tasks", iconName: "tasks" },
+        { label: "Leave", iconName: "calendar" },
+        { label: "Notifications", iconName: "bell", showBadge: true },
+        { label: "Profile", iconName: "profile" }
+      ].map(item => {
+        const matchedLink = links.find(l => l.label.toLowerCase() === item.label.toLowerCase())
+        if (!matchedLink) return null
+        
+        const isActive = pathname === matchedLink.href || pathname.startsWith(`${matchedLink.href}/`)
+        const isLocked = !onboardingCompleted && item.label !== 'Dashboard' && item.label !== 'Profile'
+        const Icon = isLocked ? Lock : (iconMap[item.iconName] || LayoutDashboard)
+        const displayBadgeCount = item.showBadge ? unreadNotifications : 0
+
+        return (
+          <Link
+            key={matchedLink.href}
+            href={isLocked ? "#" : matchedLink.href}
+            onClick={(e) => {
+              if (isLocked) {
+                e.preventDefault()
+                toast.error("Please complete your profile to 70% to unlock this section!")
+                return
+              }
+            }}
+            className={`flex flex-col items-center justify-center flex-1 h-full py-1 text-[10px] font-bold ${
+              isLocked 
+                ? "text-slate-350 cursor-not-allowed opacity-55"
+                : isActive 
+                ? "text-[#0066FF]" 
+                : "text-slate-400 hover:text-slate-600"
+            }`}
+          >
+            <div className="relative">
+              <Icon className={`w-5 h-5 transition-transform duration-200 ${isActive ? "text-[#0066FF] scale-105" : "text-slate-450"}`} />
+              {displayBadgeCount > 0 && !isLocked && (
+                <span className="absolute -top-1 -right-2 bg-red-500 text-white text-[8px] font-black w-4 h-4 rounded-full flex items-center justify-center border border-white">
+                  {displayBadgeCount}
+                </span>
+              )}
+            </div>
+            <span className="mt-1 font-semibold">{item.label}</span>
+          </Link>
+        )
+      })}
+    </div>
     </>
   )
 }

@@ -3,15 +3,7 @@ export const dynamic = 'force-dynamic'
 import { createClient } from "@/lib/supabase/server"
 import { createServiceClient } from "@/lib/supabase/service"
 import { redirect } from "next/navigation"
-import { Clock, Calendar, CheckCircle2, UserCircle2, AlertCircle, Target, FileText, LogOut, Trophy, ShieldAlert, DownloadCloud } from "lucide-react"
-import { AnalyticsCard } from "@/components/dashboard/AnalyticsCard"
-import { RealtimeProductivityCard } from "@/components/dashboard/RealtimeProductivityCard"
-import { ReminderCard } from "@/components/productivity/ReminderCard"
-import { DashboardProfileCompletionCard } from "@/components/dashboard/DashboardProfileCompletionCard"
-import { calculateCompletionPercentage } from "@/lib/onboarding-utils"
-import Link from "next/link"
-import { LogoutReportCard } from "@/components/employee/LogoutReportCard"
-import { RealtimeEmployeeTaskCards } from "@/components/dashboard/RealtimeEmployeeTaskCards"
+import { EmployeeDashboardClient } from "@/components/employee/EmployeeDashboardClient"
 
 export default async function EmployeeDashboard({ params }: { params: Promise<{ emp_no: string }> }) {
   const { emp_no } = await params
@@ -45,7 +37,6 @@ export default async function EmployeeDashboard({ params }: { params: Promise<{ 
   const now = new Date()
   const istOffset = 5.5 * 60 * 60 * 1000
   const todayIST = new Date(now.getTime() + istOffset).toISOString().split('T')[0]
-  const today = todayIST
   const startUTC = new Date(`${todayIST}T00:00:00+05:30`).toISOString()
   const endUTC = new Date(`${todayIST}T23:59:59+05:30`).toISOString()
 
@@ -57,7 +48,7 @@ export default async function EmployeeDashboard({ params }: { params: Promise<{ 
 
   const assignedTaskIds = assigneeRecords?.map(r => r.task_id) || []
 
-  // Execute all independent queries concurrently to drastically reduce page load time
+  // Execute all queries concurrently to optimize page load time
   const [
     { data: attendance },
     { data: logoutRequests },
@@ -66,7 +57,10 @@ export default async function EmployeeDashboard({ params }: { params: Promise<{ 
     { data: rankingData },
     { data: kpiData },
     { data: reminders },
-    { data: todayUserSessions }
+    { data: todayUserSessions },
+    { data: announcementsRaw },
+    { data: userActivities },
+    { data: approvedLeaves }
   ] = await Promise.all([
     supabaseAdmin.from('attendance').select('*').eq('employee_id', user.id).gte('created_at', startUTC).lte('created_at', endUTC).order('created_at', { ascending: false }).limit(1).maybeSingle(),
     supabaseAdmin.from('logout_requests').select('*, work_submissions(work_comment, attachment_url, attachment_type)').eq('employee_id', user.id).order('created_at', { ascending: false }).limit(5),
@@ -77,7 +71,10 @@ export default async function EmployeeDashboard({ params }: { params: Promise<{ 
     supabaseAdmin.from('rankings').select('*').eq('employee_id', user.id).maybeSingle(),
     supabaseAdmin.from('kpi_metrics').select('*').eq('employee_id', user.id).maybeSingle(),
     supabaseAdmin.from('reminders').select('*').eq('employee_id', user.id).eq('reminder_status', 'UNREAD').order('created_at', { ascending: false }),
-    supabaseAdmin.from('work_sessions').select('*').eq('user_id', user.id).gte('login_time', startUTC).lte('login_time', endUTC).order('login_time', { ascending: true })
+    supabaseAdmin.from('work_sessions').select('*').eq('user_id', user.id).gte('login_time', startUTC).lte('login_time', endUTC).order('login_time', { ascending: true }),
+    supabaseAdmin.from('announcements').select('*').order('created_at', { ascending: false }).limit(5),
+    supabaseAdmin.from('activity_feed').select('*').eq('activity_user', user.id).order('created_at', { ascending: false }).limit(5),
+    supabaseAdmin.from('leave_requests').select('*').eq('employee_id', user.id).eq('approval_status', 'APPROVED')
   ])
 
   // Map raw tasks to override overall status with individual assignee status
@@ -95,241 +92,63 @@ export default async function EmployeeDashboard({ params }: { params: Promise<{ 
     t.assigned_to === user.id
   )
 
-  const totalTasks = tasks.length
-  const pendingTasks = tasks.filter(t => ['PENDING', 'ACCEPTED', 'IN_PROGRESS', 'WAITING_APPROVAL'].includes(t.task_status)).length
-  const delayedTasks = tasks.filter(t => t.task_status === 'DELAYED').length
-  const completedTasks = tasks.filter(t => t.task_status === 'COMPLETED').length
-
-  const productivityScore = productivityData?.productivity_score ?? 0
-  const attendanceRate = kpiData?.attendance_rate ?? 0
-  const completionRate = kpiData?.completion_rate ?? 0
-  const employeeRank = rankingData?.rank
-
-  const todaySessions = todayUserSessions || []
-  const sessionsCount = todaySessions.length
-  
-  const firstSession = todaySessions[0]
-  const lastSessionWithLogout = [...todaySessions].reverse().find(s => s.logout_time)
-  
-  const firstLogin = firstSession
-    ? new Date(firstSession.login_time).toLocaleTimeString('en-US', {
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: true,
-        timeZone: 'Asia/Kolkata'
-      })
-    : "—"
-
-  const lastLogout = lastSessionWithLogout
-    ? new Date(lastSessionWithLogout.logout_time).toLocaleTimeString('en-US', {
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: true,
-        timeZone: 'Asia/Kolkata'
-      })
-    : "—"
-
-  const isCheckedIn = todaySessions.some(s => s.status === 'ACTIVE')
+  const isCheckedIn = todayUserSessions?.some(s => s.status === 'ACTIVE') ?? false
   const departmentName = (employee?.departments as { department_name: string } | null)?.department_name || "Unassigned"
-
   const todayRequest = logoutRequests?.find(req => req.attendance_date === todayIST)
-  const isLogoutPending = todayRequest?.approval_status === 'PENDING' || attendance?.work_status === 'LOGOUT_REQUESTED'
 
-  const profileScore = employee ? calculateCompletionPercentage('EMPLOYEE', employee).score : 100
+  // Calculate dynamic leave balances (month-locked, updates to 0 every month)
+  const todayISTDate = new Date(new Date().getTime() + istOffset)
+  const currentMonth = todayISTDate.getMonth()
+  const currentYear = todayISTDate.getFullYear()
+
+  let casualUsed = 0
+  let sickUsed = 0
+  let earnedUsed = 0
+  approvedLeaves?.forEach((leave: any) => {
+    const start = new Date(leave.start_date)
+    const end = new Date(leave.end_date)
+    
+    // Filter leaves starting within the current calendar month
+    if (start.getMonth() === currentMonth && start.getFullYear() === currentYear) {
+      const diffTime = Math.abs(end.getTime() - start.getTime())
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1
+      if (leave.leave_type === 'CASUAL_LEAVE') {
+        casualUsed += diffDays
+      } else if (leave.leave_type === 'SICK_LEAVE') {
+        sickUsed += diffDays
+      } else {
+        earnedUsed += diffDays
+      }
+    }
+  })
+
+  const leaveBalance = {
+    casualUsed,
+    casualMax: 12,
+    sickUsed,
+    sickMax: 12,
+    earnedUsed,
+    earnedMax: 20
+  }
 
   return (
-    <div className="p-8 max-w-7xl mx-auto space-y-8">
-
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
-          <div>
-            <h1 className="text-3xl font-black text-[#0A1A2F] tracking-tight">Welcome back, {employee?.employee_name?.split(' ')[0]}! 👋</h1>
-            <p className="text-slate-500 mt-1 font-medium">Here&apos;s your productivity overview for today.</p>
-          </div>
-          <div className="flex items-center gap-3 bg-white px-4 py-2 rounded-xl border border-slate-100 shadow-sm">
-            <Calendar className="w-5 h-5 text-blue-600" />
-            <span className="font-semibold text-slate-700">
-              {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', timeZone: 'Asia/Kolkata' })}
-            </span>
-          </div>
-        </div>
-
-        {/* Profile Onboarding Completion Compliance Widget */}
-        <div className="mb-8">
-          <DashboardProfileCompletionCard role="EMPLOYEE" profile={employee || {}} />
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
-          {/* Today's Attendance Summary Card */}
-          <div className="col-span-1 bg-white rounded-2xl p-6 border border-slate-100 shadow-sm relative overflow-hidden flex flex-col justify-between min-h-[300px]">
-            <div className="absolute top-0 right-0 w-64 h-64 bg-blue-50 rounded-full blur-3xl -mr-32 -mt-32 opacity-50 pointer-events-none" />
-            
-            <div className="relative z-10 flex flex-col h-full justify-between">
-              <div>
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-base font-bold text-[#0A1A2F]">Today&apos;s Attendance Summary</h3>
-                  <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider flex items-center gap-1.5 ${isCheckedIn ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : 'bg-slate-100 text-slate-650 border border-slate-200'}`}>
-                    <span className={`w-1.5 h-1.5 rounded-full ${isCheckedIn ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`} />
-                    {isCheckedIn ? 'Active' : 'Offline'}
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4 my-2">
-                  <div className="bg-slate-50 rounded-xl p-3 border border-slate-100">
-                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">First Login</p>
-                    <p className="font-mono text-sm font-bold text-slate-700 mt-0.5">{firstLogin}</p>
-                  </div>
-                  <div className="bg-slate-50 rounded-xl p-3 border border-slate-100">
-                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Last Logout</p>
-                    <p className="font-mono text-sm font-bold text-slate-700 mt-0.5">{lastLogout}</p>
-                  </div>
-                </div>
-
-                <div className="bg-slate-50 rounded-xl p-3 border border-slate-100 mt-2 flex items-center justify-between">
-                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Sessions Today</span>
-                  <span className="font-bold text-blue-700 bg-blue-50 px-2.5 py-0.5 rounded-full text-xs border border-blue-100">
-                    {sessionsCount}
-                  </span>
-                </div>
-              </div>
-
-              {/* Today's Sessions Timeline List */}
-              <div className="mt-4 pt-4 border-t border-slate-100">
-                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-2">Today&apos;s Sessions</p>
-                {todaySessions.length === 0 ? (
-                  <p className="text-[11px] text-slate-400 italic">No sessions recorded yet.</p>
-                ) : (
-                  <div className="space-y-1.5 max-h-[100px] overflow-y-auto pr-1 scrollbar-thin">
-                    {todaySessions.map((session, idx) => {
-                      const inTime = new Date(session.login_time).toLocaleTimeString('en-US', {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                        hour12: true,
-                        timeZone: 'Asia/Kolkata'
-                      })
-                      const outTime = session.logout_time
-                        ? new Date(session.logout_time).toLocaleTimeString('en-US', {
-                            hour: '2-digit',
-                            minute: '2-digit',
-                            hour12: true,
-                            timeZone: 'Asia/Kolkata'
-                          })
-                        : "Active"
-
-                      return (
-                        <div key={session.session_id} className="flex items-center justify-between text-[11px] bg-slate-50/50 p-2 rounded-lg border border-slate-100">
-                          <span className="font-medium text-slate-500">Session {idx + 1}</span>
-                          <span className="font-mono font-semibold text-slate-700 flex items-center gap-1">
-                            {inTime} <span className="text-slate-400">→</span> <span className={!session.logout_time ? 'text-emerald-600 font-bold' : ''}>{outTime}</span>
-                          </span>
-                        </div>
-                      )
-                    })}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Productivity Score Card */}
-          <RealtimeProductivityCard 
-            employeeId={user.id}
-            initialProductivityScore={productivityScore}
-            initialAttendanceRate={attendanceRate}
-            initialCompletionRate={completionRate}
-            initialRank={employeeRank}
-          />
-
-          {/* Logout Report Card */}
-          <LogoutReportCard 
-            employeeId={user.id} 
-            departmentId={employee.department_id} 
-            todayRequest={todayRequest}
-            isCheckedIn={isCheckedIn}
-          />
-        </div>
-
-        {/* KPI Stats Row */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-          <RealtimeEmployeeTaskCards />
-          <AnalyticsCard title="Leave Balance" value="12 Days" icon={Calendar} colorClass="text-purple-600" bgClass="bg-purple-50" />
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
-          <div className="col-span-1 lg:col-span-3 space-y-6">
-            {/* Reminders */}
-            <ReminderCard reminders={reminders || []} />
-
-            {/* Pending Tasks */}
-            <div className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm">
-              <div className="flex justify-between items-center mb-6">
-                <h3 className="text-lg font-bold text-[#0A1A2F]">My Pending Tasks</h3>
-                <Link href="/employee/tasks" className="text-sm font-semibold text-[#0066FF] hover:underline">View All</Link>
-              </div>
-              
-              <div className="space-y-3">
-                {(tasks || []).filter(t => ['PENDING', 'ACCEPTED', 'IN_PROGRESS', 'WAITING_APPROVAL'].includes(t.task_status)).slice(0, 5).map(task => (
-                  <div key={task.id} className="p-4 rounded-xl border border-slate-100 bg-slate-50 flex items-center justify-between hover:border-blue-200 hover:bg-blue-50/50 transition-colors">
-                    <div className="flex items-center gap-3">
-                      <div className={`p-2 rounded-lg ${task.priority_level === 'CRITICAL' ? 'bg-red-100 text-red-600' : task.priority_level === 'HIGH' ? 'bg-orange-100 text-orange-600' : 'bg-blue-100 text-blue-600'}`}>
-                        <Target className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <p className="font-semibold text-slate-900">{task.task_title}</p>
-                        <p className="text-xs font-medium text-slate-500">Due: {new Date(task.due_date).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })}</p>
-                      </div>
-                    </div>
-                    <span className="text-[10px] uppercase font-bold tracking-wider px-3 py-1 rounded-full bg-slate-200 text-slate-700">
-                      {task.task_status.replace(/_/g, ' ')}
-                    </span>
-                  </div>
-                ))}
-                {pendingTasks === 0 && (
-                  <p className="text-slate-500 text-center py-6 text-sm">No pending tasks! Great job.</p>
-                )}
-              </div>
-            </div>
-
-            {/* Work Submission History */}
-            <div className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm">
-              <h3 className="text-lg font-bold text-[#0A1A2F] mb-6">Uploaded Work History</h3>
-              <div className="space-y-4">
-                {logoutRequests && logoutRequests.length > 0 ? (
-                  logoutRequests.map(request => {
-                    const submission = (request as any).work_submissions?.[0]
-                    return (
-                      <div key={request.id} className="flex items-start gap-4 p-4 bg-slate-50 rounded-xl border border-slate-100">
-                        <div className="p-2 bg-blue-100 text-blue-600 rounded-lg shrink-0">
-                          <FileText className="w-5 h-5" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex justify-between items-start flex-wrap gap-2">
-                            <p className="font-semibold text-slate-900">
-                              {request.attendance_date === today ? "Today's Submission" : new Date(request.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'Asia/Kolkata' })}
-                            </p>
-                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase ${request.approval_status === 'APPROVED' ? 'bg-emerald-100 text-emerald-700' : request.approval_status === 'REJECTED' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
-                              {request.approval_status}
-                            </span>
-                          </div>
-                          <p className="text-sm text-slate-600 mt-1.5 leading-relaxed">
-                            {submission?.work_comment || <span className="italic text-slate-400">No report description provided.</span>}
-                          </p>
-                          {submission?.attachment_url && (
-                            <a href={submission.attachment_url} target="_blank" rel="noreferrer" className="text-xs font-bold text-[#0066FF] hover:underline mt-2 inline-flex items-center gap-1">
-                              <DownloadCloud className="w-3.5 h-3.5" />
-                              View Attached Deliverable
-                            </a>
-                          )}
-                        </div>
-                      </div>
-                    )
-                  })
-                ) : (
-                  <p className="text-slate-500 text-center py-6 text-sm">No work submitted yet.</p>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+    <EmployeeDashboardClient
+      employee={employee}
+      departmentName={departmentName}
+      attendance={attendance}
+      logoutRequests={logoutRequests || []}
+      tasks={tasks}
+      productivityData={productivityData}
+      rankingData={rankingData}
+      kpiData={kpiData}
+      reminders={reminders || []}
+      todayUserSessions={todayUserSessions || []}
+      isCheckedIn={isCheckedIn}
+      todayRequest={todayRequest}
+      announcements={announcementsRaw || []}
+      userActivities={userActivities || []}
+      leaveBalance={leaveBalance}
+      currentUserId={user.id}
+    />
   )
 }
