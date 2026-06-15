@@ -216,18 +216,37 @@ export function TaskWorkspaceDashboard({
 
   const todayStr = new Date().toISOString().split('T')[0]
 
-  // Use realtime task counts from TaskCountsContext
+  // Use realtime task counts from TaskCountsContext for global metrics
   const { 
-    total: totalCount, 
-    assignedToMe: assignedToMeCount, 
-    assignedByMe: assignedByMeCount, 
-    pending: pendingCount, 
-    completed: completedCount,
-    overdue: overdueCount,
-    highPriority: highPriorityCount
+    total: dbTotalCount, 
+    assignedToMe: dbAssignedToMeCount, 
+    assignedByMe: dbAssignedByMeCount, 
+    pending: dbPendingCount, 
+    completed: dbCompletedCount,
   } = useTaskCounts();
-  const pendingActionsCount = pendingCount;
+
   const safeTasks = tasks?.filter(Boolean) ?? [];
+
+  // Local workspace counts calculated client-side for absolute reliability in tabs
+  const assignedToMeCount = safeTasks.filter(t => (t as any).assignee_ids?.includes(currentUserId) || t.assigned_to === currentUserId).length;
+  const assignedByMeCount = safeTasks.filter(t => t.created_by === currentUserId).length;
+  const pendingActionsCount = safeTasks.filter(t => {
+    const status = getTaskStatus(t);
+    const isUserAssignee = (t as any).assignee_ids?.includes(currentUserId) || t.assigned_to === currentUserId;
+    return (status === 'PENDING' && isUserAssignee) ||
+           (t.clarification_text && t.created_by === currentUserId && status === 'PENDING');
+  }).length;
+  const overdueCount = safeTasks.filter(t => {
+    const status = getTaskStatus(t);
+    const tDueDate = t.deadline || t.due_date || "";
+    return status !== 'COMPLETED' && tDueDate < todayStr;
+  }).length;
+  const completedCount = safeTasks.filter(t => getTaskStatus(t) === 'COMPLETED').length;
+  const highPriorityCount = safeTasks.filter(t => {
+    const priority = getTaskPriority(t);
+    return priority === 'HIGH' || priority === 'CRITICAL';
+  }).length;
+  const totalCount = safeTasks.length;
   const filteredTasks = safeTasks.filter(t => {
     // Guard against null task objects
     if (!t) return false;
@@ -311,7 +330,7 @@ export function TaskWorkspaceDashboard({
             <div>
               <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest block">Total Tasks</span>
               <h4 className="text-2xl font-black text-slate-900 dark:text-white">
-                <AnimatedCounter value={totalCount} />
+                <AnimatedCounter value={dbTotalCount} />
               </h4>
             </div>
           </InteractiveCard>
@@ -323,7 +342,7 @@ export function TaskWorkspaceDashboard({
             <div>
               <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest block">Assigned To Me</span>
               <h4 className="text-2xl font-black text-slate-900 dark:text-white">
-                <AnimatedCounter value={assignedToMeCount} />
+                <AnimatedCounter value={dbAssignedToMeCount} />
               </h4>
             </div>
           </InteractiveCard>
@@ -335,7 +354,7 @@ export function TaskWorkspaceDashboard({
             <div>
               <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest block">Assigned By Me</span>
               <h4 className="text-2xl font-black text-slate-900 dark:text-white">
-                <AnimatedCounter value={assignedByMeCount} />
+                <AnimatedCounter value={dbAssignedByMeCount} />
               </h4>
             </div>
           </InteractiveCard>
@@ -347,7 +366,7 @@ export function TaskWorkspaceDashboard({
             <div>
               <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest block">Pending Tasks</span>
               <h4 className="text-2xl font-black text-slate-900 dark:text-white">
-                <AnimatedCounter value={pendingCount} />
+                <AnimatedCounter value={dbPendingCount} />
               </h4>
             </div>
           </InteractiveCard>
@@ -359,7 +378,7 @@ export function TaskWorkspaceDashboard({
             <div>
               <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest block">Completed Tasks</span>
               <h4 className="text-2xl font-black text-slate-900 dark:text-white">
-                <AnimatedCounter value={completedCount} />
+                <AnimatedCounter value={dbCompletedCount} />
               </h4>
             </div>
           </InteractiveCard>
@@ -448,7 +467,7 @@ export function TaskWorkspaceDashboard({
                 { id: "assigned_by_me", label: "Assigned By Me", count: assignedByMeCount },
                 { id: "pending_actions", label: "Pending Actions", count: pendingActionsCount, alert: pendingActionsCount > 0 },
                 { id: "overdue", label: "Overdue Timeline", count: overdueCount, alert: overdueCount > 0 },
-                { id: "completed", label: "Achievements", count: tasks.filter(t => getTaskStatus(t) === 'COMPLETED').length },
+                { id: "completed", label: "Achievements", count: completedCount },
                 { id: "high_priority", label: "High Priority", count: highPriorityCount },
                 { id: "all", label: "Global Scope", count: totalCount }
               ].map(tab => (

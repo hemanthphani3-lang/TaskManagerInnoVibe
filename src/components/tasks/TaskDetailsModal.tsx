@@ -118,9 +118,15 @@ export function TaskDetailsModal({
           table: 'tasks',
           filter: `id=eq.${taskId}`
         },
-        () => {
-          console.log("[Realtime] Task updated, reloading details...")
-          loadTaskDetails()
+        (payload: any) => {
+          if (payload.eventType === 'DELETE') {
+            console.log("[Realtime] Task deleted, closing modal...")
+            toast.info("This task has been deleted.")
+            onClose()
+          } else {
+            console.log("[Realtime] Task updated, reloading details...")
+            loadTaskDetails()
+          }
         }
       )
       .on(
