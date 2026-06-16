@@ -560,16 +560,7 @@ export function AdminDashboardClient({
 
         {/* Header Right Interactions */}
         <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
-          {/* Search bar */}
-          <div className="relative flex-1 sm:flex-none">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              placeholder="Search anything..."
-              className="bg-slate-50 border border-slate-200 focus:border-[#0066FF] rounded-xl pl-9 pr-8 py-2 text-xs w-full sm:w-48 outline-none text-slate-700"
-            />
-            <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 font-bold bg-white px-1.5 py-0.5 border border-slate-200 rounded">⌘K</span>
-          </div>
+
 
           {/* Date Picker Display */}
           <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-600">
