@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
+import Link from "next/link"
+import { createClient } from "@/lib/supabase/client"
 import { 
   Clock, 
   Calendar as CalendarIcon, 
@@ -100,6 +102,46 @@ export function EmployeeDashboardClient({
     }
     window.addEventListener("keydown", handleKeyDown)
     return () => window.removeEventListener("keydown", handleKeyDown)
+  }, [])
+
+  // Unread Notifications Count
+  const [unreadNotifications, setUnreadNotifications] = useState(0)
+  useEffect(() => {
+    const supabase = createClient()
+    let channel: any
+    let isMounted = true
+
+    const setup = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user || !isMounted) return
+
+      const { count } = await supabase
+        .from('notifications')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id)
+        .eq('is_read', false)
+      if (!isMounted) return
+      if (count !== null) setUnreadNotifications(count)
+
+      channel = supabase
+        .channel(`emp_dash_notifs_${user.id}_${Math.random().toString(36).substring(7)}`)
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${user.id}` },
+          () => setUnreadNotifications(prev => prev + 1)
+        )
+        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'notifications', filter: `user_id=eq.${user.id}` },
+          (payload) => {
+            if (payload.new.is_read && !payload.old.is_read) setUnreadNotifications(prev => Math.max(0, prev - 1))
+            else if (!payload.new.is_read && payload.old.is_read) setUnreadNotifications(prev => prev + 1)
+          }
+        )
+        .subscribe()
+    }
+
+    setup()
+    return () => {
+      isMounted = false
+      if (channel) supabase.removeChannel(channel)
+    }
   }, [])
 
   // Parse stats
@@ -251,12 +293,14 @@ export function EmployeeDashboardClient({
 
         <div className="flex items-center gap-4 justify-end md:pr-2">
           {/* Notifications Bell */}
-          <div className="relative shrink-0 cursor-pointer p-1.5 rounded-xl hover:bg-slate-100 transition-colors">
+          <Link href="/employee/notifications" className="relative shrink-0 cursor-pointer p-1.5 rounded-xl hover:bg-slate-100 transition-colors">
             <Bell className="w-5 h-5 text-slate-500" />
-            <span className="absolute -top-0.5 -right-0.5 bg-red-500 w-4 h-4 rounded-full flex items-center justify-center text-[9px] text-white font-bold border-2 border-[#F8FAFC]">
-              3
-            </span>
-          </div>
+            {unreadNotifications > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 bg-red-500 w-4 h-4 rounded-full flex items-center justify-center text-[9px] text-white font-bold border-2 border-[#F8FAFC]">
+                {unreadNotifications > 99 ? '99+' : unreadNotifications}
+              </span>
+            )}
+          </Link>
 
           {/* Profile Avatar */}
           <div 

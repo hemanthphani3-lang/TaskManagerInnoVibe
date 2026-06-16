@@ -8,6 +8,7 @@ import {
   ClipboardList, UserCheck, ShieldAlert, Trophy, Medal, Award, Settings
 } from "lucide-react"
 import Link from "next/link"
+import { createClient } from "@/lib/supabase/client"
 import { 
   AreaChart, Area, LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer 
@@ -111,6 +112,46 @@ export function AdminDashboardClient({
 
   // Live System Status State
   const [systemStatus, setSystemStatus] = useState<"System Online" | "Partial Outage" | "Maintenance" | "Offline">("System Online")
+
+  // Unread Notifications Count
+  const [unreadNotifications, setUnreadNotifications] = useState(0)
+  useEffect(() => {
+    const supabase = createClient()
+    let channel: any
+    let isMounted = true
+
+    const setup = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user || !isMounted) return
+
+      const { count } = await supabase
+        .from('notifications')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id)
+        .eq('is_read', false)
+      if (!isMounted) return
+      if (count !== null) setUnreadNotifications(count)
+
+      channel = supabase
+        .channel(`admin_dash_notifs_${user.id}_${Math.random().toString(36).substring(7)}`)
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${user.id}` },
+          () => setUnreadNotifications(prev => prev + 1)
+        )
+        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'notifications', filter: `user_id=eq.${user.id}` },
+          (payload) => {
+            if (payload.new.is_read && !payload.old.is_read) setUnreadNotifications(prev => Math.max(0, prev - 1))
+            else if (!payload.new.is_read && payload.old.is_read) setUnreadNotifications(prev => prev + 1)
+          }
+        )
+        .subscribe()
+    }
+
+    setup()
+    return () => {
+      isMounted = false
+      if (channel) supabase.removeChannel(channel)
+    }
+  }, [])
 
   // Date formatted today
   const formattedTodayDate = useMemo(() => {
@@ -571,7 +612,11 @@ export function AdminDashboardClient({
           {/* Notifications badge */}
           <Link href="/admin/notifications" className="relative p-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-slate-500 hover:text-[#0066FF] transition-all">
             <Bell className="w-4 h-4" />
-            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[8px] font-black w-4 h-4 rounded-full flex items-center justify-center border border-white">28</span>
+            {unreadNotifications > 0 && (
+              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[8px] font-black w-4 h-4 rounded-full flex items-center justify-center border border-white">
+                {unreadNotifications > 99 ? '99+' : unreadNotifications}
+              </span>
+            )}
           </Link>
 
           {/* Live system status click toggler */}

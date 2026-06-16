@@ -7,6 +7,7 @@ import {
   TrendingUp, TrendingDown, Bell, LogOut, Award, Trophy, Shield
 } from "lucide-react"
 import Link from "next/link"
+import { createClient } from "@/lib/supabase/client"
 import { 
   AreaChart, Area, LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer 
@@ -102,6 +103,46 @@ export function DepartmentDashboardClient({
   const [isMounted, setIsMounted] = useState(false)
   useEffect(() => {
     setIsMounted(true)
+  }, [])
+
+  // Unread Notifications Count
+  const [unreadNotifications, setUnreadNotifications] = useState(0)
+  useEffect(() => {
+    const supabase = createClient()
+    let channel: any
+    let isMounted = true
+
+    const setup = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user || !isMounted) return
+
+      const { count } = await supabase
+        .from('notifications')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id)
+        .eq('is_read', false)
+      if (!isMounted) return
+      if (count !== null) setUnreadNotifications(count)
+
+      channel = supabase
+        .channel(`dept_dash_notifs_${user.id}_${Math.random().toString(36).substring(7)}`)
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${user.id}` },
+          () => setUnreadNotifications(prev => prev + 1)
+        )
+        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'notifications', filter: `user_id=eq.${user.id}` },
+          (payload) => {
+            if (payload.new.is_read && !payload.old.is_read) setUnreadNotifications(prev => Math.max(0, prev - 1))
+            else if (!payload.new.is_read && payload.old.is_read) setUnreadNotifications(prev => prev + 1)
+          }
+        )
+        .subscribe()
+    }
+
+    setup()
+    return () => {
+      isMounted = false
+      if (channel) supabase.removeChannel(channel)
+    }
   }, [])
 
   // Filters State
@@ -592,6 +633,15 @@ export function DepartmentDashboardClient({
             <Calendar className="w-3.5 h-3.5 text-slate-400" />
             <span>{formattedDate}</span>
           </div>
+          {/* Notifications Bell */}
+          <Link href="/department/notifications" className="relative p-2 bg-white hover:bg-slate-100 border border-slate-200/80 rounded-lg shadow-xs text-slate-500 hover:text-[#0066FF] transition-all">
+            <Bell className="w-4 h-4" />
+            {unreadNotifications > 0 && (
+              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[8px] font-black w-4 h-4 rounded-full flex items-center justify-center border border-white">
+                {unreadNotifications > 99 ? '99+' : unreadNotifications}
+              </span>
+            )}
+          </Link>
           {/* Live Indicator */}
           <div className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-700 font-semibold rounded-full border border-emerald-100 text-xs shadow-xs">
             <span className="relative flex h-1.5 w-1.5">
