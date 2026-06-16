@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Card } from '@/components/ui/card'
-import { Download, Loader2, AlertCircle } from 'lucide-react'
+import { Download, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import * as XLSX from 'xlsx'
 import { jsPDF } from 'jspdf'
@@ -38,6 +38,7 @@ export function ReportExportModal({ role, departmentId, employeeId }: ReportExpo
   const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<string[]>([])
   const [selectedDepartmentId, setSelectedDepartmentId] = useState<string>('')
   const [assignmentType, setAssignmentType] = useState<string>('ALL')
+  const [employeeSearchQuery, setEmployeeSearchQuery] = useState<string>('')
 
   const supabase = createClient()
 
@@ -52,22 +53,38 @@ export function ReportExportModal({ role, departmentId, employeeId }: ReportExpo
 
         if (role === 'ADMIN') {
           const [deptsRes, empsRes] = await Promise.all([
-            supabase.from('departments').select('id, department_name').order('department_name'),
-            supabase.from('employees').select('id, full_name, email, department_id, designation').order('full_name')
+            supabase.from('departments').select('id, department_name').eq('status', 'ACTIVE').order('department_name'),
+            supabase.from('employees').select('id, employee_name, employee_email, department_id, designation').eq('account_status', 'ACTIVE').order('employee_name')
           ])
           if (isMounted) {
             setDepartmentsList(deptsRes.data || [])
-            setEmployeesList(empsRes.data || [])
+            setEmployeesList((empsRes.data || [])
+              .filter(emp => emp.employee_name && emp.employee_name.trim() !== '' && emp.employee_name.trim() !== '-')
+              .map(emp => ({
+                id: emp.id,
+                full_name: emp.employee_name,
+                email: emp.employee_email,
+                department_id: emp.department_id,
+                designation: emp.designation
+              })))
           }
         } else if (role === 'DEPARTMENT') {
           const activeDeptId = departmentId || user.id
           const [deptsRes, empsRes] = await Promise.all([
-            supabase.from('departments').select('id, department_name').eq('id', activeDeptId).maybeSingle(),
-            supabase.from('employees').select('id, full_name, email, department_id, designation').eq('department_id', activeDeptId).order('full_name')
+            supabase.from('departments').select('id, department_name').eq('id', activeDeptId).eq('status', 'ACTIVE').maybeSingle(),
+            supabase.from('employees').select('id, employee_name, employee_email, department_id, designation').eq('department_id', activeDeptId).eq('account_status', 'ACTIVE').order('employee_name')
           ])
           if (isMounted) {
             if (deptsRes.data) setDepartmentsList([deptsRes.data])
-            setEmployeesList(empsRes.data || [])
+            setEmployeesList((empsRes.data || [])
+              .filter(emp => emp.employee_name && emp.employee_name.trim() !== '' && emp.employee_name.trim() !== '-' && emp.designation !== 'Department Head')
+              .map(emp => ({
+                id: emp.id,
+                full_name: emp.employee_name,
+                email: emp.employee_email,
+                department_id: emp.department_id,
+                designation: emp.designation
+              })))
           }
         }
       } catch (err) {
@@ -88,6 +105,7 @@ export function ReportExportModal({ role, departmentId, employeeId }: ReportExpo
     setSelectedEmployeeIds([])
     setSelectedDepartmentId('')
     setValidationError('')
+    setEmployeeSearchQuery('')
 
     if (type === 'ATTENDANCE') {
       setEmployeeSelectType(role === 'ADMIN' ? 'ALL' : role === 'DEPARTMENT' ? 'ME' : 'ME')
@@ -95,8 +113,23 @@ export function ReportExportModal({ role, departmentId, employeeId }: ReportExpo
       setEmployeeSelectType(role === 'ADMIN' ? 'ALL' : role === 'DEPARTMENT' ? 'ALL' : 'ME')
     } else if (type === 'TASKS') {
       setAssignmentType('ALL')
+      setEmployeeSelectType('ALL')
     }
   }, [type, role])
+
+  // Reset selection type when assignment type changes under Tasks
+  useEffect(() => {
+    if (type === 'TASKS') {
+      setSelectedEmployeeIds([])
+      setSelectedDepartmentId('')
+      setEmployeeSearchQuery('')
+      if (assignmentType === 'EMP') {
+        setEmployeeSelectType('SINGLE')
+      } else {
+        setEmployeeSelectType('ALL')
+      }
+    }
+  }, [assignmentType, type])
 
   const validateSelection = (): boolean => {
     if (dateRange === 'CUSTOM') {
@@ -116,7 +149,7 @@ export function ReportExportModal({ role, departmentId, employeeId }: ReportExpo
 
     // Role-based validations
     if (role === 'ADMIN' || role === 'DEPARTMENT') {
-      if (type === 'ATTENDANCE' || type === 'PRODUCTIVITY') {
+      if (type === 'ATTENDANCE' || type === 'PRODUCTIVITY' || (type === 'TASKS' && assignmentType === 'EMP')) {
         if (employeeSelectType === 'SINGLE' && selectedEmployeeIds.length === 0) {
           toast.error("Please select an employee.")
           return false
@@ -134,10 +167,6 @@ export function ReportExportModal({ role, departmentId, employeeId }: ReportExpo
       if (type === 'TASKS') {
         if (assignmentType === 'DEPT' && !selectedDepartmentId) {
           toast.error("Please select a department.")
-          return false
-        }
-        if (assignmentType === 'EMP' && selectedEmployeeIds.length === 0) {
-          toast.error("Please select an employee.")
           return false
         }
       }
@@ -187,16 +216,16 @@ export function ReportExportModal({ role, departmentId, employeeId }: ReportExpo
         if (dept) generatorName = dept.department_name
         generatorRole = 'Department Head'
       } else {
-        const { data: emp } = await supabase.from('employees').select('full_name').eq('id', employeeId || currentUser.id).maybeSingle()
-        if (emp) generatorName = emp.full_name
+        const { data: emp } = await supabase.from('employees').select('employee_name').eq('id', employeeId || currentUser.id).maybeSingle()
+        if (emp) generatorName = emp.employee_name
         generatorRole = 'Employee'
       }
 
-      // Fetch users mapping cache
+      // Fetch users mapping cache (Active only)
       const [adminsRes, deptsRes, empsRes] = await Promise.all([
         supabase.from('admins').select('id, full_name'),
-        supabase.from('departments').select('id, department_name'),
-        supabase.from('employees').select('id, full_name, designation, department_id, employee_code')
+        supabase.from('departments').select('id, department_name').eq('status', 'ACTIVE'),
+        supabase.from('employees').select('id, employee_name, designation, department_id, employee_code').eq('account_status', 'ACTIVE')
       ])
 
       const userNamesMap: Record<string, string> = {}
@@ -207,7 +236,7 @@ export function ReportExportModal({ role, departmentId, employeeId }: ReportExpo
       adminsRes.data?.forEach(a => { userNamesMap[a.id] = a.full_name })
       deptsRes.data?.forEach(d => { userNamesMap[d.id] = d.department_name })
       empsRes.data?.forEach(e => {
-        userNamesMap[e.id] = e.full_name
+        userNamesMap[e.id] = e.employee_name
         userCodeMap[e.id] = e.employee_code || '-'
         userDesignationMap[e.id] = e.designation || '-'
         const d = deptsRes.data?.find(dept => dept.id === e.department_id)
@@ -431,6 +460,8 @@ export function ReportExportModal({ role, departmentId, employeeId }: ReportExpo
             query = query.eq('created_by', currentUser.id)
           } else if (assignmentType === 'TO_ME') {
             query = query.eq('assigned_employee_id', currentUser.id)
+          } else if (assignmentType === 'EMP') {
+            query = query.in('assigned_employee_id', targetUserIds)
           } else {
             // Entire department tasks
             query = query.eq('department_id', departmentId || currentUser.id)
@@ -444,7 +475,7 @@ export function ReportExportModal({ role, departmentId, employeeId }: ReportExpo
           } else if (assignmentType === 'DEPT') {
             query = query.eq('department_id', selectedDepartmentId)
           } else if (assignmentType === 'EMP') {
-            query = query.eq('assigned_employee_id', selectedEmployeeIds[0])
+            query = query.in('assigned_employee_id', targetUserIds)
           }
         }
 
@@ -581,6 +612,12 @@ export function ReportExportModal({ role, departmentId, employeeId }: ReportExpo
     (dateRange === 'CUSTOM' && (!startDate || !endDate || !!validationError)) ||
     (dateRange === 'SPECIFIC' && !startDate)
 
+  // Filter list of employees based on search query
+  const filteredEmployeesList = employeesList.filter(e => 
+    e.full_name.toLowerCase().includes(employeeSearchQuery.toLowerCase()) ||
+    e.designation.toLowerCase().includes(employeeSearchQuery.toLowerCase())
+  )
+
   return (
     <Card className="p-6 bg-white border-slate-200 shadow-sm rounded-3xl dark:bg-slate-900 dark:border-slate-800">
       <div className="space-y-6">
@@ -657,167 +694,220 @@ export function ReportExportModal({ role, departmentId, employeeId }: ReportExpo
             <h4 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider">Dynamic Context Filters</h4>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               
-              {/* Attendance & Productivity Filter Types */}
-              {(type === 'ATTENDANCE' || type === 'PRODUCTIVITY') && (
-                <>
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Employee Selection Type</label>
-                    <select
-                      value={employeeSelectType}
-                      disabled={isOptionsLoading}
-                      onChange={(e) => {
-                        setEmployeeSelectType(e.target.value)
-                        setSelectedEmployeeIds([])
-                        setSelectedDepartmentId('')
-                      }}
-                      className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-950 dark:text-white outline-none focus:bg-white focus:ring-2 focus:ring-[#0066FF]/20 transition-all text-sm font-semibold"
-                    >
-                      {role === 'ADMIN' ? (
-                        <>
-                          <option value="ALL">Entire Organization</option>
-                          <option value="DEPT">Department Filter</option>
-                          <option value="SINGLE">Single Employee</option>
-                          <option value="MULTIPLE">Multiple Employees</option>
-                        </>
-                      ) : (
-                        <>
-                          {type === 'ATTENDANCE' && <option value="ME">My Attendance</option>}
-                          <option value="ALL">Entire Department</option>
-                          <option value="SINGLE">Single Employee</option>
-                          <option value="MULTIPLE">Multiple Employees</option>
-                        </>
-                      )}
-                    </select>
-                  </div>
-
-                  {/* Dynamic select values */}
-                  {employeeSelectType === 'DEPT' && role === 'ADMIN' && (
-                    <div className="space-y-1">
-                      <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Select Department</label>
-                      <select
-                        value={selectedDepartmentId}
-                        onChange={(e) => setSelectedDepartmentId(e.target.value)}
-                        className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-950 dark:text-white outline-none focus:bg-white focus:ring-2 focus:ring-[#0066FF]/20 transition-all text-sm font-semibold"
-                      >
-                        <option value="">-- Choose Department --</option>
-                        {departmentsList.map(d => (
-                          <option key={d.id} value={d.id}>{d.department_name}</option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
-
-                  {employeeSelectType === 'SINGLE' && (
-                    <div className="space-y-1">
-                      <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Select Employee</label>
-                      <select
-                        value={selectedEmployeeIds[0] || ''}
-                        onChange={(e) => setSelectedEmployeeIds(e.target.value ? [e.target.value] : [])}
-                        className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-950 dark:text-white outline-none focus:bg-white focus:ring-2 focus:ring-[#0066FF]/20 transition-all text-sm font-semibold"
-                      >
-                        <option value="">-- Choose Employee --</option>
-                        {employeesList.map(e => (
-                          <option key={e.id} value={e.id}>{e.full_name} ({e.designation})</option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
-
-                  {employeeSelectType === 'MULTIPLE' && (
-                    <div className="space-y-2 col-span-2">
-                      <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Select Employees</label>
-                      <div className="border border-slate-200 dark:border-slate-700 rounded-xl p-4 max-h-48 overflow-y-auto bg-slate-50 dark:bg-slate-800 grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        {employeesList.map(e => {
-                          const isChecked = selectedEmployeeIds.includes(e.id)
-                          return (
-                            <label key={e.id} className="flex items-center gap-2.5 p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-750 cursor-pointer select-none text-sm font-medium text-slate-800 dark:text-slate-200 transition-colors">
-                              <input
-                                type="checkbox"
-                                checked={isChecked}
-                                onChange={() => {
-                                  if (isChecked) {
-                                    setSelectedEmployeeIds(prev => prev.filter(id => id !== e.id))
-                                  } else {
-                                    setSelectedEmployeeIds(prev => [...prev, e.id])
-                                  }
-                                }}
-                                className="rounded text-[#0066FF] focus:ring-[#0066FF] border-slate-300 w-4 h-4 cursor-pointer"
-                              />
-                              <span>{e.full_name} <span className="text-xs text-slate-400 font-normal">({e.designation})</span></span>
-                            </label>
-                          )
-                        })}
-                      </div>
-                    </div>
-                  )}
-                </>
+              {/* Tasks Assignment Categories */}
+              {type === 'TASKS' && (
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Assignment Category</label>
+                  <select
+                    value={assignmentType}
+                    disabled={isOptionsLoading}
+                    onChange={(e) => {
+                      setAssignmentType(e.target.value)
+                    }}
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-950 dark:text-white outline-none focus:bg-white focus:ring-2 focus:ring-[#0066FF]/20 transition-all text-sm font-semibold"
+                  >
+                    {role === 'ADMIN' ? (
+                      <>
+                        <option value="ALL">Tasks Across Organization</option>
+                        <option value="BY_ME">Tasks Assigned By Me</option>
+                        <option value="TO_ME">Tasks Assigned To Me</option>
+                        <option value="DEPT">Tasks By Department</option>
+                        <option value="EMP">Tasks By Employee(s)</option>
+                      </>
+                    ) : (
+                      <>
+                        <option value="ALL">Department Tasks</option>
+                        <option value="BY_ME">Tasks Assigned By Me</option>
+                        <option value="TO_ME">Tasks Assigned To Me</option>
+                        <option value="EMP">Tasks By Employee(s)</option>
+                      </>
+                    )}
+                  </select>
+                </div>
               )}
 
-              {/* Tasks Selector Type */}
-              {type === 'TASKS' && (
-                <>
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Assignment Category</label>
-                    <select
-                      value={assignmentType}
-                      disabled={isOptionsLoading}
-                      onChange={(e) => {
-                        setAssignmentType(e.target.value)
-                        setSelectedEmployeeIds([])
-                        setSelectedDepartmentId('')
-                      }}
-                      className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-950 dark:text-white outline-none focus:bg-white focus:ring-2 focus:ring-[#0066FF]/20 transition-all text-sm font-semibold"
-                    >
-                      {role === 'ADMIN' ? (
-                        <>
-                          <option value="ALL">Tasks Across Organization</option>
-                          <option value="BY_ME">Tasks Assigned By Me</option>
-                          <option value="TO_ME">Tasks Assigned To Me</option>
-                          <option value="DEPT">Tasks By Department</option>
-                          <option value="EMP">Tasks By Employee</option>
-                        </>
-                      ) : (
-                        <>
-                          <option value="DEPT">Department Tasks</option>
-                          <option value="BY_ME">Tasks Assigned By Me</option>
-                          <option value="TO_ME">Tasks Assigned To Me</option>
-                        </>
-                      )}
-                    </select>
+              {/* Attendance & Productivity Selection Type (or Tasks by Employee Category) */}
+              {(type === 'ATTENDANCE' || type === 'PRODUCTIVITY' || (type === 'TASKS' && assignmentType === 'EMP')) && (
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Employee Selection Type</label>
+                  <select
+                    value={employeeSelectType}
+                    disabled={isOptionsLoading}
+                    onChange={(e) => {
+                      setEmployeeSelectType(e.target.value)
+                      setSelectedEmployeeIds([])
+                      setSelectedDepartmentId('')
+                    }}
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-950 dark:text-white outline-none focus:bg-white focus:ring-2 focus:ring-[#0066FF]/20 transition-all text-sm font-semibold"
+                  >
+                    {role === 'ADMIN' ? (
+                      <>
+                        <option value="ALL">Entire Organization</option>
+                        {type !== 'TASKS' && <option value="DEPT">Department Filter</option>}
+                        <option value="SINGLE">Single Employee</option>
+                        <option value="MULTIPLE">Multiple Employees</option>
+                      </>
+                    ) : (
+                      <>
+                        {type === 'ATTENDANCE' && assignmentType !== 'EMP' && <option value="ME">My Attendance</option>}
+                        <option value="ALL">Entire Department</option>
+                        <option value="SINGLE">Single Employee</option>
+                        <option value="MULTIPLE">Multiple Employees</option>
+                      </>
+                    )}
+                  </select>
+                </div>
+              )}
+
+              {/* Department Selector for Admin Filter */}
+              {employeeSelectType === 'DEPT' && role === 'ADMIN' && type !== 'TASKS' && (
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Select Department</label>
+                  <select
+                    value={selectedDepartmentId}
+                    onChange={(e) => setSelectedDepartmentId(e.target.value)}
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-950 dark:text-white outline-none focus:bg-white focus:ring-2 focus:ring-[#0066FF]/20 transition-all text-sm font-semibold"
+                  >
+                    <option value="">-- Choose Department --</option>
+                    {departmentsList.map(d => (
+                      <option key={d.id} value={d.id}>{d.department_name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Department Selector for Tasks By Department (Admin only) */}
+              {type === 'TASKS' && assignmentType === 'DEPT' && role === 'ADMIN' && (
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Select Department</label>
+                  <select
+                    value={selectedDepartmentId}
+                    onChange={(e) => setSelectedDepartmentId(e.target.value)}
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-950 dark:text-white outline-none focus:bg-white focus:ring-2 focus:ring-[#0066FF]/20 transition-all text-sm font-semibold"
+                  >
+                    <option value="">-- Choose Department --</option>
+                    {departmentsList.map(d => (
+                      <option key={d.id} value={d.id}>{d.department_name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Single Employee Selector */}
+              {employeeSelectType === 'SINGLE' && (
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Select Employee</label>
+                  <select
+                    value={selectedEmployeeIds[0] || ''}
+                    onChange={(e) => setSelectedEmployeeIds(e.target.value ? [e.target.value] : [])}
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-950 dark:text-white outline-none focus:bg-white focus:ring-2 focus:ring-[#0066FF]/20 transition-all text-sm font-semibold"
+                  >
+                    <option value="">-- Choose Employee --</option>
+                    {employeesList.map(e => (
+                      <option key={e.id} value={e.id}>{e.full_name} ({e.designation})</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Multiple Employees Selector (Issue 2 Search, select all, clear all, chips/tags system) */}
+              {employeeSelectType === 'MULTIPLE' && (
+                <div className="space-y-3 col-span-2">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Select Employees</label>
+                    <div className="flex gap-3 text-xs font-bold">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const allFilteredIds = filteredEmployeesList.map(e => e.id)
+                          setSelectedEmployeeIds(prev => Array.from(new Set([...prev, ...allFilteredIds])))
+                        }}
+                        className="text-[#0066FF] hover:underline focus:outline-none"
+                      >
+                        Select All Filtered
+                      </button>
+                      <span className="text-slate-350 select-none">|</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (employeeSearchQuery) {
+                            const filteredIds = filteredEmployeesList.map(e => e.id)
+                            setSelectedEmployeeIds(prev => prev.filter(id => !filteredIds.includes(id)))
+                          } else {
+                            setSelectedEmployeeIds([])
+                          }
+                        }}
+                        className="text-red-500 hover:underline focus:outline-none"
+                      >
+                        Clear Selection
+                      </button>
+                    </div>
                   </div>
 
-                  {assignmentType === 'DEPT' && role === 'ADMIN' && (
-                    <div className="space-y-1">
-                      <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Select Department</label>
-                      <select
-                        value={selectedDepartmentId}
-                        onChange={(e) => setSelectedDepartmentId(e.target.value)}
-                        className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-950 dark:text-white outline-none focus:bg-white focus:ring-2 focus:ring-[#0066FF]/20 transition-all text-sm font-semibold"
-                      >
-                        <option value="">-- Choose Department --</option>
-                        {departmentsList.map(d => (
-                          <option key={d.id} value={d.id}>{d.department_name}</option>
-                        ))}
-                      </select>
+                  {/* Search Bar */}
+                  <input
+                    type="text"
+                    placeholder="Search employees by name or designation..."
+                    value={employeeSearchQuery}
+                    onChange={(e) => setEmployeeSearchQuery(e.target.value)}
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-850 text-slate-950 dark:text-white placeholder-slate-400 focus:bg-white focus:ring-2 focus:ring-[#0066FF]/20 outline-none transition-all text-xs font-semibold"
+                  />
+
+                  {/* Selected Tags Chips container */}
+                  {selectedEmployeeIds.length > 0 && (
+                    <div className="flex flex-wrap gap-2 p-3 border border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 rounded-2xl">
+                      {selectedEmployeeIds.map(id => {
+                        const emp = employeesList.find(e => e.id === id)
+                        if (!emp) return null
+                        return (
+                          <span key={id} className="inline-flex items-center gap-1.5 bg-blue-50 dark:bg-blue-950/40 text-[#0066FF] dark:text-blue-400 px-2.5 py-1 rounded-lg text-[10px] font-bold border border-blue-100 dark:border-blue-900/40 shadow-xs">
+                            <span>{emp.full_name}</span>
+                            <button
+                              type="button"
+                              onClick={() => setSelectedEmployeeIds(prev => prev.filter(x => x !== id))}
+                              className="hover:text-red-500 font-black text-xs transition-colors focus:outline-none"
+                            >
+                              &times;
+                            </button>
+                          </span>
+                        )
+                      })}
                     </div>
                   )}
 
-                  {assignmentType === 'EMP' && role === 'ADMIN' && (
-                    <div className="space-y-1">
-                      <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Select Employee</label>
-                      <select
-                        value={selectedEmployeeIds[0] || ''}
-                        onChange={(e) => setSelectedEmployeeIds(e.target.value ? [e.target.value] : [])}
-                        className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-950 dark:text-white outline-none focus:bg-white focus:ring-2 focus:ring-[#0066FF]/20 transition-all text-sm font-semibold"
-                      >
-                        <option value="">-- Choose Employee --</option>
-                        {employeesList.map(e => (
-                          <option key={e.id} value={e.id}>{e.full_name} ({e.designation})</option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
-                </>
+                  {/* Scrollable Checkbox Selector list */}
+                  <div className="border border-slate-200 dark:border-slate-700 rounded-2xl p-3.5 max-h-48 overflow-y-auto bg-slate-50 dark:bg-slate-900/50 grid grid-cols-1 sm:grid-cols-2 gap-2 shadow-inner">
+                    {filteredEmployeesList.length === 0 ? (
+                      <div className="col-span-2 py-6 text-center text-xs text-slate-400 font-medium">
+                        No employees match your search query.
+                      </div>
+                    ) : (
+                      filteredEmployeesList.map(e => {
+                        const isChecked = selectedEmployeeIds.includes(e.id)
+                        return (
+                          <label key={e.id} className={`flex items-center gap-2.5 p-2 rounded-xl cursor-pointer select-none text-xs font-semibold transition-colors ${isChecked ? 'bg-blue-50/40 dark:bg-blue-950/15 text-[#0066FF] dark:text-blue-400 border border-blue-100/30' : 'hover:bg-slate-100/60 text-slate-700 dark:text-slate-300 border border-transparent'}`}>
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={() => {
+                                if (isChecked) {
+                                  setSelectedEmployeeIds(prev => prev.filter(id => id !== e.id))
+                                } else {
+                                  setSelectedEmployeeIds(prev => [...prev, e.id])
+                                }
+                              }}
+                              className="rounded text-[#0066FF] focus:ring-[#0066FF]/20 border-slate-300 w-4 h-4 cursor-pointer"
+                            />
+                            <div className="truncate">
+                              <span className="block font-bold">{e.full_name}</span>
+                              <span className="block text-[10px] text-slate-400 font-normal">{e.designation}</span>
+                            </div>
+                          </label>
+                        )
+                      })
+                    )}
+                  </div>
+                </div>
               )}
 
             </div>
