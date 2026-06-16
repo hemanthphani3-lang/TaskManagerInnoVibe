@@ -36,12 +36,27 @@ export default async function AdminEmployeesPage() {
     console.error("Error fetching departments/heads:", deptError)
   }
 
+  // Fetch productivity scores and attendance to map in the workforce list
+  const [
+    { data: productivityScores },
+    { data: attendance }
+  ] = await Promise.all([
+    supabase.from("productivity_scores").select("employee_id, productivity_score"),
+    supabase.from("attendance").select("employee_id, attendance_status")
+  ])
+
   // Map to unified workforce structure
   const workforce: any[] = []
 
   if (employees) {
     employees.forEach((emp) => {
       if (emp.designation === 'Department Head') return
+
+      const score = productivityScores?.find(s => s.employee_id === emp.id)?.productivity_score ?? 0
+      const attLogs = attendance?.filter(a => a.employee_id === emp.id) || []
+      const presentLogs = attLogs.filter(a => ["PRESENT", "LATE", "HALF_DAY"].includes(a.attendance_status)).length
+      const attendanceRate = attLogs.length > 0 ? Math.round((presentLogs / attLogs.length) * 100) : 85
+
       workforce.push({
         id: emp.id,
         name: emp.employee_name || "Unknown Employee",
@@ -54,13 +69,21 @@ export default async function AdminEmployeesPage() {
         profileCompletion: emp.profile_completion_percentage ?? 0,
         status: emp.account_status || "Active",
         joiningDate: emp.joining_date,
-        onboardingCompleted: !!emp.onboarding_completed
+        onboardingCompleted: !!emp.onboarding_completed,
+        productivityScore: score,
+        attendanceRate: attendanceRate
       })
     })
   }
 
   if (departments) {
     departments.forEach((dept) => {
+      // Map department heads similarly
+      const score = productivityScores?.find(s => s.employee_id === dept.id)?.productivity_score ?? 0
+      const attLogs = attendance?.filter(a => a.employee_id === dept.id) || []
+      const presentLogs = attLogs.filter(a => ["PRESENT", "LATE", "HALF_DAY"].includes(a.attendance_status)).length
+      const attendanceRate = attLogs.length > 0 ? Math.round((presentLogs / attLogs.length) * 100) : 85
+
       workforce.push({
         id: dept.id,
         name: dept.department_head_name || "Unassigned Dept Head",
@@ -73,7 +96,9 @@ export default async function AdminEmployeesPage() {
         profileCompletion: dept.profile_completion_percentage ?? 0,
         status: dept.status || "Active",
         joiningDate: dept.joining_date || dept.created_at,
-        onboardingCompleted: !!dept.onboarding_completed
+        onboardingCompleted: !!dept.onboarding_completed,
+        productivityScore: score,
+        attendanceRate: attendanceRate
       })
     })
   }

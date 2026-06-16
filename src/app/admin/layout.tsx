@@ -28,6 +28,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     { label: "Logout Reports", href: "/admin/logouts", iconName: "identity" },
     { label: "Announcements", href: "/admin/announcements", iconName: "megaphone" },
     { label: "Notifications", href: "/admin/notifications", iconName: "bell" },
+    { label: "Settings", href: "/admin/settings", iconName: "settings" },
+    { label: "Audit Logs", href: "/admin/audit-logs", iconName: "file" },
     { label: "Profile", href: "/admin/profile", iconName: "profile" },
   ];
 

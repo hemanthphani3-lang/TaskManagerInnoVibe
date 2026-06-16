@@ -22,6 +22,7 @@ import {
 import { Card } from "@/components/ui/card"
 import { ResetPasswordButton } from "@/components/settings/ResetPasswordButton"
 import { DeleteEmployeeButton } from "@/components/admin/DeleteEmployeeButton"
+import { ProductivityBadge } from "@/components/productivity/ProductivityBadge"
 
 interface WorkforceMember {
   id: string
@@ -36,6 +37,8 @@ interface WorkforceMember {
   status: 'Active' | 'Inactive' | 'Locked' | string
   joiningDate: string
   onboardingCompleted: boolean
+  productivityScore?: number
+  attendanceRate?: number
 }
 
 interface WorkforceDirectoryProps {
@@ -48,10 +51,11 @@ export function WorkforceDirectory({ initialWorkforce, departmentsList }: Workfo
   const [filterUserType, setFilterUserType] = useState<"ALL" | "Employee" | "Department Head">("ALL")
   const [filterDepartment, setFilterDepartment] = useState<"ALL" | string>("ALL")
   const [filterProfileStatus, setFilterProfileStatus] = useState<"ALL" | "COMPLETED" | "INCOMPLETE">("ALL")
+  const [sortBy, setSortBy] = useState<"name" | "score-desc" | "attendance-desc">("name")
 
   // Filtered Workforce list
   const filteredWorkforce = useMemo(() => {
-    return initialWorkforce.filter(member => {
+    let result = initialWorkforce.filter(member => {
       // 1. Search Query Match
       const searchLower = searchQuery.toLowerCase()
       const matchesSearch = 
@@ -82,7 +86,18 @@ export function WorkforceDirectory({ initialWorkforce, departmentsList }: Workfo
 
       return true
     })
-  }, [initialWorkforce, searchQuery, filterUserType, filterDepartment, filterProfileStatus])
+
+    // Sorting
+    if (sortBy === "name") {
+      result.sort((a, b) => a.name.localeCompare(b.name))
+    } else if (sortBy === "score-desc") {
+      result.sort((a, b) => (b.productivityScore ?? 0) - (a.productivityScore ?? 0))
+    } else if (sortBy === "attendance-desc") {
+      result.sort((a, b) => (b.attendanceRate ?? 0) - (a.attendanceRate ?? 0))
+    }
+
+    return result
+  }, [initialWorkforce, searchQuery, filterUserType, filterDepartment, filterProfileStatus, sortBy])
 
   // Summary Metrics calculations
   const metrics = useMemo(() => {
@@ -232,6 +247,20 @@ export function WorkforceDirectory({ initialWorkforce, departmentsList }: Workfo
               </select>
             </div>
 
+            {/* Sort Filter */}
+            <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 min-w-[160px]">
+              <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Sort</span>
+              <select
+                value={sortBy}
+                onChange={e => setSortBy(e.target.value as any)}
+                className="bg-transparent text-slate-700 text-xs font-bold focus:outline-none w-full cursor-pointer"
+              >
+                <option value="name">Alphabetical</option>
+                <option value="score-desc">Productivity (High)</option>
+                <option value="attendance-desc">Attendance (High)</option>
+              </select>
+            </div>
+
           </div>
         </div>
       </Card>
@@ -247,6 +276,8 @@ export function WorkforceDirectory({ initialWorkforce, departmentsList }: Workfo
                 <th className="px-6 py-4 text-sm font-bold text-slate-500 uppercase tracking-wider">Department</th>
                 <th className="px-6 py-4 text-sm font-bold text-slate-500 uppercase tracking-wider">Role</th>
                 <th className="px-6 py-4 text-sm font-bold text-slate-500 uppercase tracking-wider">Account Status</th>
+                <th className="px-6 py-4 text-sm font-bold text-slate-500 uppercase tracking-wider text-center">Productivity</th>
+                <th className="px-6 py-4 text-sm font-bold text-slate-500 uppercase tracking-wider text-center">Attendance</th>
                 <th className="px-6 py-4 text-sm font-bold text-slate-500 uppercase tracking-wider">Profile Status</th>
                 <th className="px-6 py-4 text-sm font-bold text-slate-500 uppercase tracking-wider">Contact</th>
                 <th className="px-6 py-4 text-sm font-bold text-slate-500 uppercase tracking-wider">Joined Date</th>
@@ -309,6 +340,27 @@ export function WorkforceDirectory({ initialWorkforce, departmentsList }: Workfo
                       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${getStatusBadgeClass(member.status)}`}>
                         <span className="w-1.5 h-1.5 rounded-full bg-current mr-1.5 shrink-0" />
                         {member.status}
+                      </span>
+                    </td>
+
+                    {/* Productivity Score */}
+                    <td className="px-6 py-4 text-center">
+                      <div className="flex flex-col items-center gap-1">
+                        <span className="text-sm font-black text-slate-800">
+                          {member.productivityScore ?? 0}
+                        </span>
+                        <ProductivityBadge score={member.productivityScore ?? 0} className="scale-90" />
+                      </div>
+                    </td>
+
+                    {/* Attendance Rate */}
+                    <td className="px-6 py-4 text-center">
+                      <span className={`inline-flex px-2.5 py-0.5 rounded text-xs font-bold ${
+                        (member.attendanceRate ?? 0) >= 90 ? 'bg-emerald-50 text-emerald-700 border border-emerald-250/20' :
+                        (member.attendanceRate ?? 0) >= 75 ? 'bg-blue-50 text-blue-700 border border-blue-250/20' :
+                        'bg-amber-50 text-amber-700 border border-amber-250/20'
+                      }`}>
+                        {member.attendanceRate ?? 85}%
                       </span>
                     </td>
 
