@@ -47,7 +47,7 @@ export default async function AdminDashboard() {
       supabaseAdmin.from('departments').select('id, department_name, department_head_name'),
       supabaseAdmin.from('employees').select('id, department_id, employee_name, designation, profile_photo, onboarding_completed, profile_completion_percentage, account_status'),
       supabaseAdmin.from('attendance').select('employee_id, department_id, attendance_status, work_status, working_hours, created_at').gte('created_at', startUTC30).lte('created_at', endUTC30),
-      supabaseAdmin.from('tasks').select('id, task_title, title, priority_level, priority, task_status, status, due_date, deadline, department_id, department, assigned_employee_id, assigned_to, created_by, created_at, completed_at, assigned_by_department'),
+      supabaseAdmin.from('tasks').select('id, task_title, title, priority_level, priority, task_status, status, due_date, deadline, department_id, department, assigned_employee_id, assigned_to, created_by, created_by_role, created_at, completed_at, assigned_by_department'),
       supabaseAdmin.from('work_sessions').select('session_id, user_id, status, login_time, logout_time, report_submitted, department_id').gte('login_time', startUTC30).lte('login_time', endUTC30),
       supabaseAdmin.from('productivity_scores').select('employee_id, department_id, productivity_score, calculated_at'),
       supabaseAdmin.from('leave_requests').select('*', { count: 'exact', head: true }).eq('approval_status', 'PENDING'),

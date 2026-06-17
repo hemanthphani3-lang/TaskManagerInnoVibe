@@ -59,6 +59,7 @@ interface Task {
   title?: string
   task_title?: string
   created_by?: string
+  created_by_role?: string
   completed_at?: string
   assigned_by_department?: string
 }
@@ -112,6 +113,16 @@ export function AdminDashboardClient({
 
   const router = useRouter()
   const [liveTasks, setLiveTasks] = useState<Task[]>(tasks)
+  const [admins, setAdmins] = useState<any[]>([])
+
+  useEffect(() => {
+    const fetchAdmins = async () => {
+      const supabase = createClient()
+      const { data } = await supabase.from('admins').select('id, full_name')
+      if (data) setAdmins(data)
+    }
+    fetchAdmins()
+  }, [])
 
   useEffect(() => {
     setLiveTasks(tasks)
@@ -679,7 +690,11 @@ export function AdminDashboardClient({
 
   const getEmployeeName = (id?: string) => {
     if (!id) return "Unassigned"
-    return employees.find(e => e.id === id)?.employee_name || "Unknown"
+    const emp = employees.find(e => e.id === id)
+    if (emp) return emp.employee_name
+    const admin = admins.find(a => a.id === id)
+    if (admin) return admin.full_name
+    return "Unknown"
   }
 
   const getDepartmentName = (id?: string) => {
@@ -689,14 +704,17 @@ export function AdminDashboardClient({
 
   const getAssignedByName = (task: Task) => {
     if (task.created_by) {
-      return getEmployeeName(task.created_by)
+      const name = getEmployeeName(task.created_by)
+      if (name !== "Unknown") return name
+      if (task.created_by_role === 'ADMIN') return "Admin"
     }
     if (task.assigned_by_department) {
       const dept = departments.find(d => d.id === task.assigned_by_department)
       if (dept?.department_head_name) return dept.department_head_name
       return dept?.department_name || "-"
     }
-    return "-"
+    if (task.created_by_role === 'ADMIN') return "Admin"
+    return "Admin"
   }
 
   const handlePieSliceClick = (name: string) => {
