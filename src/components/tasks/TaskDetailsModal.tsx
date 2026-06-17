@@ -101,6 +101,29 @@ export function TaskDetailsModal({
     }
   }
 
+  // Load hidden comments from localStorage
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(`hidden_comments_${currentUserId}`)
+      if (stored) {
+        setHiddenCommentIds(JSON.parse(stored))
+      }
+    } catch (err) {
+      console.error("Error reading hidden comments:", err)
+    }
+  }, [currentUserId])
+
+  // Click away listener for options dropdown
+  useEffect(() => {
+    const handleDocumentClick = () => {
+      setActiveMenuId(null)
+    }
+    document.addEventListener("click", handleDocumentClick)
+    return () => {
+      document.removeEventListener("click", handleDocumentClick)
+    }
+  }, [])
+
   useEffect(() => {
     if (isOpen && taskId) {
       loadTaskDetails()
@@ -338,28 +361,7 @@ export function TaskDetailsModal({
     }
   }
 
-  // Load hidden comments from localStorage
-  useEffect(() => {
-    try {
-      const stored = localStorage.getItem(`hidden_comments_${currentUserId}`)
-      if (stored) {
-        setHiddenCommentIds(JSON.parse(stored))
-      }
-    } catch (err) {
-      console.error("Error reading hidden comments:", err)
-    }
-  }, [currentUserId])
 
-  // Click away listener for options dropdown
-  useEffect(() => {
-    const handleDocumentClick = () => {
-      setActiveMenuId(null)
-    }
-    document.addEventListener("click", handleDocumentClick)
-    return () => {
-      document.removeEventListener("click", handleDocumentClick)
-    }
-  }, [])
 
   const handleSaveEdit = async (commentId: string) => {
     if (!editText.trim()) return
