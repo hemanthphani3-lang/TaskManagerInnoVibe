@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useState, useEffect } from "react"
-import { respondToTask, addCrossRoleComment, updateCrossRoleTaskStatus, deleteCrossRoleTask } from "@/app/actions/tasks"
+import { respondToTask, addCrossRoleComment, updateCrossRoleTaskStatus, deleteCrossRoleTask, editCrossRoleComment, deleteCrossRoleCommentForEveryone } from "@/app/actions/tasks"
 import { TaskStatusBadge } from "./TaskStatusBadge"
 import { PriorityBadge } from "./PriorityBadge"
 import { createClient } from "@/lib/supabase/client"
@@ -26,7 +26,10 @@ import {
   FileText,
   ChevronRight,
   ChevronUp,
-  ChevronDown
+  ChevronDown,
+  MoreVertical,
+  Pencil,
+  Check
 } from "lucide-react"
 
 interface TaskDetailsModalProps {
@@ -53,6 +56,10 @@ export function TaskDetailsModal({
   const [loading, setLoading] = useState(true);
 
   const [comments, setComments] = useState<any[]>([])
+  const [activeMenuId, setActiveMenuId] = useState<string | null>(null)
+  const [editingCommentId, setEditingCommentId] = useState<string | null>(null)
+  const [editText, setEditText] = useState("")
+  const [hiddenCommentIds, setHiddenCommentIds] = useState<string[]>([])
   const [activityLogs, setActivityLogs] = useState<any[]>([])
   const [newMessage, setNewMessage] = useState("")
   const [uploadingCommentFile, setUploadingCommentFile] = useState(false)
@@ -329,6 +336,182 @@ export function TaskDetailsModal({
     } catch (err) {
       toast.error("Error sending message.")
     }
+  }
+
+  // Load hidden comments from localStorage
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(`hidden_comments_${currentUserId}`)
+      if (stored) {
+        setHiddenCommentIds(JSON.parse(stored))
+      }
+    } catch (err) {
+      console.error("Error reading hidden comments:", err)
+    }
+  }, [currentUserId])
+
+  // Click away listener for options dropdown
+  useEffect(() => {
+    const handleDocumentClick = () => {
+      setActiveMenuId(null)
+    }
+    document.addEventListener("click", handleDocumentClick)
+    return () => {
+      document.removeEventListener("click", handleDocumentClick)
+    }
+  }, [])
+
+  const handleSaveEdit = async (commentId: string) => {
+    if (!editText.trim()) return
+    const prevText = comments.find(c => c.id === commentId)?.message || comments.find(c => c.id === commentId)?.comment_text || ""
+
+    setComments(prev => prev.map(c => c.id === commentId ? { ...c, message: editText.trim(), comment_text: editText.trim(), is_edited: true } : c))
+    setEditingCommentId(null)
+
+    const result = await editCrossRoleComment(commentId, editText.trim())
+    if (!result.success) {
+      setComments(prev => prev.map(c => c.id === commentId ? { ...c, message: prevText, comment_text: prevText } : c))
+      toast.error("Failed to edit message: " + result.error)
+    } else {
+      toast.success("Message edited successfully")
+    }
+  }
+
+  const handleEditKeyDown = (e: React.KeyboardEvent, commentId: string) => {
+    if (e.key === "Enter") {
+      e.preventDefault()
+      handleSaveEdit(commentId)
+    } else if (e.key === "Escape") {
+      setEditingCommentId(null)
+    }
+  }
+
+  const handleDeleteForEveryone = async (commentId: string) => {
+    if (!confirm("Are you sure you want to delete this message for everyone?")) return
+
+    const prevComment = comments.find(c => c.id === commentId)
+    if (!prevComment) return
+
+    setComments(prev => prev.map(c => c.id === commentId ? { ...c, message: "This message was deleted.", comment_text: "This message was deleted.", is_deleted: true } : c))
+
+    const result = await deleteCrossRoleCommentForEveryone(commentId)
+    if (!result.success) {
+      setComments(prev => prev.map(c => c.id === commentId ? { ...c, message: prevComment.message, comment_text: prevComment.comment_text, is_deleted: prevComment.is_deleted } : c))
+      toast.error("Failed to delete message: " + result.error)
+    } else {
+      toast.success("Message deleted for everyone")
+    }
+  }
+
+  const handleDeleteForMe = (commentId: string) => {
+    const nextHidden = [...hiddenCommentIds, commentId]
+    setHiddenCommentIds(nextHidden)
+    try {
+      localStorage.setItem(`hidden_comments_${currentUserId}`, JSON.stringify(nextHidden))
+      toast.success("Message deleted for me")
+    } catch (err) {
+      console.error("Error saving hidden comments:", err)
+    }
+  }
+
+  const renderMenuButton = (comm: any) => {
+    const isMe = comm.user_id === currentUserId
+    const isAdmin = currentUserRole === 'ADMIN'
+    const isOpen = activeMenuId === comm.id
+
+    return (
+      <div className="relative shrink-0 opacity-60 group-hover:opacity-100 transition-opacity duration-200">
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation()
+            setActiveMenuId(isOpen ? null : comm.id)
+          }}
+          className="p-1 rounded-full hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition-colors"
+        >
+          <MoreVertical className="w-3.5 h-3.5" />
+        </button>
+
+        {isOpen && (
+          <div 
+            onClick={(e) => e.stopPropagation()} 
+            className={`absolute z-50 py-1.5 w-36 bg-slate-900 border border-slate-850 rounded-xl shadow-xl text-xs font-semibold ${
+              isMe ? "right-0 origin-top-right" : "left-0 origin-top-left"
+            }`}
+          >
+            {isMe && (
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingCommentId(comm.id)
+                  setEditText(comm.message || comm.comment_text || '')
+                  setActiveMenuId(null)
+                }}
+                className="w-full px-3 py-2 text-left hover:bg-slate-800 text-slate-200 flex items-center gap-1.5 transition"
+              >
+                <Pencil className="w-3.5 h-3.5" />
+                Edit Message
+              </button>
+            )}
+            
+            {(isMe || isAdmin) && (
+              <button
+                type="button"
+                onClick={() => {
+                  handleDeleteForEveryone(comm.id)
+                  setActiveMenuId(null)
+                }}
+                className="w-full px-3 py-2 text-left hover:bg-slate-800 text-red-400 flex items-center gap-1.5 transition"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                Delete for Everyone
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={() => {
+                handleDeleteForMe(comm.id)
+                setActiveMenuId(null)
+              }}
+              className="w-full px-3 py-2 text-left hover:bg-slate-800 text-slate-200 flex items-center gap-1.5 transition"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              Delete for Me
+            </button>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  const renderEditInput = (comm: any) => {
+    return (
+      <div className="flex items-center gap-1.5 min-w-[180px] sm:min-w-[240px]">
+        <input
+          type="text"
+          value={editText}
+          onChange={(e) => setEditText(e.target.value)}
+          onKeyDown={(e) => handleEditKeyDown(e, comm.id)}
+          className="flex-1 bg-white/10 text-white outline-none border-b border-white/50 focus:border-white text-xs py-0.5 px-1 rounded-sm"
+          autoFocus
+        />
+        <button
+          type="button"
+          onClick={() => handleSaveEdit(comm.id)}
+          className="p-1 hover:bg-white/10 rounded transition-colors text-white"
+        >
+          <Check className="w-4 h-4" />
+        </button>
+        <button
+          type="button"
+          onClick={() => setEditingCommentId(null)}
+          className="p-1 hover:bg-white/10 rounded transition-colors text-white"
+        >
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+    )
   }
 
   // Subtask Action Helpers
@@ -835,54 +1018,77 @@ export function TaskDetailsModal({
 
               {/* Message scroll list */}
               <div className="flex-1 overflow-y-auto p-4 space-y-4 max-h-[300px] lg:max-h-none">
-                {comments.length === 0 ? (
+                {comments.filter((comm) => !hiddenCommentIds.includes(comm.id)).length === 0 ? (
                   <div className="text-center py-12 text-slate-600 space-y-2">
                     <MessageSquare className="w-8 h-8 mx-auto opacity-40 text-slate-500" />
                     <p className="text-xs font-semibold">No workspace discussion yet.</p>
                   </div>
                 ) : (
-                  comments.map((comm) => {
-                    const isMe = comm.user_id === currentUserId
-                    return (
-                      <div key={comm.id} className={`flex flex-col max-w-[85%] ${isMe ? 'self-end items-end ml-auto' : 'self-start items-start mr-auto'}`}>
-                        <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wider mb-1">
-                          {comm.authorName} ({comm.authorRole})
-                        </span>
-                        
-                        <div className={`p-3 rounded-2xl text-xs space-y-1.5 shadow-sm border ${
-                          isMe 
-                            ? 'bg-[#0066FF] border-[#0066FF] text-white rounded-tr-none shadow-blue-500/5' 
-                            : 'bg-slate-900 border-slate-800 text-slate-200 rounded-tl-none shadow-slate-950/5'
-                        }`}>
-                          <p className="leading-relaxed break-words">{comm.message || comm.comment_text || ''}</p>
+                  comments
+                    .filter((comm) => !hiddenCommentIds.includes(comm.id))
+                    .map((comm) => {
+                      const isMe = comm.user_id === currentUserId
+                      return (
+                        <div key={comm.id} className={`flex flex-col max-w-[85%] ${isMe ? 'self-end items-end ml-auto' : 'self-start items-start mr-auto'} group`}>
+                          <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wider mb-1">
+                            {comm.authorName} ({comm.authorRole})
+                          </span>
                           
-                          {/* File Attachment inside comment */}
-                          {comm.attachment && (
-                            <a 
-                              href={comm.attachment}
-                              target="_blank"
-                              rel="noreferrer"
-                              className={`p-2 border rounded-xl flex items-center justify-between gap-3 text-[10px] mt-2 group truncate transition ${
-                                isMe 
-                                  ? 'bg-blue-700/60 border-blue-500/50 hover:bg-blue-700' 
-                                  : 'bg-slate-950/60 border-slate-800 hover:bg-slate-950'
-                              }`}
-                            >
-                              <div className="flex items-center gap-1.5 min-w-0">
-                                <Paperclip className="w-3.5 h-3.5 shrink-0" />
-                                <span className="truncate font-bold text-slate-200">Download Attached File</span>
-                              </div>
-                              <Download className="w-3.5 h-3.5 opacity-60 group-hover:opacity-100 transition shrink-0" />
-                            </a>
-                          )}
-                        </div>
+                          <div className="flex items-center gap-2 relative">
+                            {/* For isMe, menu button comes BEFORE the bubble */}
+                            {isMe && !comm.is_deleted && renderMenuButton(comm)}
 
-                        <span className="text-[8px] text-slate-500 mt-1 block">
-                          {new Date(comm.created_at).toLocaleTimeString('en-IN', { timeStyle: 'short', timeZone: 'Asia/Kolkata' })}
-                        </span>
-                      </div>
-                    )
-                  })
+                            <div className={`p-3 rounded-2xl text-xs space-y-1.5 shadow-sm border ${
+                              comm.is_deleted
+                                ? 'bg-slate-950/40 border-slate-900 text-slate-500 italic ' + (isMe ? 'rounded-tr-none' : 'rounded-tl-none')
+                                : isMe 
+                                ? 'bg-[#0066FF] border-[#0066FF] text-white rounded-tr-none shadow-blue-500/5' 
+                                : 'bg-slate-900 border-slate-800 text-slate-200 rounded-tl-none shadow-slate-950/5'
+                            }`}>
+                              {editingCommentId === comm.id ? (
+                                renderEditInput(comm)
+                              ) : (
+                                <>
+                                  <p className="leading-relaxed break-words">{comm.message || comm.comment_text || ''}</p>
+                                  
+                                  {/* File Attachment inside comment */}
+                                  {comm.attachment && (
+                                    <a 
+                                      href={comm.attachment}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className={`p-2 border rounded-xl flex items-center justify-between gap-3 text-[10px] mt-2 group truncate transition ${
+                                        isMe 
+                                          ? 'bg-blue-700/60 border-blue-500/50 hover:bg-blue-700' 
+                                          : 'bg-slate-950/60 border-slate-800 hover:bg-slate-950'
+                                      }`}
+                                    >
+                                      <div className="flex items-center gap-1.5 min-w-0">
+                                        <Paperclip className="w-3.5 h-3.5 shrink-0" />
+                                        <span className="truncate font-bold text-slate-200">Download Attached File</span>
+                                      </div>
+                                      <Download className="w-3.5 h-3.5 opacity-60 group-hover:opacity-100 transition shrink-0" />
+                                    </a>
+                                  )}
+                                </>
+                              )}
+                            </div>
+
+                            {/* For others, menu button comes AFTER the bubble */}
+                            {!isMe && !comm.is_deleted && renderMenuButton(comm)}
+                          </div>
+
+                          <span className="text-[8px] text-slate-500 mt-1 flex items-center gap-1.5">
+                            <span>
+                              {new Date(comm.created_at).toLocaleTimeString('en-IN', { timeStyle: 'short', timeZone: 'Asia/Kolkata' })}
+                            </span>
+                            {comm.is_edited && !comm.is_deleted && (
+                              <span className="italic text-[7.5px] text-slate-500 dark:text-slate-600">(edited)</span>
+                            )}
+                          </span>
+                        </div>
+                      )
+                    })
                 )}
               </div>
 
