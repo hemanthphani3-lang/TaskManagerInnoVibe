@@ -8,6 +8,7 @@ import {
   ClipboardList, UserCheck, ShieldAlert, Trophy, Medal, Award, Settings
 } from "lucide-react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { 
   AreaChart, Area, LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
@@ -45,11 +46,21 @@ interface Attendance {
 interface Task {
   id: string
   task_status: string
+  status?: string
   due_date: string
+  deadline?: string
   department_id: string
+  department?: string
   assigned_employee_id: string
+  assigned_to?: string
   created_at: string
   priority_level?: string
+  priority?: string
+  title?: string
+  task_title?: string
+  created_by?: string
+  completed_at?: string
+  assigned_by_department?: string
 }
 
 interface WorkSession {
@@ -97,6 +108,39 @@ export function AdminDashboardClient({
   const [isMounted, setIsMounted] = useState(false)
   useEffect(() => {
     setIsMounted(true)
+  }, [])
+
+  const router = useRouter()
+  const [liveTasks, setLiveTasks] = useState<Task[]>(tasks)
+
+  useEffect(() => {
+    setLiveTasks(tasks)
+  }, [tasks])
+
+  useEffect(() => {
+    const supabase = createClient()
+    const channel = supabase
+      .channel('admin_dashboard_tasks_sync_all')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, (payload) => {
+        if (payload.eventType === 'INSERT') {
+          const newTask = payload.new as Task
+          setLiveTasks(prev => {
+            if (prev.some(t => t.id === newTask.id)) return prev
+            return [newTask, ...prev]
+          })
+        } else if (payload.eventType === 'UPDATE') {
+          const updatedTask = payload.new as Task
+          setLiveTasks(prev => prev.map(t => t.id === updatedTask.id ? { ...t, ...updatedTask } : t))
+        } else if (payload.eventType === 'DELETE') {
+          const deletedTaskId = payload.old.id
+          setLiveTasks(prev => prev.filter(t => t.id !== deletedTaskId))
+        }
+      })
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
   }, [])
   
   // Timeframe state for Organization Performance line chart: Today, Yesterday, This Week, This Month
@@ -534,12 +578,11 @@ export function AdminDashboardClient({
       value: Math.floor(Math.random() * 40) + 10 // randomized heights representing activity levels
     }))
   }, [activityTimeframe])
-
   // 10. TASK INTELLIGENCE DONUT CHART
   const taskIntelligenceData = useMemo(() => {
-    const completed = tasks.filter(t => t.task_status === "COMPLETED").length
-    const pending = tasks.filter(t => t.task_status === "PENDING" || t.task_status === "WAITING_APPROVAL").length
-    const inProgress = tasks.filter(t => t.task_status === "IN_PROGRESS" || t.task_status === "REOPENED").length
+    const completed = liveTasks.filter(t => (t.task_status || t.status) === "COMPLETED").length
+    const pending = liveTasks.filter(t => (t.task_status || t.status) === "PENDING" || (t.task_status || t.status) === "WAITING_APPROVAL").length
+    const inProgress = liveTasks.filter(t => (t.task_status || t.status) === "IN_PROGRESS" || (t.task_status || t.status) === "REOPENED").length
     const total = completed + pending + inProgress
 
     // If empty DB, use reference counts
@@ -558,17 +601,30 @@ export function AdminDashboardClient({
       inProgress,
       total
     }
-  }, [tasks])
+  }, [liveTasks])
 
-  // Priority counts for Task Intelligence detail spacing
+  // Priority counts for Task Intelligence detail spacing (Excluding Completed tasks)
   const taskPriorityCounts = useMemo(() => {
-    return {
-      critical: tasks.filter(t => t.priority_level === 'CRITICAL').length || 1,
-      high: tasks.filter(t => t.priority_level === 'HIGH').length || 3,
-      medium: tasks.filter(t => t.priority_level === 'MEDIUM').length || 10,
-      low: tasks.filter(t => t.priority_level === 'LOW').length || 4
+    // If empty DB, use reference counts
+    if (liveTasks.length === 0) {
+      return {
+        critical: 1,
+        high: 3,
+        medium: 10,
+        low: 4
+      }
     }
-  }, [tasks])
+    const activeTasks = liveTasks.filter(t => {
+      const status = t.task_status || t.status || "PENDING"
+      return status !== 'COMPLETED'
+    })
+    return {
+      critical: activeTasks.filter(t => (t.priority_level || t.priority) === 'CRITICAL').length,
+      high: activeTasks.filter(t => (t.priority_level || t.priority) === 'HIGH').length,
+      medium: activeTasks.filter(t => (t.priority_level || t.priority) === 'MEDIUM').length,
+      low: activeTasks.filter(t => (t.priority_level || t.priority) === 'LOW').length
+    }
+  }, [liveTasks])
 
   const taskIntelligenceDonutData = useMemo(() => {
     return [
@@ -577,6 +633,91 @@ export function AdminDashboardClient({
       { name: "In Progress", value: taskIntelligenceData.inProgress, color: "#3B82F6" }
     ]
   }, [taskIntelligenceData])
+
+  // Drill-down Modal State
+  const [drillDownModal, setDrillDownModal] = useState<{
+    isOpen: boolean
+    title: string
+    filterType: "completed" | "pending" | "in_progress" | "critical" | "high" | "medium" | "low"
+  }>({
+    isOpen: false,
+    title: "",
+    filterType: "completed"
+  })
+
+  const drillDownTasks = useMemo(() => {
+    if (!drillDownModal.isOpen) return []
+    const type = drillDownModal.filterType
+    return liveTasks.filter(t => {
+      const status = t.task_status || t.status || "PENDING"
+      const priority = t.priority_level || t.priority || "MEDIUM"
+      
+      if (type === 'completed') {
+        return status === 'COMPLETED'
+      }
+      if (type === 'pending') {
+        return status === 'PENDING' || status === 'WAITING_APPROVAL'
+      }
+      if (type === 'in_progress') {
+        return status === 'IN_PROGRESS' || status === 'REOPENED'
+      }
+      if (type === 'critical') {
+        return priority === 'CRITICAL' && status !== 'COMPLETED'
+      }
+      if (type === 'high') {
+        return priority === 'HIGH' && status !== 'COMPLETED'
+      }
+      if (type === 'medium') {
+        return priority === 'MEDIUM' && status !== 'COMPLETED'
+      }
+      if (type === 'low') {
+        return priority === 'LOW' && status !== 'COMPLETED'
+      }
+      return false
+    })
+  }, [liveTasks, drillDownModal.isOpen, drillDownModal.filterType])
+
+  const getEmployeeName = (id?: string) => {
+    if (!id) return "Unassigned"
+    return employees.find(e => e.id === id)?.employee_name || "Unknown"
+  }
+
+  const getDepartmentName = (id?: string) => {
+    if (!id) return "General"
+    return departments.find(d => d.id === id)?.department_name || "General"
+  }
+
+  const getAssignedByName = (task: Task) => {
+    if (task.created_by) {
+      return getEmployeeName(task.created_by)
+    }
+    if (task.assigned_by_department) {
+      const dept = departments.find(d => d.id === task.assigned_by_department)
+      if (dept?.department_head_name) return dept.department_head_name
+      return dept?.department_name || "-"
+    }
+    return "-"
+  }
+
+  const handlePieSliceClick = (name: string) => {
+    let filterType: any = "completed"
+    if (name === "Pending") filterType = "pending"
+    if (name === "In Progress") filterType = "in_progress"
+    
+    setDrillDownModal({
+      isOpen: true,
+      title: `${name} Tasks`,
+      filterType
+    })
+  }
+
+  const handlePriorityCardClick = (priority: string) => {
+    setDrillDownModal({
+      isOpen: true,
+      title: `${priority} Priority Tasks (Active)`,
+      filterType: priority.toLowerCase() as any
+    })
+  }
 
   const getSystemStatusColor = () => {
     if (systemStatus === "System Online") return "bg-emerald-50 text-emerald-600 border-emerald-100"
@@ -1202,7 +1343,12 @@ export function AdminDashboardClient({
                             dataKey="value"
                           >
                             {taskIntelligenceDonutData.map((entry, index) => (
-                              <Cell key={`cell-${index}`} fill={entry.color} />
+                              <Cell 
+                                key={`cell-${index}`} 
+                                fill={entry.color} 
+                                className="cursor-pointer focus:outline-none"
+                                onClick={() => handlePieSliceClick(entry.name)}
+                              />
                             ))}
                           </Pie>
                         </PieChart>
@@ -1223,7 +1369,11 @@ export function AdminDashboardClient({
                   {taskIntelligenceDonutData.map((item) => {
                     const pct = taskIntelligenceData.total > 0 ? Math.round((item.value / taskIntelligenceData.total) * 100) : 0
                     return (
-                      <div key={item.name} className="flex items-center justify-between text-xs border-b border-slate-50 pb-1">
+                      <div 
+                        key={item.name} 
+                        onClick={() => handlePieSliceClick(item.name)}
+                        className="flex items-center justify-between text-xs border-b border-slate-50 pb-1 cursor-pointer hover:bg-slate-55 dark:hover:bg-slate-800 p-0.5 rounded transition-colors"
+                      >
                         <div className="flex items-center gap-1.5">
                           <span className="w-2.5 h-2.5 rounded-full shrink-0 block" style={{ backgroundColor: item.color }}></span>
                           <span className="text-[10px] text-slate-500 font-semibold">{item.name}</span>
@@ -1238,19 +1388,31 @@ export function AdminDashboardClient({
 
               {/* Priority Breakdown (solves empty space) */}
               <div className="mt-3 pt-3 border-t border-slate-50 grid grid-cols-4 gap-2 text-center">
-                <div className="bg-rose-50/50 p-1.5 rounded border border-rose-100">
+                <div 
+                  onClick={() => handlePriorityCardClick('CRITICAL')}
+                  className="bg-rose-50/50 p-1.5 rounded border border-rose-100 cursor-pointer hover:bg-rose-100/50 transition-colors"
+                >
                   <span className="text-[8px] font-bold text-rose-600 block uppercase">Critical</span>
                   <strong className="text-xs font-black text-slate-800">{taskPriorityCounts.critical}</strong>
                 </div>
-                <div className="bg-orange-50/50 p-1.5 rounded border border-orange-100">
+                <div 
+                  onClick={() => handlePriorityCardClick('HIGH')}
+                  className="bg-orange-50/50 p-1.5 rounded border border-orange-100 cursor-pointer hover:bg-orange-100/50 transition-colors"
+                >
                   <span className="text-[8px] font-bold text-orange-600 block uppercase">High</span>
                   <strong className="text-xs font-black text-slate-800">{taskPriorityCounts.high}</strong>
                 </div>
-                <div className="bg-blue-50/50 p-1.5 rounded border border-blue-100">
+                <div 
+                  onClick={() => handlePriorityCardClick('MEDIUM')}
+                  className="bg-blue-50/50 p-1.5 rounded border border-blue-100 cursor-pointer hover:bg-blue-100/50 transition-colors"
+                >
                   <span className="text-[8px] font-bold text-blue-600 block uppercase">Medium</span>
                   <strong className="text-xs font-black text-slate-800">{taskPriorityCounts.medium}</strong>
                 </div>
-                <div className="bg-slate-50/50 p-1.5 rounded border border-slate-200">
+                <div 
+                  onClick={() => handlePriorityCardClick('LOW')}
+                  className="bg-slate-50/50 p-1.5 rounded border border-slate-200 cursor-pointer hover:bg-slate-100 transition-colors"
+                >
                   <span className="text-[8px] font-bold text-slate-500 block uppercase">Low</span>
                   <strong className="text-xs font-black text-slate-800">{taskPriorityCounts.low}</strong>
                 </div>
@@ -1503,7 +1665,135 @@ export function AdminDashboardClient({
                 Close Leaderboard
               </button>
             </div>
+          </div>
+        </div>
+      )}
 
+      {/* Drill-down Modal Popup */}
+      {drillDownModal.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-4xl max-h-[85vh] flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-950/20">
+              <div>
+                <h3 className="text-lg font-black text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                  <ClipboardList className="w-5 h-5 text-[#0066FF]" />
+                  {drillDownModal.title}
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">{drillDownTasks.length} task(s) found</p>
+              </div>
+              <button
+                onClick={() => setDrillDownModal(prev => ({ ...prev, isOpen: false }))}
+                className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl text-slate-400 hover:text-slate-650 dark:hover:text-slate-200 transition-colors"
+              >
+                <XCircle className="w-6 h-6" />
+              </button>
+            </div>
+
+            {/* Modal Content - Scrollable List of Tasks */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-4">
+              {drillDownTasks.length === 0 ? (
+                <div className="text-center py-12 text-slate-400">
+                  <p className="text-sm">No tasks in this category.</p>
+                </div>
+              ) : (
+                <div className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {drillDownTasks.map((task) => {
+                    const status = task.task_status || task.status || "PENDING"
+                    const priority = task.priority_level || task.priority || "MEDIUM"
+                    const deptName = getDepartmentName(task.department_id)
+                    const assignedTo = getEmployeeName(task.assigned_employee_id || task.assigned_to)
+                    const assignedBy = getAssignedByName(task)
+                    const deadline = task.deadline || task.due_date || "-"
+                    const createdDate = task.created_at ? new Date(task.created_at).toLocaleDateString('en-US', {
+                      month: 'short',
+                      day: 'numeric',
+                      year: 'numeric'
+                    }) : "-"
+
+                    return (
+                      <div key={task.id} className="py-4 first:pt-0 last:pb-0 flex flex-col gap-3">
+                        <div className="flex justify-between items-start gap-4">
+                          <h4 className="font-bold text-slate-800 dark:text-slate-200 text-sm leading-snug">
+                            {task.task_title || task.title || "Untitled Task"}
+                          </h4>
+                          
+                          <div className="flex items-center gap-2 shrink-0">
+                            {/* Priority badge */}
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                              priority === 'CRITICAL' ? 'bg-rose-50 text-rose-700 border-rose-100 dark:bg-rose-950/20 dark:text-rose-400 dark:border-rose-900/30' :
+                              priority === 'HIGH' ? 'bg-orange-50 text-orange-700 border-orange-100 dark:bg-orange-950/20 dark:text-orange-400 dark:border-orange-900/30' :
+                              priority === 'MEDIUM' ? 'bg-blue-50 text-blue-700 border-blue-100 dark:bg-blue-950/20 dark:text-blue-400 dark:border-blue-900/30' :
+                              'bg-slate-50 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700/50'
+                            }`}>
+                              {priority}
+                            </span>
+
+                            {/* Status badge */}
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                              status === 'COMPLETED' ? 'bg-emerald-50 text-emerald-700 border-emerald-100 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-900/30' :
+                              status === 'PENDING' ? 'bg-amber-50 text-amber-700 border-amber-100 dark:bg-amber-950/20 dark:text-amber-400 dark:border-amber-900/30' :
+                              status === 'IN_PROGRESS' ? 'bg-blue-50 text-blue-700 border-blue-100 dark:bg-blue-950/20 dark:text-blue-400 dark:border-blue-900/30' :
+                              status === 'WAITING_APPROVAL' ? 'bg-indigo-50 text-indigo-700 border-indigo-100 dark:bg-indigo-950/20 dark:text-indigo-400 dark:border-indigo-900/30' :
+                              'bg-slate-50 text-slate-600 border-slate-200'
+                            }`}>
+                              {status.replace('_', ' ')}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Metadata Grid */}
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-y-2 gap-x-4 text-xs">
+                          <div>
+                            <span className="text-slate-400 font-medium text-[10px] uppercase tracking-wider block">Assigned To</span>
+                            <span className="text-slate-700 dark:text-slate-300 font-bold">{assignedTo}</span>
+                          </div>
+                          <div>
+                            <span className="text-slate-400 font-medium text-[10px] uppercase tracking-wider block">Assigned By</span>
+                            <span className="text-slate-700 dark:text-slate-300 font-bold">{assignedBy}</span>
+                          </div>
+                          <div>
+                            <span className="text-slate-400 font-medium text-[10px] uppercase tracking-wider block">Department</span>
+                            <span className="text-slate-700 dark:text-slate-300 font-bold">{deptName}</span>
+                          </div>
+                          <div>
+                            <span className="text-slate-400 font-medium text-[10px] uppercase tracking-wider block">Deadline</span>
+                            <span className="text-slate-700 dark:text-slate-300 font-bold">{deadline}</span>
+                          </div>
+                          <div className="col-span-2 md:col-span-4 text-[10px] text-slate-400 mt-1">
+                            Created on: {createdDate}
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-4 border-t border-slate-200 dark:border-slate-800 bg-slate-55 dark:bg-slate-950/40 flex flex-col sm:flex-row justify-between items-center gap-3">
+              <span className="text-xs text-slate-400">Task Intelligence Drill-down Popup</span>
+              
+              <button
+                onClick={() => {
+                  setDrillDownModal(prev => ({ ...prev, isOpen: false }))
+                  const type = drillDownModal.filterType
+                  let targetUrl = "/admin/tasks?tab=all"
+                  if (type === 'completed') targetUrl = "/admin/tasks?tab=completed"
+                  else if (type === 'pending') targetUrl = "/admin/tasks?tab=all&status=pending"
+                  else if (type === 'in_progress') targetUrl = "/admin/tasks?tab=all&status=in_progress"
+                  else if (['critical', 'high', 'medium', 'low'].includes(type)) {
+                    targetUrl = `/admin/tasks?tab=all&priority=${type}`
+                  }
+                  router.push(targetUrl)
+                }}
+                className="w-full sm:w-auto px-4 py-2 bg-[#0066FF] hover:bg-[#0052CC] text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 shadow-sm transition-colors cursor-pointer active:scale-95"
+              >
+                <ClipboardList className="w-4 h-4" />
+                <span>View Full Tasks Module</span>
+              </button>
+            </div>
           </div>
         </div>
       )}

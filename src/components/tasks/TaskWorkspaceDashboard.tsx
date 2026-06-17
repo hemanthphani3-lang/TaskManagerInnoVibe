@@ -1,6 +1,6 @@
 "use client"
 
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from '@/lib/supabase/client';
 import { useTaskCounts } from '@/context/TaskCountsContext';
 import React, { useState, useEffect } from "react";
@@ -88,6 +88,23 @@ export function TaskWorkspaceDashboard({
   // Realtime refetch trigger simulation (re-syncs list)
   const router = useRouter();
   const supabase = createClient();
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    const tab = searchParams.get('tab');
+    const priority = searchParams.get('priority');
+    const status = searchParams.get('status');
+    
+    if (tab) {
+      setActiveTab(tab as any);
+    }
+    if (priority) {
+      setPriorityFilter(priority.toUpperCase());
+    }
+    if (status) {
+      setStatusFilter(status.toUpperCase());
+    }
+  }, [searchParams]);
 
   // Realtime task sync: listen for inserts, updates, deletes on tasks and task_assignees tables
   useEffect(() => {
