@@ -46,7 +46,7 @@ export default async function AdminTaskDetailsPage({ params }: { params: Promise
         .maybeSingle(),
       supabaseAdmin
         .from('task_comments')
-        .select('id, comment_text, created_at, user_id')
+        .select('id, comment_text, created_at, user_id, is_edited, is_deleted')
         .eq('task_id', taskId)
         .order('created_at', { ascending: true }),
       supabaseAdmin

@@ -1161,3 +1161,130 @@ export async function deescalateTask(taskId: string) {
   return { success: true }
 }
 
+// ==========================================
+// EDIT TASK DISCUSSION MESSAGE
+// ==========================================
+export async function editCrossRoleComment(
+  commentId: string,
+  newText: string
+) {
+  try {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { success: false, error: "Unauthorized" }
+
+    const adminClient = getSupabaseAdmin()
+
+    // 1. Fetch original comment to check owner and task details
+    const { data: originalComment, error: fetchErr } = await adminClient
+      .from('task_comments')
+      .select('*')
+      .eq('id', commentId)
+      .single()
+
+    if (fetchErr || !originalComment) return { success: false, error: "Comment not found" }
+
+    // 2. Fetch user role to check admin status
+    const profileRes = await getCurrentUserRoleAndProfile()
+    if (!profileRes.success || !profileRes.profile) {
+      return { success: false, error: "Profile not found" }
+    }
+    const commenterName = profileRes.profile.name
+
+    // Enforce permissions: Only original sender can edit their message
+    if (originalComment.user_id !== user.id) {
+      return { success: false, error: "You can only edit your own messages" }
+    }
+
+    // 3. Update message
+    const { error: updateErr } = await adminClient
+      .from('task_comments')
+      .update({
+        message: newText,
+        comment_text: newText,
+        is_edited: true
+      })
+      .eq('id', commentId)
+
+    if (updateErr) throw updateErr
+
+    // 4. Log task activity
+    await adminClient.from('task_activity_logs').insert({
+      task_id: originalComment.task_id,
+      action_type: 'COMMENT_EDITED',
+      action_by: user.id,
+      action_description: `${commenterName} edited a discussion message.`
+    })
+
+    return { success: true }
+  } catch (err: any) {
+    console.error("Error editing comment:", err)
+    return { success: false, error: err.message || String(err) }
+  }
+}
+
+// ==========================================
+// DELETE TASK DISCUSSION MESSAGE FOR EVERYONE
+// ==========================================
+export async function deleteCrossRoleCommentForEveryone(
+  commentId: string
+) {
+  try {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { success: false, error: "Unauthorized" }
+
+    const adminClient = getSupabaseAdmin()
+
+    // 1. Fetch original comment
+    const { data: originalComment, error: fetchErr } = await adminClient
+      .from('task_comments')
+      .select('*')
+      .eq('id', commentId)
+      .single()
+
+    if (fetchErr || !originalComment) return { success: false, error: "Comment not found" }
+
+    // 2. Fetch user role to check permissions
+    const profileRes = await getCurrentUserRoleAndProfile()
+    if (!profileRes.success || !profileRes.profile) {
+      return { success: false, error: "Profile not found" }
+    }
+    const commenterName = profileRes.profile.name
+    const userRole = profileRes.role
+
+    // Enforce permissions: Only sender OR Admin (moderator) can delete for everyone
+    const isOwner = originalComment.user_id === user.id
+    const isAdmin = userRole === 'ADMIN'
+
+    if (!isOwner && !isAdmin) {
+      return { success: false, error: "Unauthorized to delete this message" }
+    }
+
+    // 3. Set message to deleted
+    const { error: deleteErr } = await adminClient
+      .from('task_comments')
+      .update({
+        message: "This message was deleted.",
+        comment_text: "This message was deleted.",
+        is_deleted: true
+      })
+      .eq('id', commentId)
+
+    if (deleteErr) throw deleteErr
+
+    // 4. Log task activity
+    await adminClient.from('task_activity_logs').insert({
+      task_id: originalComment.task_id,
+      action_type: 'COMMENT_DELETED',
+      action_by: user.id,
+      action_description: `${commenterName} deleted a discussion message.`
+    })
+
+    return { success: true }
+  } catch (err: any) {
+    console.error("Error deleting comment:", err)
+    return { success: false, error: err.message || String(err) }
+  }
+}
+

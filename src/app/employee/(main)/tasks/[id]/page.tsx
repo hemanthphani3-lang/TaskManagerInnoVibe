@@ -31,7 +31,7 @@ export default async function EmployeeTaskDetailsPage({ params }: { params: Prom
   try {
     const results = await Promise.all([
       supabase.from('tasks').select('*').eq('id', taskId).eq('assigned_employee_id', user!.id).maybeSingle(),
-      supabase.from('task_comments').select('id, comment_text, created_at, user_id').eq('task_id', taskId).order('created_at', { ascending: true }),
+      supabase.from('task_comments').select('id, comment_text, created_at, user_id, is_edited, is_deleted').eq('task_id', taskId).order('created_at', { ascending: true }),
       supabase.from('task_activity_logs').select('*').eq('task_id', taskId).order('created_at', { ascending: false }),
       supabase.from('employees').select('employee_name, profile_photo').eq('id', user!.id).maybeSingle()
     ])

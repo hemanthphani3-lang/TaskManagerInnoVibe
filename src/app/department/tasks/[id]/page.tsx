@@ -40,7 +40,7 @@ export default async function DepartmentTaskDetailsPage({ params }: { params: Pr
         .maybeSingle(),
       supabase
         .from('task_comments')
-        .select('id, comment_text, created_at, user_id')
+        .select('id, comment_text, created_at, user_id, is_edited, is_deleted')
         .eq('task_id', taskId)
         .order('created_at', { ascending: true }),
       supabase
