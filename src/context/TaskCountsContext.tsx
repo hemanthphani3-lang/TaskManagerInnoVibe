@@ -30,6 +30,10 @@ export const TaskCountsProvider = ({ children }: { children: React.ReactNode }) 
   const fetchCounts = async () => {
     try {
       const res = await fetch('/api/tasks/counts');
+      if (res.status === 401) {
+        // User is not authenticated; handle silently
+        return;
+      }
       if (!res.ok) {
         throw new Error(`Failed to fetch task counts: ${res.statusText}`);
       }
@@ -44,7 +48,7 @@ export const TaskCountsProvider = ({ children }: { children: React.ReactNode }) 
         highPriority: data.high_priority_tasks ?? 0,
       });
     } catch (err) {
-      console.error('Failed to fetch task counts', err);
+      console.warn('Could not fetch task counts (this is expected if logged out):', err);
     }
   };
 
