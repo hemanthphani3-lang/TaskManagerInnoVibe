@@ -69,7 +69,10 @@ export function TaskCommentBox({
   }, [currentUserId])
 
   useEffect(() => {
-    const handleDocumentClick = () => {
+    const handleDocumentClick = (e: MouseEvent) => {
+      if ((e.target as Element)?.closest?.('.menu-trigger')) {
+        return
+      }
       setActiveMenuId(null)
     }
     document.addEventListener("click", handleDocumentClick)
@@ -268,14 +271,14 @@ export function TaskCommentBox({
     const isOpen = activeMenuId === comment.id
 
     return (
-      <div className="relative shrink-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+      <div className="relative shrink-0 opacity-60 group-hover:opacity-100 transition-opacity duration-200">
         <button
           type="button"
           onClick={(e) => {
             e.stopPropagation()
             setActiveMenuId(isOpen ? null : comment.id)
           }}
-          className="p-1 rounded-full hover:bg-slate-200 dark:hover:bg-slate-650 text-slate-400 hover:text-slate-600 dark:text-slate-450 dark:hover:text-slate-200 transition-colors"
+          className="p-1 rounded-full hover:bg-slate-200 dark:hover:bg-slate-650 text-slate-400 hover:text-slate-600 dark:text-slate-450 dark:hover:text-slate-200 transition-colors menu-trigger"
         >
           <MoreVertical className="w-3.5 h-3.5" />
         </button>

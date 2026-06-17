@@ -115,7 +115,10 @@ export function TaskDetailsModal({
 
   // Click away listener for options dropdown
   useEffect(() => {
-    const handleDocumentClick = () => {
+    const handleDocumentClick = (e: MouseEvent) => {
+      if ((e.target as Element)?.closest?.('.menu-trigger')) {
+        return
+      }
       setActiveMenuId(null)
     }
     document.addEventListener("click", handleDocumentClick)
@@ -429,7 +432,7 @@ export function TaskDetailsModal({
             e.stopPropagation()
             setActiveMenuId(isOpen ? null : comm.id)
           }}
-          className="p-1 rounded-full hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition-colors"
+          className="p-1 rounded-full hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition-colors menu-trigger"
         >
           <MoreVertical className="w-3.5 h-3.5" />
         </button>

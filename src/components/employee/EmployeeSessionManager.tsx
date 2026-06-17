@@ -112,7 +112,7 @@ export function EmployeeSessionManager({ children, links }: { children: React.Re
       />
       
       <div className="md:pl-[272px] md:pr-4 md:py-4 pt-16 pb-20 md:pb-0 md:pt-0 flex flex-col min-h-screen md:h-screen md:overflow-hidden transition-all duration-300">
-        <main className="flex-1 w-full flex flex-col min-h-0">
+        <main className="flex-1 w-full flex flex-col min-h-0 overflow-y-auto">
           <PageTransition>
             {children}
           </PageTransition>

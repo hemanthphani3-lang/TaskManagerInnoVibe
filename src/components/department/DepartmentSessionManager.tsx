@@ -115,8 +115,8 @@ export function DepartmentSessionManager({ children, links }: DepartmentSessionM
         onLogoutClick={handleLogoutClick}
       />
       
-      <div className="md:pl-64 pt-16 md:pt-0 flex flex-col min-h-screen transition-all duration-300">
-        <main className="flex-1 w-full flex flex-col">
+      <div className="md:pl-64 pt-16 md:pt-0 flex flex-col min-h-screen md:h-screen md:overflow-hidden transition-all duration-300">
+        <main className="flex-1 w-full flex flex-col min-h-0 overflow-y-auto">
           <PageTransition>
             {children}
           </PageTransition>
