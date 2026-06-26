@@ -39,8 +39,9 @@ export default function LoginPage() {
 
     try {
       // Step 1: Sign in with Supabase Auth
+      const trimmedEmail = email.trim().toLowerCase()
       const { data: authData, error: signInError } = await supabase.auth.signInWithPassword({
-        email,
+        email: trimmedEmail,
         password,
       })
 
@@ -229,10 +230,14 @@ export default function LoginPage() {
                   </div>
                   <input
                     id="email"
-                    type="text"
+                    type="email"
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
+                    autoCapitalize="none"
+                    autoComplete="email"
+                    autoCorrect="off"
+                    spellCheck="false"
                     className="w-full pl-11 pr-4 h-[50px] bg-white border border-[#E2E8F0] rounded-[14px] text-slate-800 text-xs font-semibold placeholder:text-slate-400 focus:outline-none focus:border-[#2563FF] focus:ring-4 focus:ring-[#2563FF]/8 transition-all"
                     placeholder="name@company.com"
                     suppressHydrationWarning
@@ -253,6 +258,10 @@ export default function LoginPage() {
                     required
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
+                    autoCapitalize="none"
+                    autoComplete="current-password"
+                    autoCorrect="off"
+                    spellCheck="false"
                     className="w-full pl-11 pr-11 h-[50px] bg-white border border-[#E2E8F0] rounded-[14px] text-slate-800 text-xs font-semibold placeholder:text-slate-400 focus:outline-none focus:border-[#2563FF] focus:ring-4 focus:ring-[#2563FF]/8 transition-all tracking-wide"
                     placeholder="Enter your password"
                     suppressHydrationWarning

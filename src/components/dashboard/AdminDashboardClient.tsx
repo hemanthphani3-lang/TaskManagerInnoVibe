@@ -14,6 +14,8 @@ import {
   AreaChart, Area, LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer 
 } from "recharts"
+import { BirthdayCard } from "./BirthdayCard"
+import { BirthdayCelebration } from "./BirthdayCelebration"
 
 // Define Props interfaces
 interface Employee {
@@ -91,6 +93,16 @@ interface AdminDashboardClientProps {
   pendingLeavesCount: number
   pendingLogoutsCount: number
   activityFeed: any[]
+  currentUserId: string
+  birthdaysToday?: any[]
+}
+
+function isTimestampOnISTDate(timestamp: string | null | undefined, istDateStr: string): boolean {
+  if (!timestamp) return false
+  const d = new Date(timestamp)
+  if (isNaN(d.getTime())) return false
+  const istTime = new Date(d.getTime() + 5.5 * 60 * 60 * 1000)
+  return istTime.toISOString().split('T')[0] === istDateStr
 }
 
 export function AdminDashboardClient({
@@ -102,7 +114,9 @@ export function AdminDashboardClient({
   productivityScores,
   pendingLeavesCount,
   pendingLogoutsCount,
-  activityFeed
+  activityFeed,
+  currentUserId,
+  birthdaysToday = []
 }: AdminDashboardClientProps) {
   
   // SSR Mount Safety State
@@ -278,11 +292,11 @@ export function AdminDashboardClient({
     })
 
     // Unsubmitted Reports today: work sessions logged out but report_submitted is false
-    const todayStr = new Date().toISOString().split('T')[0]
+    const todayStr = new Date(Date.now() + 5.5 * 60 * 60 * 1000).toISOString().split('T')[0]
     const unsubmittedReportsCount = workSessions.filter(s => 
       s.status === 'COMPLETED' && 
       !s.report_submitted && 
-      (s.login_time?.startsWith(todayStr) || s.logout_time?.startsWith(todayStr))
+      (isTimestampOnISTDate(s.login_time, todayStr) || isTimestampOnISTDate(s.logout_time, todayStr))
     ).length
 
     return {
@@ -295,11 +309,11 @@ export function AdminDashboardClient({
 
   // 2. ACTIVE TODAY CALC
   const activeTodayCount = useMemo(() => {
-    const todayStr = new Date().toISOString().split('T')[0]
+    const todayStr = new Date(Date.now() + 5.5 * 60 * 60 * 1000).toISOString().split('T')[0]
     // Active work sessions today that are NOT logged out
     const activeSess = workSessions.filter(s => 
       s.status === 'ACTIVE' && 
-      s.login_time?.startsWith(todayStr)
+      isTimestampOnISTDate(s.login_time, todayStr)
     )
     return activeSess.length || Math.min(totalEmployeesCount, 92) // Fallback to reference if empty DB
   }, [workSessions, totalEmployeesCount])
@@ -541,15 +555,15 @@ export function AdminDashboardClient({
 
     if (activityTimeframe === "Today") {
       // Use live sessions today
-      const todayStr = new Date().toISOString().split('T')[0]
-      const sessToday = workSessions.filter(s => s.login_time?.startsWith(todayStr))
+      const todayStr = new Date(Date.now() + 5.5 * 60 * 60 * 1000).toISOString().split('T')[0]
+      const sessToday = workSessions.filter(s => isTimestampOnISTDate(s.login_time, todayStr))
       loggedIn = new Set(sessToday.map(s => s.user_id)).size || 19
       active = sessToday.filter(s => s.status === 'ACTIVE' && !s.logout_time).length || activeTodayCount
       loggedOut = sessToday.filter(s => s.status === 'COMPLETED').length || 2
       reports = sessToday.filter(s => s.report_submitted).length || 2
     } else if (activityTimeframe === "Yesterday") {
-      const yesterdayStr = new Date(Date.now() - 86400000).toISOString().split('T')[0]
-      const sessYesterday = workSessions.filter(s => s.login_time?.startsWith(yesterdayStr))
+      const yesterdayStr = new Date(Date.now() - 86400000 + 5.5 * 60 * 60 * 1000).toISOString().split('T')[0]
+      const sessYesterday = workSessions.filter(s => isTimestampOnISTDate(s.login_time, yesterdayStr))
       loggedIn = new Set(sessYesterday.map(s => s.user_id)).size || 15
       active = sessYesterday.filter(s => s.status === 'ACTIVE' && !s.logout_time).length || 12
       loggedOut = sessYesterday.filter(s => s.status === 'COMPLETED').length || 3
@@ -1051,75 +1065,80 @@ export function AdminDashboardClient({
 
           </div>
 
-          {/* Attention Required Card */}
-          <div className="bg-white rounded-2xl p-6 border border-slate-205/80 shadow-sm flex flex-col justify-between">
-            <div className="flex-1 flex flex-col justify-between">
-              <h3 className="text-lg font-bold text-slate-800 mb-2">Attention Required</h3>
-              
-              <div className="flex-1 flex flex-col justify-around py-2 gap-4">
+          {/* Right Column: Attention Required & Birthday Card */}
+          <div className="space-y-6 flex flex-col">
+            {/* Attention Required Card */}
+            <div className="bg-white rounded-2xl p-6 border border-slate-205/80 shadow-sm flex flex-col justify-between flex-1">
+              <div className="flex-1 flex flex-col justify-between">
+                <h3 className="text-lg font-bold text-slate-800 mb-2">Attention Required</h3>
                 
-                {/* Alert 1: Pending Leave Approvals */}
-                <Link href="/admin/leaves" className="flex items-center justify-between p-3.5 rounded-xl border border-slate-100 hover:bg-slate-50 transition-all group">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2.5 bg-rose-50 text-rose-600 rounded-xl border border-rose-100 group-hover:scale-105 transition-transform">
-                      <Clock className="w-5 h-5" />
+                <div className="flex-1 flex flex-col justify-around py-2 gap-4">
+                  
+                  {/* Alert 1: Pending Leave Approvals */}
+                  <Link href="/admin/leaves" className="flex items-center justify-between p-3.5 rounded-xl border border-slate-100 hover:bg-slate-50 transition-all group">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2.5 bg-rose-50 text-rose-600 rounded-xl border border-rose-100 group-hover:scale-105 transition-transform">
+                        <Clock className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold text-slate-800">Pending Leave Approvals</p>
+                        <p className="text-[10px] text-slate-400 font-semibold">Requires your approval</p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-xs font-bold text-slate-800">Pending Leave Approvals</p>
-                      <p className="text-[10px] text-slate-400 font-semibold">Requires your approval</p>
-                    </div>
-                  </div>
-                  <span className="bg-rose-50 text-rose-600 text-xs font-black px-2.5 py-1 rounded-lg border border-rose-150">{attentionRequiredAlerts.leaves}</span>
-                </Link>
+                    <span className="bg-rose-50 text-rose-600 text-xs font-black px-2.5 py-1 rounded-lg border border-rose-150">{attentionRequiredAlerts.leaves}</span>
+                  </Link>
 
-                {/* Alert 2: Incomplete Onboarding */}
-                <Link href="/admin/employees" className="flex items-center justify-between p-3.5 rounded-xl border border-slate-100 hover:bg-slate-50 transition-all group">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2.5 bg-amber-50 text-amber-600 rounded-xl border border-amber-100 group-hover:scale-105 transition-transform">
-                      <UserCheck className="w-5 h-5" />
+                  {/* Alert 2: Incomplete Onboarding */}
+                  <Link href="/admin/employees" className="flex items-center justify-between p-3.5 rounded-xl border border-slate-100 hover:bg-slate-50 transition-all group">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2.5 bg-amber-50 text-amber-600 rounded-xl border border-amber-100 group-hover:scale-105 transition-transform">
+                        <UserCheck className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold text-slate-800">Incomplete Onboarding</p>
+                        <p className="text-[10px] text-slate-400 font-semibold">Profiles below 70% completion</p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-xs font-bold text-slate-800">Incomplete Onboarding</p>
-                      <p className="text-[10px] text-slate-400 font-semibold">Profiles below 70% completion</p>
-                    </div>
-                  </div>
-                  <span className="bg-amber-50 text-amber-600 text-xs font-black px-2.5 py-1 rounded-lg border border-amber-150">{attentionRequiredAlerts.onboarding}</span>
-                </Link>
+                    <span className="bg-amber-50 text-amber-600 text-xs font-black px-2.5 py-1 rounded-lg border border-amber-150">{attentionRequiredAlerts.onboarding}</span>
+                  </Link>
 
-                {/* Alert 3: Departments Below Threshold */}
-                <Link href="/admin/departments" className="flex items-center justify-between p-3.5 rounded-xl border border-slate-100 hover:bg-slate-50 transition-all group">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2.5 bg-indigo-50 text-indigo-600 rounded-xl border border-indigo-100 group-hover:scale-105 transition-transform">
-                      <Building2 className="w-5 h-5" />
+                  {/* Alert 3: Departments Below Threshold */}
+                  <Link href="/admin/departments" className="flex items-center justify-between p-3.5 rounded-xl border border-slate-100 hover:bg-slate-50 transition-all group">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2.5 bg-indigo-50 text-indigo-600 rounded-xl border border-indigo-100 group-hover:scale-105 transition-transform">
+                        <Building2 className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold text-slate-800">Departments Below Threshold</p>
+                        <p className="text-[10px] text-slate-400 font-semibold">Performance under 60%</p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-xs font-bold text-slate-800">Departments Below Threshold</p>
-                      <p className="text-[10px] text-slate-400 font-semibold">Performance under 60%</p>
-                    </div>
-                  </div>
-                  <span className="bg-indigo-50 text-indigo-600 text-xs font-black px-2.5 py-1 rounded-lg border border-indigo-150">{attentionRequiredAlerts.departments}</span>
-                </Link>
+                    <span className="bg-indigo-50 text-indigo-600 text-xs font-black px-2.5 py-1 rounded-lg border border-indigo-150">{attentionRequiredAlerts.departments}</span>
+                  </Link>
 
-                {/* Alert 4: Unsubmitted Reports */}
-                <Link href="/admin/logouts" className="flex items-center justify-between p-3.5 rounded-xl border border-slate-100 hover:bg-slate-50 transition-all group">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2.5 bg-blue-50 text-[#0066FF] rounded-xl border border-blue-100 group-hover:scale-105 transition-transform">
-                      <FileText className="w-5 h-5" />
+                  {/* Alert 4: Unsubmitted Reports */}
+                  <Link href="/admin/logouts" className="flex items-center justify-between p-3.5 rounded-xl border border-slate-100 hover:bg-slate-50 transition-all group">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2.5 bg-blue-50 text-[#0066FF] rounded-xl border border-blue-100 group-hover:scale-105 transition-transform">
+                        <FileText className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold text-slate-800">Unsubmitted Reports</p>
+                        <p className="text-[10px] text-slate-400 font-semibold">Awaiting submission</p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-xs font-bold text-slate-800">Unsubmitted Reports</p>
-                      <p className="text-[10px] text-slate-400 font-semibold">Awaiting submission</p>
-                    </div>
-                  </div>
-                  <span className="bg-blue-50 text-[#0066FF] text-xs font-black px-2.5 py-1 rounded-lg border border-blue-150">{attentionRequiredAlerts.reports}</span>
-                </Link>
+                    <span className="bg-blue-50 text-[#0066FF] text-xs font-black px-2.5 py-1 rounded-lg border border-blue-150">{attentionRequiredAlerts.reports}</span>
+                  </Link>
 
+                </div>
               </div>
+              
+              {/* Note: The 'View All Alerts' button is completely removed from here */}
             </div>
-            
-            {/* Note: The 'View All Alerts' button is completely removed from here */}
-          </div>
 
+            {/* Birthday Card */}
+            <BirthdayCard birthdays={birthdaysToday} />
+          </div>
         </div>
 
         {/* BOTTOM PANEL ROW 1: TOP PERFORMERS, DEPARTMENT HEALTH, WORKFORCE ACTIVITY */}
@@ -1816,6 +1835,7 @@ export function AdminDashboardClient({
         </div>
       )}
 
+      <BirthdayCelebration currentUserId={currentUserId} birthdays={birthdaysToday} />
     </div>
   )
 }

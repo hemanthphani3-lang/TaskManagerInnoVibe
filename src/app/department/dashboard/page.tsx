@@ -5,6 +5,8 @@ import { createServiceClient } from "@/lib/supabase/service"
 import { redirect } from "next/navigation"
 import { DepartmentDashboardClient } from "@/components/dashboard/DepartmentDashboardClient"
 
+import { checkAndGenerateBirthdayNotifications, getBirthdaysToday } from "@/app/actions/birthday"
+
 export default async function DepartmentDashboard() {
   // ── Auth ──────────────────────────────────────────────────────────────────
   const supabase = await createClient()
@@ -15,6 +17,10 @@ export default async function DepartmentDashboard() {
   } catch (_e) {}
 
   if (!user) redirect("/login")
+
+  // Run birthday notification check and fetch today's birthdays
+  await checkAndGenerateBirthdayNotifications()
+  const birthdaysToday = await getBirthdaysToday()
 
   const supabaseAdmin = createServiceClient()
 
@@ -28,17 +34,18 @@ export default async function DepartmentDashboard() {
   const deptName = deptProfile?.department_name || "Department"
 
   // ── Date Calculations (IST Timezone Considerations) ───────────────────────
-  const today = new Date().toISOString().split('T')[0]
+  const now = new Date()
+  const offset = 5.5 * 60 * 60 * 1000 // IST
+  const today = new Date(now.getTime() + offset).toISOString().split('T')[0]
   
   // Calculate date 30 days ago to fetch full historical analytics
   const last30Days = Array.from({ length: 30 }).map((_, i) => {
-    const d = new Date()
-    d.setDate(d.getDate() - i)
+    const d = new Date(now.getTime() + offset - i * 24 * 60 * 60 * 1000)
     return d.toISOString().split('T')[0]
   }).reverse()
 
-  const startUTC = `${last30Days[0]}T00:00:00Z`
-  const endUTC = `${today}T23:59:59Z`
+  const startUTC = `${last30Days[0]}T00:00:00+05:30`
+  const endUTC = `${today}T23:59:59+05:30`
 
   // ── Fetch Employees under this department ──────────────────────────────────
   const { data: employeesRaw } = await supabaseAdmin
@@ -100,7 +107,7 @@ export default async function DepartmentDashboard() {
     // Activity feed
     supabaseAdmin
       .from('activity_feed')
-      .select('id, employee_id, activity_type, activity_details, created_at')
+      .select('id, activity_type, activity_user_name, activity_description, created_at')
       .eq('department_id', user.id)
       .order('created_at', { ascending: false })
       .limit(30),
@@ -147,6 +154,8 @@ export default async function DepartmentDashboard() {
       activityFeed={activityFeed}
       pendingLeavesCount={pendingLeavesCount || 0}
       logoutReportsToday={logoutReportsCount || 0}
+      birthdaysToday={birthdaysToday}
+      currentUserId={user.id}
     />
   )
 }

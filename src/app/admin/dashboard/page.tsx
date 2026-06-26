@@ -5,6 +5,8 @@ import { createServiceClient } from "@/lib/supabase/service"
 import { redirect } from "next/navigation"
 import { AdminDashboardClient } from "@/components/dashboard/AdminDashboardClient"
 
+import { checkAndGenerateBirthdayNotifications, getBirthdaysToday } from "@/app/actions/birthday"
+
 export default async function AdminDashboard() {
   try {
     const supabase = await createClient()
@@ -18,17 +20,22 @@ export default async function AdminDashboard() {
 
     if (!user) redirect("/login")
 
-    const today = new Date().toISOString().split('T')[0]
+    // Run birthday notification check and fetch today's birthdays
+    await checkAndGenerateBirthdayNotifications()
+    const birthdaysToday = await getBirthdaysToday()
+
+    const now = new Date()
+    const offset = 5.5 * 60 * 60 * 1000 // IST
+    const today = new Date(now.getTime() + offset).toISOString().split('T')[0]
     
     // Generate dates for the last 30 days to support "This Month"
     const last30Days = Array.from({ length: 30 }).map((_, i) => {
-      const d = new Date()
-      d.setDate(d.getDate() - i)
+      const d = new Date(now.getTime() + offset - i * 24 * 60 * 60 * 1000)
       return d.toISOString().split('T')[0]
     }).reverse()
 
-    const startUTC30 = `${last30Days[0]}T00:00:00Z`
-    const endUTC30 = `${today}T23:59:59Z`
+    const startUTC30 = `${last30Days[0]}T00:00:00+05:30`
+    const endUTC30 = `${today}T23:59:59+05:30`
 
     const supabaseAdmin = createServiceClient()
 
@@ -66,6 +73,8 @@ export default async function AdminDashboard() {
         pendingLeavesCount={pendingLeavesCount || 0}
         pendingLogoutsCount={pendingLogoutsCount || 0}
         activityFeed={activityFeed || []}
+        birthdaysToday={birthdaysToday}
+        currentUserId={user.id}
       />
     )
   } catch (error: any) {

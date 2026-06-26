@@ -12,6 +12,8 @@ import {
   AreaChart, Area, LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer 
 } from "recharts"
+import { BirthdayCard } from "./BirthdayCard"
+import { BirthdayCelebration } from "./BirthdayCelebration"
 
 // Define Props interfaces
 interface Employee {
@@ -83,6 +85,16 @@ interface DepartmentDashboardClientProps {
   activityFeed: ActivityItem[]
   pendingLeavesCount: number
   logoutReportsToday: number
+  currentUserId: string
+  birthdaysToday?: any[]
+}
+
+function isTimestampOnISTDate(timestamp: string | null | undefined, istDateStr: string): boolean {
+  if (!timestamp) return false
+  const d = new Date(timestamp)
+  if (isNaN(d.getTime())) return false
+  const istTime = new Date(d.getTime() + 5.5 * 60 * 60 * 1000)
+  return istTime.toISOString().split('T')[0] === istDateStr
 }
 
 export function DepartmentDashboardClient({
@@ -96,7 +108,9 @@ export function DepartmentDashboardClient({
   rankings,
   activityFeed,
   pendingLeavesCount,
-  logoutReportsToday
+  logoutReportsToday,
+  currentUserId,
+  birthdaysToday = []
 }: DepartmentDashboardClientProps) {
   
   // SSR hydration safety
@@ -196,7 +210,7 @@ export function DepartmentDashboardClient({
   // 2. COMPUTE LIVE STATS & KPI VALUES
   // Today's attendance records
   const todayAttendanceRecords = useMemo(() => {
-    const list = attendance.filter(a => a.created_at.startsWith(todayStr) && a.employee_id !== departmentId)
+    const list = attendance.filter(a => isTimestampOnISTDate(a.created_at, todayStr) && a.employee_id !== departmentId)
     // De-duplicate by employee_id, keeping the latest record
     const unique = new Map<string, Attendance>()
     list.forEach(a => {
@@ -257,11 +271,11 @@ export function DepartmentDashboardClient({
       const dayEmps = totalEmployeesCount
 
       // Active
-      const daySessions = workSessions.filter(s => s.login_time?.startsWith(dateStr) && s.user_id !== departmentId)
+      const daySessions = workSessions.filter(s => isTimestampOnISTDate(s.login_time, dateStr) && s.user_id !== departmentId)
       const dayActive = new Set(daySessions.map(s => s.user_id)).size
 
       // Attendance %
-      const dayAtt = attendance.filter(a => a.created_at.startsWith(dateStr) && a.employee_id !== departmentId)
+      const dayAtt = attendance.filter(a => isTimestampOnISTDate(a.created_at, dateStr) && a.employee_id !== departmentId)
       const uniqueAtt = new Map<string, Attendance>()
       dayAtt.forEach(a => uniqueAtt.set(a.employee_id, a))
       const present = Array.from(uniqueAtt.values()).filter(a => ["PRESENT", "LATE", "HALF_DAY"].includes(a.attendance_status)).length
@@ -286,12 +300,12 @@ export function DepartmentDashboardClient({
   // Trend percentages (fake indicators or calculated based on yesterday)
   const trends = useMemo(() => {
     // Yesterday active
-    const yestSessions = workSessions.filter(s => s.login_time?.startsWith(yesterdayStr) && s.user_id !== departmentId)
+    const yestSessions = workSessions.filter(s => isTimestampOnISTDate(s.login_time, yesterdayStr) && s.user_id !== departmentId)
     const yestActive = new Set(yestSessions.map(s => s.user_id)).size
     const activeTrend = yestActive > 0 ? Math.round(((activeNowCount - yestActive) / yestActive) * 100) : 100
 
     // Yesterday attendance
-    const yestAtt = attendance.filter(a => a.created_at.startsWith(yesterdayStr) && a.employee_id !== departmentId)
+    const yestAtt = attendance.filter(a => isTimestampOnISTDate(a.created_at, yesterdayStr) && a.employee_id !== departmentId)
     const uniqueYestAtt = new Map<string, Attendance>()
     yestAtt.forEach(a => uniqueYestAtt.set(a.employee_id, a))
     const yestPresent = Array.from(uniqueYestAtt.values()).filter(a => ["PRESENT", "LATE", "HALF_DAY"].includes(a.attendance_status)).length
@@ -352,7 +366,7 @@ export function DepartmentDashboardClient({
       })
 
       // Attendance rate on this day
-      const dayAtt = attendance.filter(a => a.created_at.startsWith(dateStr) && a.employee_id !== departmentId)
+      const dayAtt = attendance.filter(a => isTimestampOnISTDate(a.created_at, dateStr) && a.employee_id !== departmentId)
       const uniqueDayAtt = new Map<string, Attendance>()
       dayAtt.forEach(a => uniqueDayAtt.set(a.employee_id, a))
       const present = Array.from(uniqueDayAtt.values()).filter(a => ["PRESENT", "LATE", "HALF_DAY"].includes(a.attendance_status)).length
@@ -497,7 +511,7 @@ export function DepartmentDashboardClient({
     }).reverse()
 
     return daysList.map(dateStr => {
-      const dayRecordsRaw = attendance.filter(a => a.created_at.startsWith(dateStr) && a.employee_id !== departmentId)
+      const dayRecordsRaw = attendance.filter(a => isTimestampOnISTDate(a.created_at, dateStr) && a.employee_id !== departmentId)
       // De-duplicate by employee_id, keeping the latest record
       const unique = new Map<string, Attendance>()
       dayRecordsRaw.forEach(a => unique.set(a.employee_id, a))
@@ -858,99 +872,103 @@ export function DepartmentDashboardClient({
           </div>
         </div>
 
-        {/* Team Alerts Card */}
-        <div className="bg-white rounded-xl p-5 border border-slate-200/60 shadow-xs flex flex-col justify-between">
-          <div className="mb-4">
-            <h2 className="text-sm font-bold text-slate-900">Team Alerts</h2>
+        {/* Right Column: Team Alerts & Birthday Card */}
+        <div className="space-y-6 flex flex-col">
+          {/* Team Alerts Card */}
+          <div className="bg-white rounded-xl p-5 border border-slate-200/60 shadow-xs flex flex-col justify-between flex-1">
+            <div className="mb-4">
+              <h2 className="text-sm font-bold text-slate-900">Team Alerts</h2>
+            </div>
+
+            <div className="flex-1 flex flex-col justify-center space-y-3">
+              {/* Alert: Absent Today */}
+              <Link 
+                href="/department/attendance"
+                className="flex items-center justify-between p-3.5 bg-slate-50 border border-slate-100 hover:border-red-200/80 hover:bg-red-50/20 rounded-xl transition group"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-lg bg-red-50 text-red-500 flex items-center justify-center">
+                    <XCircle className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-xs font-bold text-slate-800">Absent Today</h3>
+                    <p className="text-[10px] text-slate-400 mt-0.5">
+                      {absentTodayCount === 1 ? '1 employee absent' : `${absentTodayCount} employees absent`}
+                    </p>
+                  </div>
+                </div>
+                <span className="w-6 h-6 rounded-full bg-red-50 text-red-600 font-bold text-xs flex items-center justify-center group-hover:scale-105 transition-all">
+                  {absentTodayCount}
+                </span>
+              </Link>
+
+              {/* Alert: Pending Tasks */}
+              <Link 
+                href="/department/tasks"
+                className="flex items-center justify-between p-3.5 bg-slate-50 border border-slate-100 hover:border-amber-200/80 hover:bg-amber-50/20 rounded-xl transition group"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-lg bg-amber-50 text-amber-500 flex items-center justify-center">
+                    <Clock className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-xs font-bold text-slate-800">Pending Tasks</h3>
+                    <p className="text-[10px] text-slate-400 mt-0.5">
+                      {pendingTasksCount === 1 ? '1 task pending' : `${pendingTasksCount} tasks pending`}
+                    </p>
+                  </div>
+                </div>
+                <span className="w-6 h-6 rounded-full bg-amber-50 text-amber-600 font-bold text-xs flex items-center justify-center group-hover:scale-105 transition-all">
+                  {pendingTasksCount}
+                </span>
+              </Link>
+
+              {/* Alert: Pending Leaves */}
+              <Link 
+                href="/department/leave-approvals"
+                className="flex items-center justify-between p-3.5 bg-slate-50 border border-slate-100 hover:border-purple-200/80 hover:bg-purple-50/20 rounded-xl transition group"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-lg bg-purple-50 text-purple-500 flex items-center justify-center">
+                    <Calendar className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-xs font-bold text-slate-800">Pending Leaves</h3>
+                    <p className="text-[10px] text-slate-400 mt-0.5">
+                      {pendingLeavesCount === 1 ? '1 pending leave request' : `${pendingLeavesCount} pending leaves`}
+                    </p>
+                  </div>
+                </div>
+                <span className="w-6 h-6 rounded-full bg-purple-50 text-purple-650 text-purple-600 font-bold text-xs flex items-center justify-center group-hover:scale-105 transition-all">
+                  {pendingLeavesCount}
+                </span>
+              </Link>
+
+              {/* Alert: Reports Pending */}
+              <Link 
+                href="/department/reports"
+                className="flex items-center justify-between p-3.5 bg-slate-50 border border-slate-100 hover:border-blue-200/80 hover:bg-blue-50/20 rounded-xl transition group"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-lg bg-blue-50 text-blue-500 flex items-center justify-center">
+                    <FileText className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-xs font-bold text-slate-800">Reports Pending</h3>
+                    <p className="text-[10px] text-slate-400 mt-0.5">
+                      {reportsPendingCount === 1 ? '1 report pending' : `${reportsPendingCount} reports pending`}
+                    </p>
+                  </div>
+                </div>
+                <span className="w-6 h-6 rounded-full bg-blue-50 text-blue-655 text-blue-600 font-bold text-xs flex items-center justify-center group-hover:scale-105 transition-all">
+                  {reportsPendingCount}
+                </span>
+              </Link>
+            </div>
           </div>
-
-          <div className="flex-1 flex flex-col justify-center space-y-3">
-            {/* Alert: Absent Today */}
-            <Link 
-              href="/department/attendance"
-              className="flex items-center justify-between p-3.5 bg-slate-50 border border-slate-100 hover:border-red-200/80 hover:bg-red-50/20 rounded-xl transition group"
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-lg bg-red-50 text-red-500 flex items-center justify-center">
-                  <XCircle className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="text-xs font-bold text-slate-800">Absent Today</h3>
-                  <p className="text-[10px] text-slate-400 mt-0.5">
-                    {absentTodayCount === 1 ? '1 employee absent' : `${absentTodayCount} employees absent`}
-                  </p>
-                </div>
-              </div>
-              <span className="w-6 h-6 rounded-full bg-red-50 text-red-600 font-bold text-xs flex items-center justify-center group-hover:scale-105 transition-all">
-                {absentTodayCount}
-              </span>
-            </Link>
-
-            {/* Alert: Pending Tasks */}
-            <Link 
-              href="/department/tasks"
-              className="flex items-center justify-between p-3.5 bg-slate-50 border border-slate-100 hover:border-amber-200/80 hover:bg-amber-50/20 rounded-xl transition group"
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-lg bg-amber-50 text-amber-500 flex items-center justify-center">
-                  <Clock className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="text-xs font-bold text-slate-800">Pending Tasks</h3>
-                  <p className="text-[10px] text-slate-400 mt-0.5">
-                    {pendingTasksCount === 1 ? '1 task pending' : `${pendingTasksCount} tasks pending`}
-                  </p>
-                </div>
-              </div>
-              <span className="w-6 h-6 rounded-full bg-amber-50 text-amber-600 font-bold text-xs flex items-center justify-center group-hover:scale-105 transition-all">
-                {pendingTasksCount}
-              </span>
-            </Link>
-
-            {/* Alert: Pending Leaves */}
-            <Link 
-              href="/department/leave-approvals"
-              className="flex items-center justify-between p-3.5 bg-slate-50 border border-slate-100 hover:border-purple-200/80 hover:bg-purple-50/20 rounded-xl transition group"
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-lg bg-purple-50 text-purple-500 flex items-center justify-center">
-                  <Calendar className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="text-xs font-bold text-slate-800">Pending Leaves</h3>
-                  <p className="text-[10px] text-slate-400 mt-0.5">
-                    {pendingLeavesCount === 1 ? '1 pending leave request' : `${pendingLeavesCount} pending leaves`}
-                  </p>
-                </div>
-              </div>
-              <span className="w-6 h-6 rounded-full bg-purple-50 text-purple-650 text-purple-600 font-bold text-xs flex items-center justify-center group-hover:scale-105 transition-all">
-                {pendingLeavesCount}
-              </span>
-            </Link>
-
-            {/* Alert: Reports Pending */}
-            <Link 
-              href="/department/reports"
-              className="flex items-center justify-between p-3.5 bg-slate-50 border border-slate-100 hover:border-blue-200/80 hover:bg-blue-50/20 rounded-xl transition group"
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-lg bg-blue-50 text-blue-500 flex items-center justify-center">
-                  <FileText className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="text-xs font-bold text-slate-800">Reports Pending</h3>
-                  <p className="text-[10px] text-slate-400 mt-0.5">
-                    {reportsPendingCount === 1 ? '1 report pending' : `${reportsPendingCount} reports pending`}
-                  </p>
-                </div>
-              </div>
-              <span className="w-6 h-6 rounded-full bg-blue-50 text-blue-605 text-blue-600 font-bold text-xs flex items-center justify-center group-hover:scale-105 transition-all">
-                {reportsPendingCount}
-              </span>
-            </Link>
-          </div>
+          
+          <BirthdayCard birthdays={birthdaysToday} />
         </div>
-
       </div>
 
       {/* THIRD SECTION: ATTENDANCE OVERVIEW (1/3) + TEAM LEADERBOARD (1/3) + TASK SUMMARY (1/3) */}
@@ -1495,6 +1513,7 @@ export function DepartmentDashboardClient({
         </div>
       )}
 
+      <BirthdayCelebration currentUserId={currentUserId} birthdays={birthdaysToday} />
     </div>
   )
 }

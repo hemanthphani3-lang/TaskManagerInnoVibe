@@ -73,6 +73,10 @@ export function PasswordChangeForm() {
               type={showPassword ? "text" : "password"} 
               value={newPassword}
               onChange={e => setNewPassword(e.target.value)}
+              autoCapitalize="none"
+              autoComplete="new-password"
+              autoCorrect="off"
+              spellCheck="false"
               className="w-full pl-4 pr-10 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-[#0066FF]/20 focus:border-[#0066FF] outline-none transition-all dark:text-white"
               placeholder="••••••••"
               required
@@ -93,6 +97,10 @@ export function PasswordChangeForm() {
             type={showPassword ? "text" : "password"} 
             value={confirmPassword}
             onChange={e => setConfirmPassword(e.target.value)}
+            autoCapitalize="none"
+            autoComplete="new-password"
+            autoCorrect="off"
+            spellCheck="false"
             className="w-full pl-4 pr-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-[#0066FF]/20 focus:border-[#0066FF] outline-none transition-all dark:text-white"
             placeholder="••••••••"
             required

@@ -578,7 +578,7 @@ export function ReportExportModal({ role, departmentId, employeeId }: ReportExpo
         autoTable(doc, {
           startY: 46,
           head: [headers],
-          body: excelData.map(row => row.map(cell => String(cell))),
+          body: excelData.map((row: any) => row.map((cell: any) => String(cell))),
           theme: 'grid',
           styles: { fontSize: 8.5, cellPadding: 2.5, textColor: [33, 41, 54] },
           headStyles: { fillColor: [0, 102, 255], textColor: [255, 255, 255], fontStyle: 'bold' },
@@ -587,7 +587,7 @@ export function ReportExportModal({ role, departmentId, employeeId }: ReportExpo
         })
 
         // Add page numbers
-        const pageCount = doc.internal.getNumberOfPages()
+        const pageCount = doc.getNumberOfPages()
         for (let i = 1; i <= pageCount; i++) {
           doc.setPage(i)
           doc.setFontSize(8)

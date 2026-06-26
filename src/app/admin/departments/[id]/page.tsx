@@ -38,13 +38,15 @@ export default async function DepartmentBreakdownPage({ params }: { params: Prom
   const totalEmployees = employees?.length || 0
 
   // Fetch today's attendance
-  const today = new Date().toISOString().split('T')[0]
+  const now = new Date()
+  const offset = 5.5 * 60 * 60 * 1000 // IST
+  const today = new Date(now.getTime() + offset).toISOString().split('T')[0]
   const { data: attendance } = await supabase
     .from('attendance')
     .select('employee_id, attendance_status, check_in_time, work_status, working_hours')
     .eq('department_id', departmentId)
-    .gte('created_at', `${today}T00:00:00Z`)
-    .lte('created_at', `${today}T23:59:59Z`)
+    .gte('created_at', `${today}T00:00:00+05:30`)
+    .lte('created_at', `${today}T23:59:59+05:30`)
 
   const presentCount = attendance?.filter(a => a.attendance_status === 'PRESENT' || a.attendance_status === 'HALF_DAY').length || 0
   const lateCount = attendance?.filter(a => a.attendance_status === 'LATE').length || 0
