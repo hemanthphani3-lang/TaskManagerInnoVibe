@@ -5,6 +5,8 @@ import { createServiceClient } from "@/lib/supabase/service"
 import { redirect } from "next/navigation"
 import { EmployeeDashboardClient } from "@/components/employee/EmployeeDashboardClient"
 
+import { checkAndGenerateBirthdayNotifications, getBirthdaysToday } from "@/app/actions/birthday"
+
 export default async function EmployeeDashboard({ params }: { params: Promise<{ emp_no: string }> }) {
   const { emp_no } = await params
   
@@ -16,6 +18,10 @@ export default async function EmployeeDashboard({ params }: { params: Promise<{ 
   } catch (e) {}
 
   if (!user) redirect("/login")
+
+  // Run birthday notification check and fetch today's birthdays
+  await checkAndGenerateBirthdayNotifications()
+  const birthdaysToday = await getBirthdaysToday()
 
   const supabaseAdmin = createServiceClient()
 
@@ -149,6 +155,7 @@ export default async function EmployeeDashboard({ params }: { params: Promise<{ 
       userActivities={userActivities || []}
       leaveBalance={leaveBalance}
       currentUserId={user.id}
+      birthdaysToday={birthdaysToday}
     />
   )
 }

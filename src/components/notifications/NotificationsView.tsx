@@ -194,35 +194,46 @@ export function NotificationsView({ userId: userIdProp }: NotificationsViewProps
             <p className="text-slate-500 text-sm">When you get updates, they'll show up here.</p>
           </div>
         ) : (
-          notifications.map((notif) => (
-            <div 
-              key={notif.id} 
-              className={`p-5 transition-colors flex gap-4 cursor-pointer ${notif.is_read ? 'bg-white hover:bg-slate-50' : 'bg-blue-50/50 hover:bg-blue-50'}`}
-              onClick={() => handleNotificationClick(notif)}
-            >
-              <div className="mt-1">
-                {getIcon(notif.type, notif.is_read)}
-              </div>
-              <div className="flex-1 cursor-pointer">
-                <div className="flex items-start justify-between gap-4">
-                  <h4 className={`text-sm mb-1 ${notif.is_read ? 'font-medium text-slate-700' : 'font-bold text-slate-900'}`}>
-                    {notif.title}
-                  </h4>
-                  <span className="text-xs font-medium text-slate-400 whitespace-nowrap">
-                    {formatDistanceToNow(new Date(notif.created_at), { addSuffix: true })}
-                  </span>
+          notifications.map((notif) => {
+            const isBirthday = notif.title.includes('🎂') || notif.title.includes('Birthday')
+            
+            let bgClass = ''
+            if (isBirthday) {
+              bgClass = notif.is_read ? 'bg-pink-50/50 hover:bg-pink-50' : 'bg-pink-100 hover:bg-pink-200/60'
+            } else {
+              bgClass = notif.is_read ? 'bg-white hover:bg-slate-50' : 'bg-blue-50/50 hover:bg-blue-50'
+            }
+
+            return (
+              <div 
+                key={notif.id} 
+                className={`p-5 transition-colors flex gap-4 cursor-pointer ${bgClass}`}
+                onClick={() => handleNotificationClick(notif)}
+              >
+                <div className="mt-1">
+                  {getIcon(notif.type, notif.is_read)}
                 </div>
-                <p className={`text-sm leading-relaxed ${notif.is_read ? 'text-slate-500' : 'text-slate-600'}`}>
-                  {notif.message}
-                </p>
-              </div>
-              {!notif.is_read && (
-                <div className="flex items-center">
-                  <div className="w-2.5 h-2.5 rounded-full bg-[#0066FF] shadow-sm"></div>
+                <div className="flex-1 cursor-pointer">
+                  <div className="flex items-start justify-between gap-4">
+                    <h4 className={`text-sm mb-1 ${notif.is_read ? 'font-medium text-slate-700' : 'font-bold text-slate-900'}`}>
+                      {notif.title}
+                    </h4>
+                    <span className="text-xs font-medium text-slate-400 whitespace-nowrap">
+                      {formatDistanceToNow(new Date(notif.created_at), { addSuffix: true })}
+                    </span>
+                  </div>
+                  <p className={`text-sm leading-relaxed ${notif.is_read ? 'text-slate-500' : 'text-slate-600'}`}>
+                    {notif.message}
+                  </p>
                 </div>
-              )}
-            </div>
-          ))
+                {!notif.is_read && (
+                  <div className="flex items-center">
+                    <div className={`w-2.5 h-2.5 rounded-full shadow-sm ${isBirthday ? 'bg-pink-500' : 'bg-[#0066FF]'}`}></div>
+                  </div>
+                )}
+              </div>
+            )
+          })
         )}
       </div>
     </Card>

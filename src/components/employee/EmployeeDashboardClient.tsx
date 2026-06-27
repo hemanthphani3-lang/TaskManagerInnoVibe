@@ -31,6 +31,8 @@ import {
 import { WorkSubmissionModal } from "./WorkSubmissionModal"
 import CountUp from "@/components/ui/CountUp"
 import { toast } from "sonner"
+import { BirthdayCard } from "@/components/dashboard/BirthdayCard"
+import { BirthdayCelebration } from "@/components/dashboard/BirthdayCelebration"
 
 interface EmployeeDashboardClientProps {
   employee: any
@@ -56,6 +58,7 @@ interface EmployeeDashboardClientProps {
     earnedMax: number
   }
   currentUserId: string
+  birthdaysToday?: any[]
 }
 
 export function EmployeeDashboardClient({
@@ -74,7 +77,8 @@ export function EmployeeDashboardClient({
   announcements,
   userActivities,
   leaveBalance,
-  currentUserId
+  currentUserId,
+  birthdaysToday = []
 }: EmployeeDashboardClientProps) {
   const router = useRouter()
   const [searchQuery, setSearchQuery] = useState("")
@@ -847,6 +851,11 @@ export function EmployeeDashboardClient({
             </div>
           </section>
 
+          {/* Birthday Card - Mobile Only */}
+          <div className="block lg:hidden shrink-0">
+            <BirthdayCard birthdays={birthdaysToday} />
+          </div>
+
         </div>
 
         {/* Right Sidebar Column (1 Column) - Desktop Only */}
@@ -960,6 +969,9 @@ export function EmployeeDashboardClient({
 
             </div>
           </section>
+
+          {/* Birthday Card - Desktop Only */}
+          <BirthdayCard birthdays={birthdaysToday} />
 
           {/* Motivation card */}
           <section className="bg-gradient-to-br from-blue-50 to-indigo-100 border border-blue-100/50 rounded-2xl p-4 flex items-center justify-between gap-4 shrink-0 hover:shadow-sm transition-shadow">
@@ -1105,6 +1117,7 @@ export function EmployeeDashboardClient({
           </div>
         </div>
       )}
+      <BirthdayCelebration currentUserId={currentUserId} birthdays={birthdaysToday} />
     </div>
   )
 }
