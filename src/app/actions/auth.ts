@@ -397,6 +397,17 @@ export async function promoteToDepartmentHead(employeeId: string, targetDepartme
       return { success: false, error: deptErr?.message || "Target department not found." }
     }
 
+    // Clean up temporary tags from department_code and department_email if present due to a previous half-failed run
+    let originalDeptCode = dept.department_code;
+    if (originalDeptCode.includes('-TEMP-')) {
+      originalDeptCode = originalDeptCode.split('-TEMP-')[0];
+    }
+    let originalDeptEmail = dept.department_email;
+    const matchEmail = originalDeptEmail.match(/^temp-\d+-(.+)$/);
+    if (matchEmail) {
+      originalDeptEmail = matchEmail[1];
+    }
+
     // 3. Prevent self-promotion if already head of this department
     if (dept.id === employeeId) {
       return { success: false, error: "Employee is already the department head of this department." }
@@ -406,8 +417,8 @@ export async function promoteToDepartmentHead(employeeId: string, targetDepartme
     const originalHeadId = dept.original_head_id || dept.id;
 
     // 4b. Rename old department code and email to temporary to avoid unique constraint violations
-    const tempCode = `${dept.department_code}-TEMP-${Date.now()}`
-    const tempEmail = `temp-${Date.now()}-${dept.department_email}`
+    const tempCode = `${originalDeptCode}-TEMP-${Date.now()}`
+    const tempEmail = `temp-${Date.now()}-${originalDeptEmail}`
     const { error: renameErr } = await adminClient
       .from('departments')
       .update({ 
@@ -428,7 +439,7 @@ export async function promoteToDepartmentHead(employeeId: string, targetDepartme
         department_name: dept.department_name,
         department_email: emp.employee_email,
         department_head_name: emp.employee_name,
-        department_code: dept.department_code,
+        department_code: originalDeptCode,
         profile_photo: emp.profile_photo,
         created_by_admin: user.id,
         check_in_cutoff_time: dept.check_in_cutoff_time || '09:30:00',
@@ -549,6 +560,17 @@ export async function demoteFromDepartmentHead(departmentHeadId: string) {
       return { success: false, error: deptErr?.message || "Department record not found." }
     }
 
+    // Clean up temporary tags from department_code and department_email if present due to a previous half-failed run
+    let originalDeptCode = dept.department_code;
+    if (originalDeptCode.includes('-TEMP-')) {
+      originalDeptCode = originalDeptCode.split('-TEMP-')[0];
+    }
+    let originalDeptEmail = dept.department_email;
+    const matchEmail = originalDeptEmail.match(/^temp-\d+-(.+)$/);
+    if (matchEmail) {
+      originalDeptEmail = matchEmail[1];
+    }
+
     const originalHeadId = dept.original_head_id || dept.id;
     const isOriginalHeadActive = (originalHeadId === departmentHeadId);
 
@@ -560,7 +582,7 @@ export async function demoteFromDepartmentHead(departmentHeadId: string) {
     if (isOriginalHeadActive) {
       // If we are demoting the original head, the department becomes vacant.
       // Since departments.id references auth.users(id), we must create a placeholder auth user first.
-      const tempEmail = `vacant-${dept.department_code.toLowerCase()}-${Date.now()}@innovibe.com`
+      const tempEmail = `vacant-${originalDeptCode.toLowerCase()}-${Date.now()}@innovibe.com`
       const crypto = require("crypto")
       const tempPassword = crypto.randomBytes(16).toString("hex")
       const { data: vacantAuth, error: vacantAuthErr } = await adminClient.auth.admin.createUser({
@@ -597,8 +619,8 @@ export async function demoteFromDepartmentHead(departmentHeadId: string) {
     }
 
     // Rename old department code and email to temporary to avoid unique constraint violations
-    const tempCode = `${dept.department_code}-TEMP-${Date.now()}`
-    const tempEmail = `temp-${Date.now()}-${dept.department_email}`
+    const tempCode = `${originalDeptCode}-TEMP-${Date.now()}`
+    const tempEmail = `temp-${Date.now()}-${originalDeptEmail}`
     const { error: renameErr } = await adminClient
       .from('departments')
       .update({ 
