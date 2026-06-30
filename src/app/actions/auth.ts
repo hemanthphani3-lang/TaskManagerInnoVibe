@@ -405,6 +405,21 @@ export async function promoteToDepartmentHead(employeeId: string, targetDepartme
     // 4. Set original_head_id on old department if not set
     const originalHeadId = dept.original_head_id || dept.id;
 
+    // 4b. Rename old department code and email to temporary to avoid unique constraint violations
+    const tempCode = `${dept.department_code}-TEMP-${Date.now()}`
+    const tempEmail = `temp-${Date.now()}-${dept.department_email}`
+    const { error: renameErr } = await adminClient
+      .from('departments')
+      .update({ 
+        department_code: tempCode,
+        department_email: tempEmail
+      })
+      .eq('id', targetDepartmentId)
+
+    if (renameErr) {
+      throw new Error(`Failed to temporarily rename old department: ${renameErr.message}`)
+    }
+
     // 5. Insert new department record representing the promoted head
     const { error: insertDeptErr } = await adminClient
       .from('departments')
@@ -566,6 +581,21 @@ export async function demoteFromDepartmentHead(departmentHeadId: string) {
       targetHeadName = origHeadEmp.employee_name
       targetHeadEmail = origHeadEmp.employee_email
       targetHeadPhoto = origHeadEmp.profile_photo
+    }
+
+    // Rename old department code and email to temporary to avoid unique constraint violations
+    const tempCode = `${dept.department_code}-TEMP-${Date.now()}`
+    const tempEmail = `temp-${Date.now()}-${dept.department_email}`
+    const { error: renameErr } = await adminClient
+      .from('departments')
+      .update({ 
+        department_code: tempCode,
+        department_email: tempEmail
+      })
+      .eq('id', departmentHeadId)
+
+    if (renameErr) {
+      throw new Error(`Failed to temporarily rename old department: ${renameErr.message}`)
     }
 
     // 2. Insert original department head back into departments table
