@@ -13,3 +13,6 @@ SET original_head_id = id
 WHERE original_head_id IS NULL;
 
 COMMIT;
+
+-- 3. Reload PostgREST schema cache to make the new column immediately accessible
+NOTIFY pgrst, 'reload schema';
