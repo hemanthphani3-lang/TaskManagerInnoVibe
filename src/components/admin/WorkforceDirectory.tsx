@@ -28,10 +28,11 @@ import { Card } from "@/components/ui/card"
 import { ResetPasswordButton } from "@/components/settings/ResetPasswordButton"
 import { DeleteEmployeeButton } from "@/components/admin/DeleteEmployeeButton"
 import { ProductivityBadge } from "@/components/productivity/ProductivityBadge"
-import { updateEmployeeStatus } from "@/app/actions/auth"
+import { updateEmployeeStatus, promoteToDepartmentHead, demoteFromDepartmentHead } from "@/app/actions/auth"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { AdminResetPasswordModal } from "@/components/settings/AdminResetPasswordModal"
+import { createClient } from "@/lib/supabase/client"
 
 interface WorkforceMember {
   id: string
@@ -48,6 +49,7 @@ interface WorkforceMember {
   onboardingCompleted: boolean
   productivityScore?: number
   attendanceRate?: number
+  originalHeadId?: string
 }
 
 interface WorkforceDirectoryProps {
@@ -73,6 +75,67 @@ export function WorkforceDirectory({ initialWorkforce, departmentsList }: Workfo
     targetStatus: 'ACTIVE' | 'INACTIVE'
   } | null>(null)
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false)
+
+  // Promotion and Demotion states
+  const [promotingMember, setPromotingMember] = useState<WorkforceMember | null>(null)
+  const [selectedPromoDeptId, setSelectedPromoDeptId] = useState<string>("")
+  const [availableDepts, setAvailableDepts] = useState<{ id: string; department_name: string }[]>([])
+  const [demotingMember, setDemotingMember] = useState<WorkforceMember | null>(null)
+  const [isPromotingOrDemoting, setIsPromotingOrDemoting] = useState<boolean>(false)
+
+  React.useEffect(() => {
+    if (promotingMember) {
+      const supabaseClient = createClient()
+      supabaseClient
+        .from('departments')
+        .select('id, department_name')
+        .eq('status', 'ACTIVE')
+        .then(({ data }) => {
+          if (data) setAvailableDepts(data)
+        })
+    } else {
+      setAvailableDepts([])
+      setSelectedPromoDeptId("")
+    }
+  }, [promotingMember])
+
+  const handlePromote = async () => {
+    if (!promotingMember || !selectedPromoDeptId) return
+    setIsPromotingOrDemoting(true)
+    try {
+      const res = await promoteToDepartmentHead(promotingMember.id, selectedPromoDeptId)
+      if (res.success) {
+        toast.success(`Successfully promoted ${promotingMember.name} to Department Head`)
+        router.refresh()
+        setPromotingMember(null)
+      } else {
+        toast.error(res.error || "Failed to promote employee")
+      }
+    } catch (err: any) {
+      toast.error(err?.message || "An error occurred during promotion")
+    } finally {
+      setIsPromotingOrDemoting(false)
+    }
+  }
+
+  const handleDemote = async () => {
+    if (!demotingMember) return
+    setIsPromotingOrDemoting(true)
+    try {
+      const res = await demoteFromDepartmentHead(demotingMember.id)
+      if (res.success) {
+        toast.success(`Successfully removed Department Head role from ${demotingMember.name}`)
+        router.refresh()
+        setDemotingMember(null)
+      } else {
+        toast.error(res.error || "Failed to demote department head")
+      }
+    } catch (err: any) {
+      toast.error(err?.message || "An error occurred during demotion")
+    } finally {
+      setIsPromotingOrDemoting(false)
+    }
+  }
 
   const handleUpdateStatus = async () => {
     if (!confirmStatusModal) return
@@ -536,22 +599,47 @@ export function WorkforceDirectory({ initialWorkforce, departmentsList }: Workfo
                                       Reactivate Employee
                                     </button>
                                   ) : (
-                                    <button
-                                      onClick={() => {
-                                        setConfirmStatusModal({
-                                          memberId: member.id,
-                                          name: member.name,
-                                          targetStatus: 'INACTIVE'
-                                        })
-                                        setActiveDropdownId(null)
-                                      }}
-                                      className="w-full px-4 py-2 hover:bg-rose-50 dark:hover:bg-rose-950/20 text-rose-600 flex items-center gap-2.5 transition text-left"
-                                    >
-                                      <Lock className="w-4.5 h-4.5 text-rose-500" />
-                                      Mark as Inactive
-                                    </button>
+                                    <>
+                                      <button
+                                        onClick={() => {
+                                          setConfirmStatusModal({
+                                            memberId: member.id,
+                                            name: member.name,
+                                            targetStatus: 'INACTIVE'
+                                          })
+                                          setActiveDropdownId(null)
+                                        }}
+                                        className="w-full px-4 py-2 hover:bg-rose-50 dark:hover:bg-rose-950/20 text-rose-600 flex items-center gap-2.5 transition text-left"
+                                      >
+                                        <Lock className="w-4.5 h-4.5 text-rose-500" />
+                                        Mark as Inactive
+                                      </button>
+                                      <button
+                                        onClick={() => {
+                                          setPromotingMember(member)
+                                          setActiveDropdownId(null)
+                                        }}
+                                        className="w-full px-4 py-2 hover:bg-indigo-50 dark:hover:bg-indigo-950/20 text-indigo-600 flex items-center gap-2.5 transition text-left"
+                                      >
+                                        <Shield className="w-4.5 h-4.5 text-indigo-500" />
+                                        Assign as Dept Head
+                                      </button>
+                                    </>
                                   )}
                                 </>
+                              )}
+
+                              {member.userType === "Department Head" && member.originalHeadId && member.id !== member.originalHeadId && (
+                                <button
+                                  onClick={() => {
+                                    setDemotingMember(member)
+                                    setActiveDropdownId(null)
+                                  }}
+                                  className="w-full px-4 py-2 hover:bg-rose-50 dark:hover:bg-rose-950/20 text-rose-600 flex items-center gap-2.5 transition text-left"
+                                >
+                                  <AlertTriangle className="w-4.5 h-4.5 text-rose-500" />
+                                  Remove Dept Head Role
+                                </button>
                               )}
                             </div>
                           </>
@@ -618,6 +706,96 @@ export function WorkforceDirectory({ initialWorkforce, departmentsList }: Workfo
                 }`}
               >
                 {isUpdatingStatus ? 'Updating...' : confirmStatusModal.targetStatus === 'INACTIVE' ? 'Deactivate' : 'Reactivate'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Assign as Department Head Modal */}
+      {promotingMember && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-6 animate-scaleUp">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-indigo-50 text-indigo-600 dark:bg-indigo-950/20">
+                <Shield className="w-5 h-5" />
+              </div>
+              <h3 className="text-base font-black text-slate-900 dark:text-white">
+                Assign as Department Head
+              </h3>
+            </div>
+            
+            <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold leading-relaxed">
+              Promote employee <strong className="text-slate-900 dark:text-white">{promotingMember.name}</strong> to Department Head. Please select the target department to assign them to.
+            </p>
+
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Select Department</label>
+              <select
+                value={selectedPromoDeptId}
+                onChange={(e) => setSelectedPromoDeptId(e.target.value)}
+                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              >
+                <option value="">-- Choose a Department --</option>
+                {availableDepts.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.department_name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            
+            <div className="flex justify-end gap-3 pt-2">
+              <button
+                onClick={() => setPromotingMember(null)}
+                disabled={isPromotingOrDemoting}
+                className="px-4 py-2 border border-slate-200 dark:border-slate-700 text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-850 rounded-xl text-xs font-bold transition disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handlePromote}
+                disabled={isPromotingOrDemoting || !selectedPromoDeptId}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-2 disabled:opacity-50"
+              >
+                {isPromotingOrDemoting ? 'Promoting...' : 'Confirm Promotion'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Remove Department Head Role Modal */}
+      {demotingMember && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-6 animate-scaleUp">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-rose-50 text-rose-600 dark:bg-rose-950/20">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <h3 className="text-base font-black text-slate-900 dark:text-white">
+                Remove Department Head Role?
+              </h3>
+            </div>
+            
+            <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold leading-relaxed">
+              Are you sure you want to remove the Department Head role from <strong className="text-slate-900 dark:text-white">{demotingMember.name}</strong>? This will restore their Employee-only permissions, and restore the original department head as the active head.
+            </p>
+            
+            <div className="flex justify-end gap-3 pt-2">
+              <button
+                onClick={() => setDemotingMember(null)}
+                disabled={isPromotingOrDemoting}
+                className="px-4 py-2 border border-slate-200 dark:border-slate-700 text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-850 rounded-xl text-xs font-bold transition disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDemote}
+                disabled={isPromotingOrDemoting}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-2 disabled:opacity-50"
+              >
+                {isPromotingOrDemoting ? 'Demoting...' : 'Remove Role'}
               </button>
             </div>
           </div>

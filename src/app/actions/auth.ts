@@ -2,6 +2,7 @@
 
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { createClient } from "@/lib/supabase/server"
+import { revalidatePath } from "next/cache"
 
 // Lazy getter — only creates the admin client at request time, never at build time
 function getSupabaseAdmin() {
@@ -345,7 +346,6 @@ export async function updateEmployeeStatus(employeeId: string, status: 'ACTIVE' 
       department_id: emp?.department_id || null
     })
 
-    const { revalidatePath } = require("next/cache")
     revalidatePath('/admin/employees')
     revalidatePath('/department/employees')
 
@@ -355,4 +355,312 @@ export async function updateEmployeeStatus(employeeId: string, status: 'ACTIVE' 
     return { success: false, error: message }
   }
 }
+
+export async function promoteToDepartmentHead(employeeId: string, targetDepartmentId: string) {
+  try {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { success: false, error: "Unauthorized" }
+
+    // Verify user is an Admin
+    const { data: adminCheck } = await getSupabaseAdmin()
+      .from('admins')
+      .select('id')
+      .eq('id', user.id)
+      .maybeSingle()
+
+    if (!adminCheck) {
+      return { success: false, error: "Unauthorized: Only administrators can promote employees." }
+    }
+
+    const adminClient = getSupabaseAdmin()
+
+    // 1. Fetch employee details
+    const { data: emp, error: empErr } = await adminClient
+      .from('employees')
+      .select('*')
+      .eq('id', employeeId)
+      .maybeSingle()
+
+    if (empErr || !emp) {
+      return { success: false, error: empErr?.message || "Employee not found." }
+    }
+
+    // 2. Fetch the target department details
+    const { data: dept, error: deptErr } = await adminClient
+      .from('departments')
+      .select('*')
+      .eq('id', targetDepartmentId)
+      .maybeSingle()
+
+    if (deptErr || !dept) {
+      return { success: false, error: deptErr?.message || "Target department not found." }
+    }
+
+    // 3. Prevent self-promotion if already head of this department
+    if (dept.id === employeeId) {
+      return { success: false, error: "Employee is already the department head of this department." }
+    }
+
+    // 4. Set original_head_id on old department if not set
+    const originalHeadId = dept.original_head_id || dept.id;
+
+    // 5. Insert new department record representing the promoted head
+    const { error: insertDeptErr } = await adminClient
+      .from('departments')
+      .insert({
+        id: employeeId,
+        department_name: dept.department_name,
+        department_email: emp.employee_email,
+        department_head_name: emp.employee_name,
+        department_code: dept.department_code,
+        profile_photo: emp.profile_photo,
+        created_by_admin: user.id,
+        check_in_cutoff_time: dept.check_in_cutoff_time || '09:30:00',
+        status: 'ACTIVE',
+        original_head_id: originalHeadId
+      })
+
+    if (insertDeptErr) {
+      throw new Error(`Failed to create department head record: ${insertDeptErr.message}`)
+    }
+
+    // 6. Update references from old department ID to new department ID in all tables
+    const updates = [
+      { table: 'employees', column: 'department_id' },
+      { table: 'employees', column: 'created_by_department' },
+      { table: 'attendance', column: 'department_id' },
+      { table: 'leave_requests', column: 'department_id' },
+      { table: 'leave_requests', column: 'approved_by' },
+      { table: 'tasks', column: 'department_id' },
+      { table: 'tasks', column: 'assigned_by_department' },
+      { table: 'tasks', column: 'created_by' },
+      { table: 'tasks', column: 'assigned_to' },
+      { table: 'logout_requests', column: 'department_id' },
+      { table: 'logout_requests', column: 'approved_by_department' },
+      { table: 'work_submissions', column: 'department_id' },
+      { table: 'productivity_scores', column: 'department_id' },
+      { table: 'kpi_metrics', column: 'department_id' },
+      { table: 'rankings', column: 'department_id' },
+      { table: 'announcements', column: 'department_id' },
+      { table: 'notifications', column: 'user_id' }
+    ]
+
+    for (const update of updates) {
+      const { table, column } = update
+      const { error: updateErr } = await adminClient
+        .from(table)
+        .update({ [column]: employeeId })
+        .eq(column, targetDepartmentId)
+
+      if (updateErr) {
+        console.warn(`Warning during promotion: Failed to update ${table}.${column}:`, updateErr)
+      }
+    }
+
+    // 7. Delete the old department record
+    const { error: deleteDeptErr } = await adminClient
+      .from('departments')
+      .delete()
+      .eq('id', targetDepartmentId)
+
+    if (deleteDeptErr) {
+      console.warn("Warning: failed to delete old department record:", deleteDeptErr)
+    }
+
+    // 8. Update promoted employee profile to designate them as department head
+    const { error: updateEmpProfileErr } = await adminClient
+      .from('employees')
+      .update({
+        designation: 'Department Head',
+        employee_code: `${dept.department_code}-HEAD`,
+        department_id: employeeId,
+        created_by_department: employeeId
+      })
+      .eq('id', employeeId)
+
+    if (updateEmpProfileErr) {
+      throw new Error(`Failed to update employee profile: ${updateEmpProfileErr.message}`)
+    }
+
+    // Write audit activity log
+    await adminClient.from('activity_feed').insert({
+      activity_type: 'ROLE_PROMOTED',
+      activity_user: employeeId,
+      activity_user_name: emp.employee_name,
+      activity_description: `Employee ${emp.employee_name} promoted to Department Head of ${dept.department_name} by Admin.`,
+      department_id: employeeId
+    })
+
+    const { revalidatePath } = require("next/cache")
+    revalidatePath('/admin/employees')
+    revalidatePath('/admin/departments')
+    revalidatePath('/department/dashboard')
+
+    return { success: true }
+  } catch (error: any) {
+    console.error("Promotion error:", error)
+    return { success: false, error: error.message || String(error) }
+  }
+}
+
+export async function demoteFromDepartmentHead(departmentHeadId: string) {
+  try {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { success: false, error: "Unauthorized" }
+
+    // Verify user is an Admin
+    const { data: adminCheck } = await getSupabaseAdmin()
+      .from('admins')
+      .select('id')
+      .eq('id', user.id)
+      .maybeSingle()
+
+    if (!adminCheck) {
+      return { success: false, error: "Unauthorized: Only administrators can demote department heads." }
+    }
+
+    const adminClient = getSupabaseAdmin()
+
+    // 1. Fetch current department head's department record
+    const { data: dept, error: deptErr } = await adminClient
+      .from('departments')
+      .select('*')
+      .eq('id', departmentHeadId)
+      .maybeSingle()
+
+    if (deptErr || !dept) {
+      return { success: false, error: deptErr?.message || "Department record not found." }
+    }
+
+    const originalHeadId = dept.original_head_id;
+    if (!originalHeadId) {
+      return { success: false, error: "This department does not have an original department head account configured." }
+    }
+    if (originalHeadId === departmentHeadId) {
+      return { success: false, error: "Cannot demote the original department head account." }
+    }
+
+    // 2. Fetch original department head details from employees table
+    const { data: origHeadEmp, error: origHeadErr } = await adminClient
+      .from('employees')
+      .select('*')
+      .eq('id', originalHeadId)
+      .maybeSingle()
+
+    if (origHeadErr || !origHeadEmp) {
+      return { success: false, error: origHeadErr?.message || "Original department head profile not found." }
+    }
+
+    // 3. Insert original department head back into departments table
+    const { error: insertDeptErr } = await adminClient
+      .from('departments')
+      .insert({
+        id: originalHeadId,
+        department_name: dept.department_name,
+        department_email: origHeadEmp.employee_email,
+        department_head_name: origHeadEmp.employee_name,
+        department_code: dept.department_code,
+        profile_photo: origHeadEmp.profile_photo,
+        created_by_admin: user.id,
+        check_in_cutoff_time: dept.check_in_cutoff_time || '09:30:00',
+        status: 'ACTIVE',
+        original_head_id: originalHeadId
+      })
+
+    if (insertDeptErr) {
+      throw new Error(`Failed to restore original department head record: ${insertDeptErr.message}`)
+    }
+
+    // 4. Update references from current department head ID to original department head ID
+    const updates = [
+      { table: 'employees', column: 'department_id' },
+      { table: 'employees', column: 'created_by_department' },
+      { table: 'attendance', column: 'department_id' },
+      { table: 'leave_requests', column: 'department_id' },
+      { table: 'leave_requests', column: 'approved_by' },
+      { table: 'tasks', column: 'department_id' },
+      { table: 'tasks', column: 'assigned_by_department' },
+      { table: 'tasks', column: 'created_by' },
+      { table: 'tasks', column: 'assigned_to' },
+      { table: 'logout_requests', column: 'department_id' },
+      { table: 'logout_requests', column: 'approved_by_department' },
+      { table: 'work_submissions', column: 'department_id' },
+      { table: 'productivity_scores', column: 'department_id' },
+      { table: 'kpi_metrics', column: 'department_id' },
+      { table: 'rankings', column: 'department_id' },
+      { table: 'announcements', column: 'department_id' },
+      { table: 'notifications', column: 'user_id' }
+    ]
+
+    for (const update of updates) {
+      const { table, column } = update
+      const { error: updateErr } = await adminClient
+        .from(table)
+        .update({ [column]: originalHeadId })
+        .eq(column, departmentHeadId)
+
+      if (updateErr) {
+        console.warn(`Warning during demotion: Failed to update ${table}.${column}:`, updateErr)
+      }
+    }
+
+    // 5. Delete the demoted head's department record
+    const { error: deleteDeptErr } = await adminClient
+      .from('departments')
+      .delete()
+      .eq('id', departmentHeadId)
+
+    if (deleteDeptErr) {
+      console.warn("Warning: failed to delete demoted head's department record:", deleteDeptErr)
+    }
+
+    // 6. Restore demoted head's employee profile details (regular employee)
+    const { error: updateDemotedProfileErr } = await adminClient
+      .from('employees')
+      .update({
+        designation: 'Employee',
+        employee_code: `EMP-${dept.department_code}-${departmentHeadId.substring(0, 4).toUpperCase()}`,
+        department_id: originalHeadId,
+        created_by_department: originalHeadId
+      })
+      .eq('id', departmentHeadId)
+
+    if (updateDemotedProfileErr) {
+      throw new Error(`Failed to restore demoted employee profile: ${updateDemotedProfileErr.message}`)
+    }
+
+    // 7. Ensure original head profile is marked as 'Department Head'
+    await adminClient
+      .from('employees')
+      .update({
+        designation: 'Department Head',
+        employee_code: `${dept.department_code}-HEAD`,
+        department_id: originalHeadId,
+        created_by_department: originalHeadId
+      })
+      .eq('id', originalHeadId)
+
+    // Write audit activity log
+    await adminClient.from('activity_feed').insert({
+      activity_type: 'ROLE_DEMOTED',
+      activity_user: departmentHeadId,
+      activity_user_name: origHeadEmp.employee_name,
+      activity_description: `Department Head role removed from ${origHeadEmp.employee_name}. Original permissions restored.`,
+      department_id: originalHeadId
+    })
+
+    const { revalidatePath } = require("next/cache")
+    revalidatePath('/admin/employees')
+    revalidatePath('/admin/departments')
+    revalidatePath('/department/dashboard')
+
+    return { success: true }
+  } catch (error: any) {
+    console.error("Demotion error:", error)
+    return { success: false, error: error.message || String(error) }
+  }
+}
+
 

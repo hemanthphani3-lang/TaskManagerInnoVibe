@@ -71,7 +71,8 @@ export default async function AdminEmployeesPage() {
         joiningDate: emp.joining_date,
         onboardingCompleted: !!emp.onboarding_completed,
         productivityScore: score,
-        attendanceRate: attendanceRate
+        attendanceRate: attendanceRate,
+        originalHeadId: undefined
       })
     })
   }
@@ -98,7 +99,8 @@ export default async function AdminEmployeesPage() {
         joiningDate: dept.joining_date || dept.created_at,
         onboardingCompleted: !!dept.onboarding_completed,
         productivityScore: score,
-        attendanceRate: attendanceRate
+        attendanceRate: attendanceRate,
+        originalHeadId: dept.original_head_id || dept.id
       })
     })
   }
