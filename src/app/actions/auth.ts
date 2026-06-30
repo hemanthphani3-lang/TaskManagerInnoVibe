@@ -558,11 +558,24 @@ export async function demoteFromDepartmentHead(departmentHeadId: string) {
     let targetHeadPhoto: string | null = null;
 
     if (isOriginalHeadActive) {
-      // If we are demoting the original head, the department becomes vacant
-      const { randomUUID } = require("crypto")
-      targetHeadId = randomUUID()
+      // If we are demoting the original head, the department becomes vacant.
+      // Since departments.id references auth.users(id), we must create a placeholder auth user first.
+      const tempEmail = `vacant-${dept.department_code.toLowerCase()}-${Date.now()}@innovibe.com`
+      const crypto = require("crypto")
+      const tempPassword = crypto.randomBytes(16).toString("hex")
+      const { data: vacantAuth, error: vacantAuthErr } = await adminClient.auth.admin.createUser({
+        email: tempEmail,
+        password: tempPassword,
+        email_confirm: true
+      })
+
+      if (vacantAuthErr || !vacantAuth?.user) {
+        throw new Error(`Failed to create vacant auth user placeholder: ${vacantAuthErr?.message || "Unknown error"}`)
+      }
+
+      targetHeadId = vacantAuth.user.id
       targetHeadName = "Vacant"
-      targetHeadEmail = `vacant-${dept.department_code.toLowerCase()}@innovibe.com`
+      targetHeadEmail = tempEmail
       targetHeadPhoto = null
     } else {
       // Revert back to original head
