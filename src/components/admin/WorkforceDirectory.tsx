@@ -629,7 +629,7 @@ export function WorkforceDirectory({ initialWorkforce, departmentsList }: Workfo
                                 </>
                               )}
 
-                              {member.userType === "Department Head" && member.originalHeadId && member.id !== member.originalHeadId && (
+                              {member.userType === "Department Head" && (
                                 <button
                                   onClick={() => {
                                     setDemotingMember(member)

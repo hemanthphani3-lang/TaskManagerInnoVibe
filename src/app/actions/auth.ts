@@ -534,35 +534,50 @@ export async function demoteFromDepartmentHead(departmentHeadId: string) {
       return { success: false, error: deptErr?.message || "Department record not found." }
     }
 
-    const originalHeadId = dept.original_head_id;
-    if (!originalHeadId) {
-      return { success: false, error: "This department does not have an original department head account configured." }
-    }
-    if (originalHeadId === departmentHeadId) {
-      return { success: false, error: "Cannot demote the original department head account." }
+    const originalHeadId = dept.original_head_id || dept.id;
+    const isOriginalHeadActive = (originalHeadId === departmentHeadId);
+
+    let targetHeadId: string;
+    let targetHeadName: string;
+    let targetHeadEmail: string;
+    let targetHeadPhoto: string | null = null;
+
+    if (isOriginalHeadActive) {
+      // If we are demoting the original head, the department becomes vacant
+      const { randomUUID } = require("crypto")
+      targetHeadId = randomUUID()
+      targetHeadName = "Vacant"
+      targetHeadEmail = `vacant-${dept.department_code.toLowerCase()}@innovibe.com`
+      targetHeadPhoto = null
+    } else {
+      // Revert back to original head
+      // Fetch original department head details from employees table
+      const { data: origHeadEmp, error: origHeadErr } = await adminClient
+        .from('employees')
+        .select('*')
+        .eq('id', originalHeadId)
+        .maybeSingle()
+
+      if (origHeadErr || !origHeadEmp) {
+        return { success: false, error: origHeadErr?.message || "Original department head profile not found." }
+      }
+
+      targetHeadId = originalHeadId
+      targetHeadName = origHeadEmp.employee_name
+      targetHeadEmail = origHeadEmp.employee_email
+      targetHeadPhoto = origHeadEmp.profile_photo
     }
 
-    // 2. Fetch original department head details from employees table
-    const { data: origHeadEmp, error: origHeadErr } = await adminClient
-      .from('employees')
-      .select('*')
-      .eq('id', originalHeadId)
-      .maybeSingle()
-
-    if (origHeadErr || !origHeadEmp) {
-      return { success: false, error: origHeadErr?.message || "Original department head profile not found." }
-    }
-
-    // 3. Insert original department head back into departments table
+    // 2. Insert original department head back into departments table
     const { error: insertDeptErr } = await adminClient
       .from('departments')
       .insert({
-        id: originalHeadId,
+        id: targetHeadId,
         department_name: dept.department_name,
-        department_email: origHeadEmp.employee_email,
-        department_head_name: origHeadEmp.employee_name,
+        department_email: targetHeadEmail,
+        department_head_name: targetHeadName,
         department_code: dept.department_code,
-        profile_photo: origHeadEmp.profile_photo,
+        profile_photo: targetHeadPhoto,
         created_by_admin: user.id,
         check_in_cutoff_time: dept.check_in_cutoff_time || '09:30:00',
         status: 'ACTIVE',
@@ -570,10 +585,10 @@ export async function demoteFromDepartmentHead(departmentHeadId: string) {
       })
 
     if (insertDeptErr) {
-      throw new Error(`Failed to restore original department head record: ${insertDeptErr.message}`)
+      throw new Error(`Failed to restore active department head record: ${insertDeptErr.message}`)
     }
 
-    // 4. Update references from current department head ID to original department head ID
+    // 3. Update references from current department head ID to target department head ID
     const updates = [
       { table: 'employees', column: 'department_id' },
       { table: 'employees', column: 'created_by_department' },
@@ -598,7 +613,7 @@ export async function demoteFromDepartmentHead(departmentHeadId: string) {
       const { table, column } = update
       const { error: updateErr } = await adminClient
         .from(table)
-        .update({ [column]: originalHeadId })
+        .update({ [column]: targetHeadId })
         .eq(column, departmentHeadId)
 
       if (updateErr) {
@@ -606,7 +621,7 @@ export async function demoteFromDepartmentHead(departmentHeadId: string) {
       }
     }
 
-    // 5. Delete the demoted head's department record
+    // 4. Delete the demoted head's department record
     const { error: deleteDeptErr } = await adminClient
       .from('departments')
       .delete()
@@ -616,14 +631,14 @@ export async function demoteFromDepartmentHead(departmentHeadId: string) {
       console.warn("Warning: failed to delete demoted head's department record:", deleteDeptErr)
     }
 
-    // 6. Restore demoted head's employee profile details (regular employee)
+    // 5. Restore demoted head's employee profile details (regular employee)
     const { error: updateDemotedProfileErr } = await adminClient
       .from('employees')
       .update({
         designation: 'Employee',
         employee_code: `EMP-${dept.department_code}-${departmentHeadId.substring(0, 4).toUpperCase()}`,
-        department_id: originalHeadId,
-        created_by_department: originalHeadId
+        department_id: targetHeadId,
+        created_by_department: targetHeadId
       })
       .eq('id', departmentHeadId)
 
@@ -631,24 +646,26 @@ export async function demoteFromDepartmentHead(departmentHeadId: string) {
       throw new Error(`Failed to restore demoted employee profile: ${updateDemotedProfileErr.message}`)
     }
 
-    // 7. Ensure original head profile is marked as 'Department Head'
-    await adminClient
-      .from('employees')
-      .update({
-        designation: 'Department Head',
-        employee_code: `${dept.department_code}-HEAD`,
-        department_id: originalHeadId,
-        created_by_department: originalHeadId
-      })
-      .eq('id', originalHeadId)
+    if (!isOriginalHeadActive) {
+      // 6. Ensure original head profile is marked as 'Department Head'
+      await adminClient
+        .from('employees')
+        .update({
+          designation: 'Department Head',
+          employee_code: `${dept.department_code}-HEAD`,
+          department_id: originalHeadId,
+          created_by_department: originalHeadId
+        })
+        .eq('id', originalHeadId)
+    }
 
     // Write audit activity log
     await adminClient.from('activity_feed').insert({
       activity_type: 'ROLE_DEMOTED',
       activity_user: departmentHeadId,
-      activity_user_name: origHeadEmp.employee_name,
-      activity_description: `Department Head role removed from ${origHeadEmp.employee_name}. Original permissions restored.`,
-      department_id: originalHeadId
+      activity_user_name: dept.department_head_name || 'Department Head',
+      activity_description: `Department Head role removed from ${dept.department_head_name || 'Department Head'}. Permissions restored to regular Employee.`,
+      department_id: targetHeadId
     })
 
     const { revalidatePath } = require("next/cache")
