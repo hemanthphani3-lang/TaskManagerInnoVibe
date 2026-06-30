@@ -301,3 +301,58 @@ export async function deleteDepartmentAccount(departmentId: string) {
     return { success: false, error: err.message || String(err) }
   }
 }
+
+export async function updateEmployeeStatus(employeeId: string, status: 'ACTIVE' | 'INACTIVE') {
+  try {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { success: false, error: "Unauthorized" }
+
+    // Verify user is an Admin
+    const { data: adminCheck } = await getSupabaseAdmin()
+      .from('admins')
+      .select('id')
+      .eq('id', user.id)
+      .maybeSingle()
+
+    if (!adminCheck) {
+      return { success: false, error: "Unauthorized: Only administrators can update employee status." }
+    }
+
+    const adminClient = getSupabaseAdmin()
+
+    // Update employees table
+    const { error: dbError } = await adminClient
+      .from('employees')
+      .update({ account_status: status })
+      .eq('id', employeeId)
+
+    if (dbError) throw new Error(dbError.message)
+
+    // Fetch employee details for logging
+    const { data: emp } = await adminClient
+      .from('employees')
+      .select('employee_name, department_id')
+      .eq('id', employeeId)
+      .maybeSingle()
+
+    // Write audit activity log
+    await adminClient.from('activity_feed').insert({
+      activity_type: status === 'INACTIVE' ? 'EMPLOYEE_DEACTIVATED' : 'EMPLOYEE_REACTIVATED',
+      activity_user: employeeId,
+      activity_user_name: emp?.employee_name || 'Employee',
+      activity_description: `Employee account status marked as ${status} by Admin.`,
+      department_id: emp?.department_id || null
+    })
+
+    const { revalidatePath } = require("next/cache")
+    revalidatePath('/admin/employees')
+    revalidatePath('/department/employees')
+
+    return { success: true }
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Unknown error"
+    return { success: false, error: message }
+  }
+}
+

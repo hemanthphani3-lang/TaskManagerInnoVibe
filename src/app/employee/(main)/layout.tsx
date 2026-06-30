@@ -25,7 +25,7 @@ export default async function EmployeeLayout({ children }: { children: React.Rea
   const [{ data: employee }, { data: attendance }] = await Promise.all([
     supabase
       .from('employees')
-      .select('employee_code, onboarding_completed_at')
+      .select('employee_code, onboarding_completed_at, account_status')
       .eq('id', user.id)
       .maybeSingle(),
     supabase
@@ -55,9 +55,11 @@ export default async function EmployeeLayout({ children }: { children: React.Rea
     ? new Date(employee.onboarding_completed_at) >= new Date(startUTC)
     : false;
 
+  const isInactive = employee?.account_status === 'Inactive' || employee?.account_status === 'INACTIVE';
+
   // If no attendance record today, or already officially logged out, redirect to check in
   // Allow bypass if they literally just completed onboarding today!
-  if (!onboardedToday && (!attendance || attendance.work_status === 'LOGGED_OUT')) {
+  if (!isInactive && !onboardedToday && (!attendance || attendance.work_status === 'LOGGED_OUT')) {
     redirect("/employee/identity-check")
   }
 

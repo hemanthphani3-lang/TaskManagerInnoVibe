@@ -59,13 +59,15 @@ interface TaskWorkspaceDashboardProps {
   currentUserId: string
   currentUserRole: "ADMIN" | "DEPARTMENT" | "EMPLOYEE"
   currentUserDept?: string
+  isInactive?: boolean
 }
 
 export function TaskWorkspaceDashboard({
   initialTasks,
   currentUserId,
   currentUserRole,
-  currentUserDept
+  currentUserDept,
+  isInactive = false
 }: TaskWorkspaceDashboardProps) {
   const [tasks, setTasks] = useState<Task[]>(initialTasks)
 
@@ -328,13 +330,15 @@ export function TaskWorkspaceDashboard({
             </p>
           </div>
 
-          <button 
-            onClick={() => setIsCreateOpen(true)}
-            className="flex items-center gap-2 bg-[#0066FF] hover:bg-[#0052CC] text-white px-5 py-3 rounded-2xl font-bold transition-all shadow-md shadow-[#0066FF]/25 active:scale-95 shrink-0"
-          >
-            <Plus className="w-5 h-5" />
-            <span>Create & Assign</span>
-          </button>
+          {!isInactive && (
+            <button 
+              onClick={() => setIsCreateOpen(true)}
+              className="flex items-center gap-2 bg-[#0066FF] hover:bg-[#0052CC] text-white px-5 py-3 rounded-2xl font-bold transition-all shadow-md shadow-[#0066FF]/25 active:scale-95 shrink-0"
+            >
+              <Plus className="w-5 h-5" />
+              <span>Create & Assign</span>
+            </button>
+          )}
         </div>
 
         {/* Metrics Grid Cards */}
@@ -668,6 +672,7 @@ export function TaskWorkspaceDashboard({
           onActionSuccess={handleRefresh}
           currentUserId={currentUserId}
           currentUserRole={currentUserRole}
+          isInactive={isInactive}
         />
       )}
 

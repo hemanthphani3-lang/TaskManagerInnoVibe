@@ -9,6 +9,17 @@ export class ReminderEngine {
   static async evaluateEmployeeReminders(employeeId: string, departmentId: string) {
     const admin = createServiceClient()    // uses service role
 
+    // Check if employee is inactive
+    const { data: employee } = await admin
+      .from('employees')
+      .select('account_status')
+      .eq('id', employeeId)
+      .maybeSingle()
+
+    if (employee && (employee.account_status === 'Inactive' || employee.account_status === 'INACTIVE')) {
+      return // Skip reminders for inactive employees
+    }
+
     const now = new Date()
     const istOffset = 5.5 * 60 * 60 * 1000
     const todayIST = new Date(now.getTime() + istOffset).toISOString().split('T')[0]

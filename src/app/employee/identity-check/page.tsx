@@ -53,6 +53,9 @@ export default async function EmployeeIdentityCheck() {
     if (emp) {
       employee = emp
       departmentName = (emp?.departments as any)?.department_name || "Unassigned"
+      if (emp.account_status === 'Inactive' || emp.account_status === 'INACTIVE') {
+        redirect(`/employee/${emp.employee_code || 'dashboard'}/dashboard`)
+      }
     }
   }
 

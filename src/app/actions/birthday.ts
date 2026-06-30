@@ -45,7 +45,7 @@ export async function checkAndGenerateBirthdayNotifications() {
     ] = await Promise.all([
       supabaseAdmin.from('admins').select('id, full_name, dob, profile_photo'),
       supabaseAdmin.from('departments').select('id, department_head_name, dob, profile_photo, leadership_role'),
-      supabaseAdmin.from('employees').select('id, employee_name, dob, profile_photo, designation')
+      supabaseAdmin.from('employees').select('id, employee_name, dob, profile_photo, designation, account_status')
     ])
 
     if (adminErr) console.error("[Birthday] Error loading admins:", adminErr)
@@ -98,6 +98,9 @@ export async function checkAndGenerateBirthdayNotifications() {
     if (employees) {
       for (const u of employees) {
         if (u.id && !seenIds.has(u.id)) {
+          if (u.account_status === 'Inactive' || u.account_status === 'INACTIVE') {
+            continue
+          }
           seenIds.add(u.id)
           allUsers.push({
             id: u.id,
@@ -202,7 +205,7 @@ export async function getBirthdaysToday(): Promise<BirthdayPerson[]> {
     ] = await Promise.all([
       supabaseAdmin.from('admins').select('id, full_name, dob, profile_photo'),
       supabaseAdmin.from('departments').select('id, department_head_name, dob, profile_photo, leadership_role'),
-      supabaseAdmin.from('employees').select('id, employee_name, dob, profile_photo, designation')
+      supabaseAdmin.from('employees').select('id, employee_name, dob, profile_photo, designation, account_status')
     ])
 
     const birthdayPeople: BirthdayPerson[] = []
@@ -247,6 +250,9 @@ export async function getBirthdaysToday(): Promise<BirthdayPerson[]> {
     if (employees) {
       for (const u of employees) {
         if (u.id && !seenIds.has(u.id) && checkBirthday(u.dob)) {
+          if (u.account_status === 'Inactive' || u.account_status === 'INACTIVE') {
+            continue
+          }
           seenIds.add(u.id)
           birthdayPeople.push({
             id: u.id,

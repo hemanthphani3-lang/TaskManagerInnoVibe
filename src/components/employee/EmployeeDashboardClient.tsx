@@ -286,6 +286,88 @@ export function EmployeeDashboardClient({
     return `${diffDay}d ago`
   }
 
+  const isInactive = employee?.account_status === 'Inactive' || employee?.account_status === 'INACTIVE';
+
+  if (isInactive) {
+    return (
+      <div className="w-full flex-1 flex flex-col p-4 md:p-6 space-y-6 h-full min-h-0 overflow-y-auto select-none bg-[#F8FAFC] dark:bg-slate-950">
+        {/* Inactive Banner Alert */}
+        <div className="bg-rose-50 dark:bg-rose-950/20 border border-rose-100 dark:border-rose-900/30 rounded-2xl p-4 flex items-start gap-3 shadow-sm">
+          <AlertCircle className="w-5 h-5 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5" />
+          <div>
+            <h3 className="text-sm font-bold text-rose-800 dark:text-rose-350">Inactive Account</h3>
+            <p className="text-xs text-rose-600 dark:text-rose-400 mt-1 font-semibold">
+              Your account has been marked as inactive. You no longer have access to active organizational features.
+            </p>
+          </div>
+        </div>
+
+        {/* Profile / Greeting Row */}
+        <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/60 dark:border-slate-800/60 p-6 flex flex-col md:flex-row items-center gap-6 shadow-sm relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-80 h-80 bg-rose-50/20 rounded-full blur-3xl -mr-36 -mt-36 pointer-events-none" />
+          
+          <div className="w-20 h-20 rounded-full overflow-hidden border-2 border-rose-200 dark:border-rose-900 shrink-0 shadow-md">
+            {employee?.profile_photo ? (
+              <img src={employee.profile_photo} alt="" className="w-full h-full object-cover" />
+            ) : (
+              <div className="w-full h-full bg-rose-50 dark:bg-rose-950/20 text-rose-600 dark:text-rose-400 font-bold text-2xl flex items-center justify-center">
+                {employee?.employee_name?.charAt(0)}
+              </div>
+            )}
+          </div>
+
+          <div className="text-center md:text-left space-y-1.5">
+            <h2 className="text-2xl font-black text-[#0A1A2F] dark:text-white tracking-tight">{employee?.employee_name}</h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400 font-bold flex items-center justify-center md:justify-start gap-1.5">
+              <Briefcase className="w-4 h-4 text-slate-400" />
+              <span>{employee?.designation} ({departmentName})</span>
+            </p>
+            <p className="text-xs text-slate-400 dark:text-slate-500 font-semibold">
+              Employment/Internship status set to Inactive.
+            </p>
+          </div>
+        </div>
+
+        {/* Info Card explaining preservation of history */}
+        <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/60 dark:border-slate-800/60 p-6 shadow-sm space-y-4">
+          <h3 className="text-sm font-bold text-[#0A1A2F] dark:text-white uppercase tracking-wider">Historical Records & Audits</h3>
+          <p className="text-xs text-slate-500 dark:text-slate-450 leading-relaxed font-semibold">
+            All your past logs, attendance check-ins, tasks, productivity metrics, and leave histories are permanently preserved in the organization database. Your administrator can reactivate your account at any time if required.
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
+            <div className="bg-slate-50 dark:bg-slate-850 rounded-2xl p-4 border border-slate-100 dark:border-slate-800 flex items-center gap-3">
+              <div className="w-8 h-8 bg-blue-50 dark:bg-blue-950/40 text-[#0066FF] dark:text-blue-400 rounded-xl flex items-center justify-center shrink-0">
+                <CheckCircle2 className="w-4.5 h-4.5" />
+              </div>
+              <div>
+                <span className="block text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Tasks Done</span>
+                <span className="block text-sm font-black text-slate-700 dark:text-slate-300">{tasks.filter(t => t.task_status === 'COMPLETED').length}</span>
+              </div>
+            </div>
+            <div className="bg-slate-50 dark:bg-slate-850 rounded-2xl p-4 border border-slate-100 dark:border-slate-800 flex items-center gap-3">
+              <div className="w-8 h-8 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 rounded-xl flex items-center justify-center shrink-0">
+                <Target className="w-4.5 h-4.5" />
+              </div>
+              <div>
+                <span className="block text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Avg Productivity</span>
+                <span className="block text-sm font-black text-slate-700 dark:text-slate-300">{productivityData?.productivity_score || 0}%</span>
+              </div>
+            </div>
+            <div className="bg-slate-50 dark:bg-slate-850 rounded-2xl p-4 border border-slate-100 dark:border-slate-800 flex items-center gap-3">
+              <div className="w-8 h-8 bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400 rounded-xl flex items-center justify-center shrink-0">
+                <CalendarIcon className="w-4.5 h-4.5" />
+              </div>
+              <div>
+                <span className="block text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Logs Recorded</span>
+                <span className="block text-sm font-black text-slate-700 dark:text-slate-300">{logoutRequests.length}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="w-full flex-1 flex flex-col p-4 md:p-0 space-y-4 md:space-y-5 h-full min-h-0 overflow-hidden select-none">
       {/* Top Header Row */}

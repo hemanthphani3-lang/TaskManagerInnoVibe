@@ -41,12 +41,15 @@ export async function requestLogoutAndSubmitWork(formData: FormData) {
   } else {
     const { data: emp } = await supabase
       .from('employees')
-      .select('department_id, employee_code, employee_name, departments!department_id(department_name)')
+      .select('department_id, employee_code, employee_name, account_status, departments!department_id(department_name)')
       .eq('id', user.id)
       .maybeSingle()
     
     if (!emp) {
       return { success: false, error: "User profile not found." }
+    }
+    if (emp.account_status === 'Inactive' || emp.account_status === 'INACTIVE') {
+      return { success: false, error: "Inactive accounts cannot submit logout reports." }
     }
     employee = emp
   }

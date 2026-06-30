@@ -39,6 +39,7 @@ interface TaskDetailsModalProps {
   onActionSuccess: () => void
   currentUserId: string
   currentUserRole: "ADMIN" | "DEPARTMENT" | "EMPLOYEE"
+  isInactive?: boolean
 }
 
 export function TaskDetailsModal({ 
@@ -47,7 +48,8 @@ export function TaskDetailsModal({
   onClose, 
   onActionSuccess, 
   currentUserId,
-  currentUserRole
+  currentUserRole,
+  isInactive = false
 }: TaskDetailsModalProps) {
   const supabase = createClient()
   const [isChatExpanded, setIsChatExpanded] = useState(false)
@@ -420,6 +422,7 @@ export function TaskDetailsModal({
   }
 
   const renderMenuButton = (comm: any) => {
+    if (isInactive) return null
     const isMe = comm.user_id === currentUserId
     const isAdmin = currentUserRole === 'ADMIN'
     const isOpen = activeMenuId === comm.id
@@ -697,7 +700,7 @@ export function TaskDetailsModal({
                 <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">Subtasks checklist</h4>
                 <div className="bg-slate-950/30 border border-slate-800 p-5 rounded-2xl space-y-4">
                   {/* Create Subtask Form */}
-                  {(isCreator || isAdmin) && (
+                  {(isCreator || isAdmin) && !isInactive && (
                     <div className="flex gap-2">
                       <input 
                         type="text"
@@ -744,7 +747,7 @@ export function TaskDetailsModal({
                               <input 
                                 type="checkbox"
                                 checked={sub.is_completed}
-                                disabled={!canManageSub}
+                                disabled={!canManageSub || isInactive}
                                 onChange={async (e) => {
                                   await handleToggleSubtask(sub.id, e.target.checked)
                                 }}
@@ -754,7 +757,7 @@ export function TaskDetailsModal({
                                 {sub.title}
                               </span>
                             </label>
-                            {(isCreator || isAdmin) && (
+                            {(isCreator || isAdmin) && !isInactive && (
                               <button 
                                 type="button"
                                 onClick={async () => {
@@ -864,7 +867,8 @@ export function TaskDetailsModal({
               })()}
 
               {/* Action Buttons Panel */}
-              <div className="pt-4 border-t border-slate-800 space-y-4">
+              {!isInactive && (
+                <div className="pt-4 border-t border-slate-800 space-y-4">
                 
                 {/* 1. Standard Pending response states */}
                 {isPendingForUser && !showRejectInput && !showClarifyInput && (
@@ -966,7 +970,8 @@ export function TaskDetailsModal({
                   </div>
                 )}
 
-              </div>
+                </div>
+              )}
 
               {/* Activity log trail */}
               {activityLogs.length > 0 && (
@@ -1116,43 +1121,49 @@ export function TaskDetailsModal({
               )}
 
               {/* Chat Input form */}
-              <form onSubmit={handleSendMessage} className="p-3 border-t border-slate-800 bg-slate-950/40 shrink-0 flex items-center gap-2">
-                <div className="relative shrink-0">
-                  <input 
-                    type="file"
-                    onChange={handleChatFileUpload}
-                    disabled={uploadingCommentFile}
-                    className="absolute inset-0 opacity-0 cursor-pointer disabled:pointer-events-none"
-                  />
-                  <button 
-                    type="button"
-                    disabled={uploadingCommentFile}
-                    className="w-10 h-10 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-center text-slate-400 hover:text-white transition disabled:opacity-50 shrink-0 active:scale-95"
-                  >
-                    {uploadingCommentFile ? (
-                      <Loader2 className="w-4 h-4 animate-spin text-[#0066FF]" />
-                    ) : (
-                      <Paperclip className="w-4 h-4" />
-                    )}
-                  </button>
+              {isInactive ? (
+                <div className="p-3.5 border-t border-slate-800 bg-slate-950/40 shrink-0 text-center text-xs font-semibold text-slate-500">
+                  This discussion is read-only because your account is inactive.
                 </div>
+              ) : (
+                <form onSubmit={handleSendMessage} className="p-3 border-t border-slate-800 bg-slate-950/40 shrink-0 flex items-center gap-2">
+                  <div className="relative shrink-0">
+                    <input 
+                      type="file"
+                      onChange={handleChatFileUpload}
+                      disabled={uploadingCommentFile}
+                      className="absolute inset-0 opacity-0 cursor-pointer disabled:pointer-events-none"
+                    />
+                    <button 
+                      type="button"
+                      disabled={uploadingCommentFile}
+                      className="w-10 h-10 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-center text-slate-400 hover:text-white transition disabled:opacity-50 shrink-0 active:scale-95"
+                    >
+                      {uploadingCommentFile ? (
+                        <Loader2 className="w-4 h-4 animate-spin text-[#0066FF]" />
+                      ) : (
+                        <Paperclip className="w-4 h-4" />
+                      )}
+                    </button>
+                  </div>
 
-                <input 
-                  type="text"
-                  placeholder="Ask a question or type comment..."
-                  value={newMessage}
-                  onChange={e => setNewMessage(e.target.value)}
-                  className="flex-1 bg-slate-950 border border-slate-800 focus:border-[#0066FF] focus:ring-1 focus:ring-[#0066FF]/20 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-700 outline-none transition min-w-0"
-                />
+                  <input 
+                    type="text"
+                    placeholder="Ask a question or type comment..."
+                    value={newMessage}
+                    onChange={e => setNewMessage(e.target.value)}
+                    className="flex-1 bg-slate-950 border border-slate-800 focus:border-[#0066FF] focus:ring-1 focus:ring-[#0066FF]/20 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-700 outline-none transition min-w-0"
+                  />
 
-                <button 
-                  type="submit"
-                  disabled={!newMessage.trim() && !commentFileUrl}
-                  className="w-10 h-10 rounded-xl bg-[#0066FF] hover:bg-[#0052CC] text-white flex items-center justify-center disabled:opacity-50 transition active:scale-95 shrink-0"
-                >
-                  <Send className="w-4 h-4" />
-                </button>
-              </form>
+                  <button 
+                    type="submit"
+                    disabled={!newMessage.trim() && !commentFileUrl}
+                    className="w-10 h-10 rounded-xl bg-[#0066FF] hover:bg-[#0052CC] text-white flex items-center justify-center disabled:opacity-50 transition active:scale-95 shrink-0"
+                  >
+                    <Send className="w-4 h-4" />
+                  </button>
+                </form>
+              )}
 
             </div>
 

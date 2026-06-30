@@ -232,9 +232,9 @@ export function AdminDashboardClient({
     })
   }, [])
 
-  // Filter out Department Heads from workforce/employees
+  // Filter out Department Heads and Inactive employees from workforce/employees
   const filteredEmployeesList = useMemo(() => {
-    return employees.filter(e => e.designation !== "Department Head")
+    return employees.filter(e => e.designation !== "Department Head" && e.account_status !== "Inactive" && e.account_status !== "INACTIVE")
   }, [employees])
 
   const totalEmployeesCount = filteredEmployeesList.length

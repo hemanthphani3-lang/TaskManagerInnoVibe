@@ -17,12 +17,21 @@ import {
   User,
   Activity,
   CheckCircle,
-  FileText
+  FileText,
+  MoreVertical,
+  KeyRound,
+  Lock,
+  Unlock,
+  Eye
 } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { ResetPasswordButton } from "@/components/settings/ResetPasswordButton"
 import { DeleteEmployeeButton } from "@/components/admin/DeleteEmployeeButton"
 import { ProductivityBadge } from "@/components/productivity/ProductivityBadge"
+import { updateEmployeeStatus } from "@/app/actions/auth"
+import { useRouter } from "next/navigation"
+import { toast } from "sonner"
+import { AdminResetPasswordModal } from "@/components/settings/AdminResetPasswordModal"
 
 interface WorkforceMember {
   id: string
@@ -47,11 +56,42 @@ interface WorkforceDirectoryProps {
 }
 
 export function WorkforceDirectory({ initialWorkforce, departmentsList }: WorkforceDirectoryProps) {
+  const router = useRouter()
   const [searchQuery, setSearchQuery] = useState("")
   const [filterUserType, setFilterUserType] = useState<"ALL" | "Employee" | "Department Head">("ALL")
   const [filterDepartment, setFilterDepartment] = useState<"ALL" | string>("ALL")
   const [filterProfileStatus, setFilterProfileStatus] = useState<"ALL" | "COMPLETED" | "INCOMPLETE">("ALL")
+  const [filterAccountStatus, setFilterAccountStatus] = useState<"ALL" | "Active" | "Inactive">("ALL")
   const [sortBy, setSortBy] = useState<"name" | "score-desc" | "attendance-desc">("name")
+
+  // Dropdown / Action modal states
+  const [activeDropdownId, setActiveDropdownId] = useState<string | null>(null)
+  const [resetPasswordMember, setResetPasswordMember] = useState<{ id: string; name: string } | null>(null)
+  const [confirmStatusModal, setConfirmStatusModal] = useState<{
+    memberId: string
+    name: string
+    targetStatus: 'ACTIVE' | 'INACTIVE'
+  } | null>(null)
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false)
+
+  const handleUpdateStatus = async () => {
+    if (!confirmStatusModal) return
+    setIsUpdatingStatus(true)
+    try {
+      const res = await updateEmployeeStatus(confirmStatusModal.memberId, confirmStatusModal.targetStatus)
+      if (res.success) {
+        toast.success(`Employee status updated to ${confirmStatusModal.targetStatus}`)
+        router.refresh()
+      } else {
+        toast.error(res.error || "Failed to update employee status")
+      }
+    } catch (err: any) {
+      toast.error(err?.message || "An error occurred")
+    } finally {
+      setIsUpdatingStatus(false)
+      setConfirmStatusModal(null)
+    }
+  }
 
   // Filtered Workforce list
   const filteredWorkforce = useMemo(() => {
@@ -84,6 +124,12 @@ export function WorkforceDirectory({ initialWorkforce, departmentsList }: Workfo
         if (filterProfileStatus === "INCOMPLETE" && isCompleted) return false
       }
 
+      // 5. Account Status Match
+      if (filterAccountStatus !== "ALL") {
+        if (filterAccountStatus === "Active" && member.status.toLowerCase() !== "active") return false
+        if (filterAccountStatus === "Inactive" && member.status.toLowerCase() !== "inactive") return false
+      }
+
       return true
     })
 
@@ -97,7 +143,7 @@ export function WorkforceDirectory({ initialWorkforce, departmentsList }: Workfo
     }
 
     return result
-  }, [initialWorkforce, searchQuery, filterUserType, filterDepartment, filterProfileStatus, sortBy])
+  }, [initialWorkforce, searchQuery, filterUserType, filterDepartment, filterProfileStatus, filterAccountStatus, sortBy])
 
   // Summary Metrics calculations
   const metrics = useMemo(() => {
@@ -247,6 +293,20 @@ export function WorkforceDirectory({ initialWorkforce, departmentsList }: Workfo
               </select>
             </div>
 
+            {/* Account Status Filter */}
+            <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 min-w-[160px]">
+              <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Account</span>
+              <select
+                value={filterAccountStatus}
+                onChange={e => setFilterAccountStatus(e.target.value as any)}
+                className="bg-transparent text-slate-700 text-xs font-bold focus:outline-none w-full cursor-pointer"
+              >
+                <option value="ALL">All Accounts</option>
+                <option value="Active">Active</option>
+                <option value="Inactive">Inactive</option>
+              </select>
+            </div>
+
             {/* Sort Filter */}
             <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 min-w-[160px]">
               <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Sort</span>
@@ -266,36 +326,36 @@ export function WorkforceDirectory({ initialWorkforce, departmentsList }: Workfo
       </Card>
 
       {/* Directory Table Grid Card */}
-      <Card className="rounded-2xl border-slate-200 shadow-sm bg-white overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
+      <Card className="rounded-2xl border-slate-200 shadow-sm bg-white dark:bg-slate-900 overflow-hidden">
+        <div className="overflow-auto max-h-[600px] relative w-full scrollbar-thin min-h-[300px]">
+          <table className="w-full text-left border-collapse table-auto min-w-[1400px]">
             <thead>
               <tr className="bg-slate-50/50 border-b border-slate-100">
-                <th className="px-6 py-4 text-sm font-bold text-slate-500 uppercase tracking-wider">Workforce Member</th>
-                <th className="px-6 py-4 text-sm font-bold text-slate-500 uppercase tracking-wider">User Type</th>
-                <th className="px-6 py-4 text-sm font-bold text-slate-500 uppercase tracking-wider">Department</th>
-                <th className="px-6 py-4 text-sm font-bold text-slate-500 uppercase tracking-wider">Role</th>
-                <th className="px-6 py-4 text-sm font-bold text-slate-500 uppercase tracking-wider">Account Status</th>
-                <th className="px-6 py-4 text-sm font-bold text-slate-500 uppercase tracking-wider text-center">Productivity</th>
-                <th className="px-6 py-4 text-sm font-bold text-slate-500 uppercase tracking-wider text-center">Attendance</th>
-                <th className="px-6 py-4 text-sm font-bold text-slate-500 uppercase tracking-wider">Profile Status</th>
-                <th className="px-6 py-4 text-sm font-bold text-slate-500 uppercase tracking-wider">Contact</th>
-                <th className="px-6 py-4 text-sm font-bold text-slate-500 uppercase tracking-wider">Joined Date</th>
-                <th className="px-6 py-4 text-sm font-bold text-slate-500 uppercase tracking-wider text-right">Actions</th>
+                <th className="sticky top-0 left-0 bg-slate-50 dark:bg-slate-900 px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider z-40 border-b border-slate-100 border-r border-slate-200/40">Workforce Member</th>
+                <th className="sticky top-0 bg-slate-50 dark:bg-slate-900 px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider z-30 border-b border-slate-100">User Type</th>
+                <th className="sticky top-0 bg-slate-50 dark:bg-slate-900 px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider z-30 border-b border-slate-100">Department</th>
+                <th className="sticky top-0 bg-slate-50 dark:bg-slate-900 px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider z-30 border-b border-slate-100">Role</th>
+                <th className="sticky top-0 bg-slate-50 dark:bg-slate-900 px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider z-30 border-b border-slate-100">Account Status</th>
+                <th className="sticky top-0 bg-slate-50 dark:bg-slate-900 px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-center z-30 border-b border-slate-100">Productivity</th>
+                <th className="sticky top-0 bg-slate-50 dark:bg-slate-900 px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-center z-30 border-b border-slate-100">Attendance</th>
+                <th className="sticky top-0 bg-slate-50 dark:bg-slate-900 px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider z-30 border-b border-slate-100">Profile Status</th>
+                <th className="sticky top-0 bg-slate-50 dark:bg-slate-900 px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider z-30 border-b border-slate-100">Contact</th>
+                <th className="sticky top-0 bg-slate-50 dark:bg-slate-900 px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider z-30 border-b border-slate-100">Joined Date</th>
+                <th className="sticky top-0 right-0 bg-slate-50 dark:bg-slate-900 px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-right z-40 border-b border-slate-100 border-l border-slate-200/40">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {filteredWorkforce.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="px-6 py-16 text-center text-slate-400 font-semibold">
+                  <td colSpan={11} className="px-6 py-16 text-center text-slate-400 font-semibold">
                     No workforce members matched your search criteria.
                   </td>
                 </tr>
               ) : (
                 filteredWorkforce.map((member) => (
-                  <tr key={member.id} className="hover:bg-slate-50/40 transition-colors">
+                  <tr key={member.id} className="group hover:bg-slate-50/40 transition-colors">
                     {/* Member profile info */}
-                    <td className="px-6 py-4">
+                    <td className="sticky left-0 bg-white dark:bg-slate-950 px-6 py-4 z-20 border-r border-slate-100/80 dark:border-slate-800/80 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.08)] group-hover:bg-slate-50 dark:group-hover:bg-slate-900 transition-colors">
                       <div className="flex items-center gap-3">
                         <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm shadow-sm border ${
                           member.userType === "Department Head"
@@ -422,17 +482,79 @@ export function WorkforceDirectory({ initialWorkforce, departmentsList }: Workfo
                     </td>
 
                     {/* Action buttons */}
-                    <td className="px-6 py-4 text-right">
-                      <div className="flex items-center justify-end gap-1.5">
-                        <Link 
-                          href={`/admin/employees/${member.id}`}
-                          className="inline-flex items-center gap-1 bg-slate-50 hover:bg-blue-50 text-slate-600 hover:text-[#0066FF] px-3 py-2 rounded-xl text-xs font-bold border border-slate-200 hover:border-blue-200 transition-all active:scale-95 shadow-sm"
+                    <td className="sticky right-0 bg-white dark:bg-slate-950 px-6 py-4 text-right z-20 border-l border-slate-100/80 dark:border-slate-800/80 shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.08)] group-hover:bg-slate-50 dark:group-hover:bg-slate-900 transition-colors">
+                      <div className="flex items-center justify-end relative">
+                        <button
+                          onClick={() => setActiveDropdownId(activeDropdownId === member.id ? null : member.id)}
+                          className="p-2 rounded-xl hover:bg-slate-100 text-slate-500 hover:text-slate-900 transition-colors"
                         >
-                          View Profile
-                        </Link>
-                        <ResetPasswordButton userId={member.id} userName={member.name} />
-                        {member.userType === "Employee" && (
-                          <DeleteEmployeeButton userId={member.id} userName={member.name} />
+                          <MoreVertical className="w-4 h-4" />
+                        </button>
+
+                        {activeDropdownId === member.id && (
+                          <>
+                            <div 
+                              className="fixed inset-0 z-10" 
+                              onClick={() => setActiveDropdownId(null)}
+                            />
+                            <div className="absolute right-0 top-10 mt-1 w-48 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl z-20 py-1.5 text-left text-xs font-semibold animate-scaleUp">
+                              <Link 
+                                href={`/admin/employees/${member.id}`}
+                                onClick={() => setActiveDropdownId(null)}
+                                className="w-full px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 flex items-center gap-2.5 transition"
+                              >
+                                <Eye className="w-4.5 h-4.5 text-slate-400" />
+                                View Profile
+                              </Link>
+                              
+                              <button
+                                onClick={() => {
+                                  setResetPasswordMember({ id: member.id, name: member.name })
+                                  setActiveDropdownId(null)
+                                }}
+                                className="w-full px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 flex items-center gap-2.5 transition text-left"
+                              >
+                                <KeyRound className="w-4.5 h-4.5 text-slate-400" />
+                                Reset Password
+                              </button>
+
+                              {member.userType === "Employee" && (
+                                <>
+                                  {member.status.toLowerCase() === 'inactive' ? (
+                                    <button
+                                      onClick={() => {
+                                        setConfirmStatusModal({
+                                          memberId: member.id,
+                                          name: member.name,
+                                          targetStatus: 'ACTIVE'
+                                        })
+                                        setActiveDropdownId(null)
+                                      }}
+                                      className="w-full px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 text-emerald-600 flex items-center gap-2.5 transition text-left"
+                                    >
+                                      <Unlock className="w-4.5 h-4.5 text-emerald-500" />
+                                      Reactivate Employee
+                                    </button>
+                                  ) : (
+                                    <button
+                                      onClick={() => {
+                                        setConfirmStatusModal({
+                                          memberId: member.id,
+                                          name: member.name,
+                                          targetStatus: 'INACTIVE'
+                                        })
+                                        setActiveDropdownId(null)
+                                      }}
+                                      className="w-full px-4 py-2 hover:bg-rose-50 dark:hover:bg-rose-950/20 text-rose-600 flex items-center gap-2.5 transition text-left"
+                                    >
+                                      <Lock className="w-4.5 h-4.5 text-rose-500" />
+                                      Mark as Inactive
+                                    </button>
+                                  )}
+                                </>
+                              )}
+                            </div>
+                          </>
                         )}
                       </div>
                     </td>
@@ -443,6 +565,64 @@ export function WorkforceDirectory({ initialWorkforce, departmentsList }: Workfo
           </table>
         </div>
       </Card>
+
+      {/* Reset Password Modal */}
+      {resetPasswordMember && (
+        <AdminResetPasswordModal 
+          userId={resetPasswordMember.id}
+          userName={resetPasswordMember.name}
+          onClose={() => setResetPasswordMember(null)}
+        />
+      )}
+
+      {/* Custom Confirmation Modal */}
+      {confirmStatusModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-6 animate-scaleUp">
+            <div className="flex items-center gap-3">
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                confirmStatusModal.targetStatus === 'INACTIVE' 
+                  ? 'bg-rose-50 text-rose-600 dark:bg-rose-950/20' 
+                  : 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/20'
+              }`}>
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <h3 className="text-base font-black text-slate-900 dark:text-white">
+                {confirmStatusModal.targetStatus === 'INACTIVE' 
+                  ? 'Mark Employee as Inactive?' 
+                  : 'Reactivate Employee?'}
+              </h3>
+            </div>
+            
+            <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold leading-relaxed">
+              {confirmStatusModal.targetStatus === 'INACTIVE' 
+                ? 'Mark Employee as Inactive? This employee will no longer participate in the organization but all historical data will be preserved.'
+                : 'Reactivate Employee? Reactivating will restore their full dashboard and permission access.'}
+            </p>
+            
+            <div className="flex justify-end gap-3 pt-2">
+              <button
+                onClick={() => setConfirmStatusModal(null)}
+                disabled={isUpdatingStatus}
+                className="px-4 py-2 border border-slate-200 dark:border-slate-700 text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-850 rounded-xl text-xs font-bold transition disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleUpdateStatus}
+                disabled={isUpdatingStatus}
+                className={`px-4 py-2 text-white rounded-xl text-xs font-bold transition flex items-center gap-2 disabled:opacity-50 ${
+                  confirmStatusModal.targetStatus === 'INACTIVE'
+                    ? 'bg-rose-600 hover:bg-rose-700'
+                    : 'bg-emerald-600 hover:bg-emerald-700'
+                }`}
+              >
+                {isUpdatingStatus ? 'Updating...' : confirmStatusModal.targetStatus === 'INACTIVE' ? 'Deactivate' : 'Reactivate'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

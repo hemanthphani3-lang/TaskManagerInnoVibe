@@ -19,7 +19,7 @@ export default async function EmployeeLeavePage() {
 
   const { data: employee } = await supabase
     .from('employees')
-    .select('department_id')
+    .select('department_id, account_status')
     .eq('id', user.id)
     .single()
 
@@ -41,7 +41,13 @@ export default async function EmployeeLeavePage() {
         <div className="lg:col-span-1">
           <div className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm">
             <h3 className="text-lg font-bold text-[#0A1A2F] mb-6">New Request</h3>
-            <LeaveForm departmentId={employee?.department_id || ""} />
+            {employee?.account_status === 'Inactive' || employee?.account_status === 'INACTIVE' ? (
+              <div className="bg-rose-50 border border-rose-100 rounded-xl p-4 text-xs font-semibold text-rose-700">
+                Your account has been marked as inactive. You cannot apply for new leave requests.
+              </div>
+            ) : (
+              <LeaveForm departmentId={employee?.department_id || ""} />
+            )}
           </div>
         </div>
 

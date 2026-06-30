@@ -15,6 +15,17 @@ export async function submitLeaveRequest(formData: FormData) {
   const endDate = formData.get('endDate') as string
   const reason = formData.get('reason') as string
 
+  // Check if employee is inactive
+  const { data: employeeCheck } = await supabase
+    .from('employees')
+    .select('account_status')
+    .eq('id', employeeId)
+    .maybeSingle()
+
+  if (employeeCheck && (employeeCheck.account_status === 'Inactive' || employeeCheck.account_status === 'INACTIVE')) {
+    return { success: false, error: "Inactive accounts cannot request leave." }
+  }
+
   if (!leaveType || !startDate || !endDate) {
     return { success: false, error: "Missing required fields" }
   }
@@ -136,15 +147,24 @@ export async function updateLeaveStatus(requestId: string, status: 'APPROVED' | 
       .maybeSingle()
 
     if (request) {
-      const formattedType = request.leave_type.replace(/_/g, ' ')
-      const msg = `Your leave request for ${formattedType} starting on ${request.start_date} has been ${status.toLowerCase()}.`
-      
-      await supabase.from('notifications').insert({
-        user_id: request.employee_id,
-        title: `Leave Request ${status.charAt(0) + status.slice(1).toLowerCase()}`,
-        message: msg,
-        type: 'SYSTEM'
-      })
+      // Check if employee is inactive
+      const { data: employeeCheck } = await supabase
+        .from('employees')
+        .select('account_status')
+        .eq('id', request.employee_id)
+        .maybeSingle()
+
+      if (!employeeCheck || (employeeCheck.account_status !== 'Inactive' && employeeCheck.account_status !== 'INACTIVE')) {
+        const formattedType = request.leave_type.replace(/_/g, ' ')
+        const msg = `Your leave request for ${formattedType} starting on ${request.start_date} has been ${status.toLowerCase()}.`
+        
+        await supabase.from('notifications').insert({
+          user_id: request.employee_id,
+          title: `Leave Request ${status.charAt(0) + status.slice(1).toLowerCase()}`,
+          message: msg,
+          type: 'SYSTEM'
+        })
+      }
     }
   } catch (notifErr) {
     console.error("Failed to generate leave update notifications:", notifErr)

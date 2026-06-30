@@ -23,11 +23,14 @@ export async function checkInEmployee(employeeId: string, departmentId: string) 
   } else {
     const { data: employee } = await supabase
       .from('employees')
-      .select('employee_name, department_id, departments!department_id(department_name)')
+      .select('employee_name, department_id, account_status, departments!department_id(department_name)')
       .eq('id', employeeId)
       .maybeSingle()
 
     if (employee) {
+      if (employee.account_status === 'Inactive' || employee.account_status === 'INACTIVE') {
+        return { success: false, error: "Inactive accounts cannot check in." }
+      }
       empName = employee.employee_name || 'Employee'
       deptName = (employee.departments as any)?.department_name || 'Operations'
     } else {

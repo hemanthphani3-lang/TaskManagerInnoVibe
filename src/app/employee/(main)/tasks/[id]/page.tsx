@@ -33,7 +33,7 @@ export default async function EmployeeTaskDetailsPage({ params }: { params: Prom
       supabase.from('tasks').select('*').eq('id', taskId).eq('assigned_employee_id', user!.id).maybeSingle(),
       supabase.from('task_comments').select('id, comment_text, created_at, user_id, is_edited, is_deleted').eq('task_id', taskId).order('created_at', { ascending: true }),
       supabase.from('task_activity_logs').select('*').eq('task_id', taskId).order('created_at', { ascending: false }),
-      supabase.from('employees').select('employee_name, profile_photo').eq('id', user!.id).maybeSingle()
+      supabase.from('employees').select('employee_name, profile_photo, account_status').eq('id', user!.id).maybeSingle()
     ])
     
     task = results[0].data
@@ -52,6 +52,8 @@ export default async function EmployeeTaskDetailsPage({ params }: { params: Prom
       </div>
     )
   }
+
+  const isInactive = empProfile?.account_status === 'Inactive' || empProfile?.account_status === 'INACTIVE'
 
   // Resolve sender names for all other commenters
   const commenterIds = [...new Set((rawComments || []).map(c => c.user_id).filter((id: string) => id !== user!.id))]
@@ -117,36 +119,42 @@ export default async function EmployeeTaskDetailsPage({ params }: { params: Prom
 
           {/* Employee Status Actions */}
           <div className="flex items-center gap-3 bg-white p-2 rounded-2xl border border-slate-200 shadow-sm">
-            {(task.task_status === 'PENDING' || task.task_status === 'REOPENED') && (
-              <form action={async () => {
-                "use server"
-                await updateTaskStatus(task.id, 'IN_PROGRESS')
-              }}>
-                <Button type="submit" className="bg-[#0066FF] hover:bg-[#0052CC] text-white rounded-xl px-6">
-                  <PlayCircle className="w-4 h-4 mr-2" /> Start Work
-                </Button>
-              </form>
-            )}
+            {isInactive ? (
+              <span className="px-4 py-2 text-sm font-bold text-slate-400">Account is inactive (Read-only)</span>
+            ) : (
+              <>
+                {(task.task_status === 'PENDING' || task.task_status === 'REOPENED') && (
+                  <form action={async () => {
+                    "use server"
+                    await updateTaskStatus(task.id, 'IN_PROGRESS')
+                  }}>
+                    <Button type="submit" className="bg-[#0066FF] hover:bg-[#0052CC] text-white rounded-xl px-6">
+                      <PlayCircle className="w-4 h-4 mr-2" /> Start Work
+                    </Button>
+                  </form>
+                )}
 
-            {task.task_status === 'IN_PROGRESS' && (
-              <form action={async () => {
-                "use server"
-                await updateTaskStatus(task.id, 'WAITING_APPROVAL')
-              }}>
-                <Button type="submit" className="bg-purple-600 hover:bg-purple-700 text-white rounded-xl px-6 shadow-sm shadow-purple-500/20">
-                  <CheckCircle2 className="w-4 h-4 mr-2" /> Submit for Approval
-                </Button>
-              </form>
-            )}
+                {task.task_status === 'IN_PROGRESS' && (
+                  <form action={async () => {
+                    "use server"
+                    await updateTaskStatus(task.id, 'WAITING_APPROVAL')
+                  }}>
+                    <Button type="submit" className="bg-purple-600 hover:bg-purple-700 text-white rounded-xl px-6 shadow-sm shadow-purple-500/20">
+                      <CheckCircle2 className="w-4 h-4 mr-2" /> Submit for Approval
+                    </Button>
+                  </form>
+                )}
 
-            {task.task_status === 'WAITING_APPROVAL' && (
-              <span className="px-4 py-2 text-sm font-bold text-slate-500">Waiting for department review...</span>
-            )}
-            
-            {task.task_status === 'COMPLETED' && (
-              <span className="px-4 py-2 text-sm font-bold text-emerald-600 flex items-center gap-2">
-                <CheckCircle2 className="w-5 h-5" /> Task Completed!
-              </span>
+                {task.task_status === 'WAITING_APPROVAL' && (
+                  <span className="px-4 py-2 text-sm font-bold text-slate-500">Waiting for department review...</span>
+                )}
+                
+                {task.task_status === 'COMPLETED' && (
+                  <span className="px-4 py-2 text-sm font-bold text-emerald-600 flex items-center gap-2">
+                    <CheckCircle2 className="w-5 h-5" /> Task Completed!
+                  </span>
+                )}
+              </>
             )}
           </div>
         </div>
@@ -172,6 +180,7 @@ export default async function EmployeeTaskDetailsPage({ params }: { params: Prom
                 currentUserName={empProfile?.employee_name || 'Me'}
                 currentUserRole="Employee"
                 currentUserAvatar={empProfile?.profile_photo || undefined}
+                isReadOnly={isInactive}
               />
             </div>
           </div>
@@ -184,8 +193,11 @@ export default async function EmployeeTaskDetailsPage({ params }: { params: Prom
                 Attachments
               </h3>
               
-              {/* Note: We would fetch attachments similar to comments here. For brevity, assuming user wants to upload. */}
-              <TaskAttachmentUploader taskId={task.id} />
+              {isInactive ? (
+                <p className="text-xs text-slate-400 font-semibold italic text-center py-4">Upload disabled for inactive accounts.</p>
+              ) : (
+                <TaskAttachmentUploader taskId={task.id} />
+              )}
             </div>
 
             <div className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm">

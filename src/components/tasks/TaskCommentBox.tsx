@@ -25,6 +25,7 @@ interface TaskCommentBoxProps {
   currentUserName: string
   currentUserRole: string
   currentUserAvatar?: string
+  isReadOnly?: boolean
 }
 
 // Generate a consistent color from a string (for avatars)
@@ -45,6 +46,7 @@ export function TaskCommentBox({
   currentUserName,
   currentUserRole,
   currentUserAvatar,
+  isReadOnly = false,
 }: TaskCommentBoxProps) {
   const [comments, setComments] = useState<Comment[]>(initialComments)
   const [text, setText] = useState("")
@@ -266,6 +268,7 @@ export function TaskCommentBox({
   }
 
   const renderMenuButton = (comment: Comment) => {
+    if (isReadOnly) return null
     const isMe = comment.user_id === currentUserId
     const isAdmin = currentUserRole === 'ADMIN'
     const isOpen = activeMenuId === comment.id
@@ -456,24 +459,30 @@ export function TaskCommentBox({
       </div>
 
       {/* Input */}
-      <form onSubmit={handleSubmit} className="mt-4 flex gap-2 pt-4 border-t border-slate-100">
-        <input
-          type="text"
-          value={text}
-          onChange={e => setText(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder="Write a message... (Enter to send)"
-          className="flex-1 px-4 py-3 rounded-2xl border border-slate-200 bg-slate-50 focus:bg-white outline-none focus:ring-2 focus:ring-[#0066FF]/20 transition-all text-sm"
-          disabled={isSubmitting}
-        />
-        <button
-          type="submit"
-          disabled={isSubmitting || !text.trim()}
-          className="bg-[#0066FF] hover:bg-[#0052CC] disabled:opacity-50 disabled:cursor-not-allowed text-white p-3 rounded-2xl shadow-sm transition-all flex items-center justify-center"
-        >
-          {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
-        </button>
-      </form>
+      {isReadOnly ? (
+        <div className="mt-4 p-3.5 border-t border-slate-100 bg-slate-50 dark:bg-slate-900 rounded-2xl text-center text-xs font-semibold text-slate-500">
+          This discussion is read-only because your account is inactive.
+        </div>
+      ) : (
+        <form onSubmit={handleSubmit} className="mt-4 flex gap-2 pt-4 border-t border-slate-100">
+          <input
+            type="text"
+            value={text}
+            onChange={e => setText(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="Write a message... (Enter to send)"
+            className="flex-1 px-4 py-3 rounded-2xl border border-slate-200 bg-slate-50 focus:bg-white outline-none focus:ring-2 focus:ring-[#0066FF]/20 transition-all text-sm"
+            disabled={isSubmitting}
+          />
+          <button
+            type="submit"
+            disabled={isSubmitting || !text.trim()}
+            className="bg-[#0066FF] hover:bg-[#0052CC] disabled:opacity-50 disabled:cursor-not-allowed text-white p-3 rounded-2xl shadow-sm transition-all flex items-center justify-center"
+          >
+            {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
+          </button>
+        </form>
+      )}
     </div>
   )
 }

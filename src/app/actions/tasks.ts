@@ -58,7 +58,7 @@ export async function getCrossRoleUsers() {
     // Fetch employees
     const { data: employees, error: errEmps } = await getSupabaseAdmin()
       .from('employees')
-      .select('id, employee_name, employee_email, departments!department_id(department_name)')
+      .select('id, employee_name, employee_email, account_status, departments!department_id(department_name)')
 
     const allUsers: any[] = []
 
@@ -92,7 +92,7 @@ export async function getCrossRoleUsers() {
 
     if (employees) {
       employees.forEach(e => {
-        if (e.id !== user.id) {
+        if (e.id !== user.id && e.account_status !== 'Inactive' && e.account_status !== 'INACTIVE') {
           allUsers.push({
             id: e.id,
             name: e.employee_name || 'Employee',
@@ -162,7 +162,7 @@ export async function getCurrentUserRoleAndProfile() {
   // Check employee
   const { data: emp } = await getSupabaseAdmin()
     .from('employees')
-    .select('employee_name, employee_email, departments!department_id(department_name)')
+    .select('employee_name, employee_email, account_status, departments!department_id(department_name)')
     .eq('id', user.id)
     .maybeSingle()
 
@@ -174,7 +174,8 @@ export async function getCurrentUserRoleAndProfile() {
         id: user.id,
         name: emp.employee_name || 'Employee',
         email: emp.employee_email,
-        department: (emp.departments as any)?.department_name || 'Unassigned'
+        department: (emp.departments as any)?.department_name || 'Unassigned',
+        account_status: emp.account_status || 'ACTIVE'
       }
     }
   }
@@ -216,6 +217,10 @@ export async function createCrossRoleTask(data: {
     const profileRes = await getCurrentUserRoleAndProfile()
     if (!profileRes.success || !profileRes.role || !profileRes.profile) {
       return { success: false, error: profileRes.error || "Failed to fetch creator profile" }
+    }
+
+    if (profileRes.role === 'EMPLOYEE' && ((profileRes.profile as any).account_status === 'Inactive' || (profileRes.profile as any).account_status === 'INACTIVE')) {
+      return { success: false, error: "Inactive accounts cannot assign tasks." }
     }
 
     const creator = profileRes.profile
@@ -340,7 +345,8 @@ export async function createCrossRoleTask(data: {
                   : `/employee/tasks`
 
     // Notify all collaborators
-    const notificationInserts = assigneeIds.map(uid => ({
+    const activeAssigneeIds = await filterActiveRecipients(assigneeIds)
+    const notificationInserts = activeAssigneeIds.map(uid => ({
       user_id: uid,
       title: '📬 New Task Assigned',
       message: `You have been added to Task: "${data.title}" by ${creator.name} (${creatorRole})`,
@@ -348,7 +354,9 @@ export async function createCrossRoleTask(data: {
       link_url: linkUrl
     }))
 
-    await getSupabaseAdmin().from('notifications').insert(notificationInserts)
+    if (notificationInserts.length > 0) {
+      await getSupabaseAdmin().from('notifications').insert(notificationInserts)
+    }
 
     // Revalidate paths
     revalidatePath('/admin/tasks')
@@ -395,6 +403,10 @@ export async function respondToTask(
       return { success: false, error: "Profile not found" }
     }
     const responderName = profileRes.profile.name
+
+    if (profileRes.role === 'EMPLOYEE' && ((profileRes.profile as any).account_status === 'Inactive' || (profileRes.profile as any).account_status === 'INACTIVE')) {
+      return { success: false, error: "Inactive accounts cannot edit or accept tasks." }
+    }
 
     // Fetch the task
     const { data: task, error: fetchErr } = await getSupabaseAdmin()
@@ -474,13 +486,16 @@ export async function respondToTask(
                          : `/employee/tasks`
 
     // Notify the task creator
-    await getSupabaseAdmin().from('notifications').insert({
-      user_id: task.created_by,
-      title: notificationTitle,
-      message: notificationMessage,
-      type: 'TASK',
-      link_url: creatorLinkUrl
-    })
+    const activeCreator = await filterActiveRecipients([task.created_by])
+    if (activeCreator.length > 0) {
+      await getSupabaseAdmin().from('notifications').insert({
+        user_id: task.created_by,
+        title: notificationTitle,
+        message: notificationMessage,
+        type: 'TASK',
+        link_url: creatorLinkUrl
+      })
+    }
 
     // Notify remaining collaborators
     const { data: otherAssignees } = await getSupabaseAdmin()
@@ -490,14 +505,18 @@ export async function respondToTask(
       .neq('user_id', user.id)
 
     if (otherAssignees && otherAssignees.length > 0) {
-      const notificationInserts = otherAssignees.map(oa => ({
-        user_id: oa.user_id,
+      const otherAssigneeIds = otherAssignees.map(oa => oa.user_id)
+      const activeOtherAssigneeIds = await filterActiveRecipients(otherAssigneeIds)
+      const notificationInserts = activeOtherAssigneeIds.map(uid => ({
+        user_id: uid,
         title: notificationTitle,
         message: `${responderName} updated status on "${task.title || task.task_title}": ${logMsg}`,
         type: 'TASK',
         link_url: `/employee/tasks`
       }))
-      await getSupabaseAdmin().from('notifications').insert(notificationInserts)
+      if (notificationInserts.length > 0) {
+        await getSupabaseAdmin().from('notifications').insert(notificationInserts)
+      }
     }
 
     // Revalidate paths
@@ -537,6 +556,10 @@ export async function updateCrossRoleTaskStatus(taskId: string, nextStatus: stri
       return { success: false, error: "Profile not found" }
     }
     const changerName = profileRes.profile.name
+
+    if (profileRes.role === 'EMPLOYEE' && ((profileRes.profile as any).account_status === 'Inactive' || (profileRes.profile as any).account_status === 'INACTIVE')) {
+      return { success: false, error: "Inactive accounts cannot update task status." }
+    }
 
     const { data: task, error: fetchErr } = await getSupabaseAdmin()
       .from('tasks')
@@ -584,13 +607,16 @@ export async function updateCrossRoleTaskStatus(taskId: string, nextStatus: stri
 
       // Notify task creator
       if (task.created_by !== user.id) {
-        await getSupabaseAdmin().from('notifications').insert({
-          user_id: task.created_by,
-          title: `🔄 Task Status Updated: ${nextStatus}`,
-          message: `${changerName} marked their portion as ${nextStatus} on task "${task.title || task.task_title}".`,
-          type: 'TASK',
-          link_url: task.created_by_role === 'ADMIN' ? `/admin/tasks` : task.created_by_role === 'DEPARTMENT' ? `/department/tasks` : `/employee/tasks`
-        })
+        const activeCreator = await filterActiveRecipients([task.created_by])
+        if (activeCreator.length > 0) {
+          await getSupabaseAdmin().from('notifications').insert({
+            user_id: task.created_by,
+            title: `🔄 Task Status Updated: ${nextStatus}`,
+            message: `${changerName} marked their portion as ${nextStatus} on task "${task.title || task.task_title}".`,
+            type: 'TASK',
+            link_url: task.created_by_role === 'ADMIN' ? `/admin/tasks` : task.created_by_role === 'DEPARTMENT' ? `/department/tasks` : `/employee/tasks`
+          })
+        }
       }
 
       // Notify remaining collaborators
@@ -601,14 +627,18 @@ export async function updateCrossRoleTaskStatus(taskId: string, nextStatus: stri
         .neq('user_id', user.id)
 
       if (otherAssignees && otherAssignees.length > 0) {
-        const notificationInserts = otherAssignees.map(oa => ({
-          user_id: oa.user_id,
+        const otherAssigneeIds = otherAssignees.map(oa => oa.user_id)
+        const activeOtherAssigneeIds = await filterActiveRecipients(otherAssigneeIds)
+        const notificationInserts = activeOtherAssigneeIds.map(uid => ({
+          user_id: uid,
           title: `🔄 Collaborator Progress Update`,
           message: `${changerName} marked their portion as ${nextStatus} on task "${task.title || task.task_title}".`,
           type: 'TASK',
           link_url: `/employee/tasks`
         }))
-        await getSupabaseAdmin().from('notifications').insert(notificationInserts)
+        if (notificationInserts.length > 0) {
+          await getSupabaseAdmin().from('notifications').insert(notificationInserts)
+        }
       }
     } else {
       // If user is not assignee (e.g. creator or admin), update overall status directly
@@ -650,14 +680,18 @@ export async function updateCrossRoleTaskStatus(taskId: string, nextStatus: stri
         .eq('task_id', taskId)
 
       if (allAssignees && allAssignees.length > 0) {
-        const notificationInserts = allAssignees.map(a => ({
-          user_id: a.user_id,
+        const allAssigneeIds = allAssignees.map(a => a.user_id)
+        const activeAllAssigneeIds = await filterActiveRecipients(allAssigneeIds)
+        const notificationInserts = activeAllAssigneeIds.map(uid => ({
+          user_id: uid,
           title: `🔄 Task Overall Status Updated: ${nextStatus}`,
           message: `The overall status of task "${task.title || task.task_title}" was updated to ${nextStatus} by ${changerName}.`,
           type: 'TASK',
           link_url: `/employee/tasks`
         }))
-        await getSupabaseAdmin().from('notifications').insert(notificationInserts)
+        if (notificationInserts.length > 0) {
+          await getSupabaseAdmin().from('notifications').insert(notificationInserts)
+        }
       }
     }
 
@@ -901,6 +935,10 @@ export async function addCrossRoleComment(
     }
     const commenterName = profileRes.profile.name
 
+    if (profileRes.role === 'EMPLOYEE' && ((profileRes.profile as any).account_status === 'Inactive' || (profileRes.profile as any).account_status === 'INACTIVE')) {
+      return { success: false, error: "Inactive accounts cannot comment in discussions." }
+    }
+
     const { data: task, error: fetchErr } = await getSupabaseAdmin()
       .from('tasks')
       .select('*')
@@ -948,14 +986,17 @@ export async function addCrossRoleComment(
     }
 
     if (notifyUserIds.size > 0) {
-      const notificationInserts = Array.from(notifyUserIds).map(targetId => ({
+      const activeNotifyUserIds = await filterActiveRecipients(Array.from(notifyUserIds))
+      const notificationInserts = activeNotifyUserIds.map(targetId => ({
         user_id: targetId,
         title: '💬 New Comment Added',
         message: `${commenterName} commented on "${task.title || task.task_title}": "${message.substring(0, 40)}${message.length > 40 ? '...' : ''}"`,
         type: 'TASK',
         link_url: `/employee/tasks`
       }))
-      await getSupabaseAdmin().from('notifications').insert(notificationInserts)
+      if (notificationInserts.length > 0) {
+        await getSupabaseAdmin().from('notifications').insert(notificationInserts)
+      }
     }
 
     // Revalidate paths
@@ -1191,6 +1232,10 @@ export async function editCrossRoleComment(
     }
     const commenterName = profileRes.profile.name
 
+    if (profileRes.role === 'EMPLOYEE' && ((profileRes.profile as any).account_status === 'Inactive' || (profileRes.profile as any).account_status === 'INACTIVE')) {
+      return { success: false, error: "Inactive accounts cannot edit or delete comments." }
+    }
+
     // Enforce permissions: Only original sender can edit their message
     if (originalComment.user_id !== user.id) {
       return { success: false, error: "You can only edit your own messages" }
@@ -1253,6 +1298,10 @@ export async function deleteCrossRoleCommentForEveryone(
     const commenterName = profileRes.profile.name
     const userRole = profileRes.role
 
+    if (profileRes.role === 'EMPLOYEE' && ((profileRes.profile as any).account_status === 'Inactive' || (profileRes.profile as any).account_status === 'INACTIVE')) {
+      return { success: false, error: "Inactive accounts cannot edit or delete comments." }
+    }
+
     // Enforce permissions: Only sender OR Admin (moderator) can delete for everyone
     const isOwner = originalComment.user_id === user.id
     const isAdmin = userRole === 'ADMIN'
@@ -1287,4 +1336,17 @@ export async function deleteCrossRoleCommentForEveryone(
     return { success: false, error: err.message || String(err) }
   }
 }
+
+async function filterActiveRecipients(userIds: string[]): Promise<string[]> {
+  if (userIds.length === 0) return []
+  const { data: inactiveEmps } = await getSupabaseAdmin()
+    .from('employees')
+    .select('id')
+    .in('id', userIds)
+    .or('account_status.eq.Inactive,account_status.eq.INACTIVE')
+
+  const inactiveSet = new Set(inactiveEmps?.map(e => e.id) || [])
+  return userIds.filter(id => !inactiveSet.has(id))
+}
+
 

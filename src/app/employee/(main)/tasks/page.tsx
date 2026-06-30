@@ -19,7 +19,7 @@ export default async function EmployeeTasksPage() {
   const [empRes, assigneeRecordsRes] = await Promise.all([
     supabaseAdmin
       .from('employees')
-      .select('departments!department_id(department_name)')
+      .select('account_status, departments!department_id(department_name)')
       .eq('id', user.id)
       .maybeSingle(),
     supabaseAdmin
@@ -47,6 +47,7 @@ export default async function EmployeeTasksPage() {
     .limit(100)
 
   const deptName = (emp?.departments as any)?.department_name || ""
+  const isInactive = emp?.account_status === 'Inactive' || emp?.account_status === 'INACTIVE'
 
   // Map tasks to override status with individual collaborator progress for employee view
   const mappedTasks = (tasks ?? []).filter(Boolean).map(t => {
@@ -66,6 +67,7 @@ export default async function EmployeeTasksPage() {
       currentUserId={user.id}
       currentUserRole="EMPLOYEE"
       currentUserDept={deptName}
+      isInactive={isInactive}
     />
   )
 }

@@ -22,6 +22,7 @@ interface Employee {
   designation: string
   profile_photo?: string
   department_id: string
+  account_status?: string
 }
 
 interface Attendance {
@@ -180,7 +181,7 @@ export function DepartmentDashboardClient({
 
   // 1. FILTER OUT DEPARTMENT HEAD AND MAP EMPLOYEES
   const regularEmployees = useMemo(() => {
-    return employees.filter(emp => emp.designation !== "Department Head")
+    return employees.filter(emp => emp.designation !== "Department Head" && emp.account_status !== "Inactive" && emp.account_status !== "INACTIVE")
   }, [employees])
 
   const totalEmployeesCount = regularEmployees.length

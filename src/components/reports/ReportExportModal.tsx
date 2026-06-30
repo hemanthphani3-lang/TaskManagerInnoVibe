@@ -32,6 +32,7 @@ export function ReportExportModal({ role, departmentId, employeeId }: ReportExpo
   const [departmentsList, setDepartmentsList] = useState<any[]>([])
   const [employeesList, setEmployeesList] = useState<any[]>([])
   const [isOptionsLoading, setIsOptionsLoading] = useState(false)
+  const [includeInactive, setIncludeInactive] = useState(false)
 
   // Dynamic filter selections
   const [employeeSelectType, setEmployeeSelectType] = useState<string>('ALL')
@@ -52,9 +53,13 @@ export function ReportExportModal({ role, departmentId, employeeId }: ReportExpo
         if (!user || !isMounted) return
 
         if (role === 'ADMIN') {
+          let empQuery = supabase.from('employees').select('id, employee_name, employee_email, department_id, designation, account_status').order('employee_name')
+          if (!includeInactive) {
+            empQuery = empQuery.eq('account_status', 'ACTIVE')
+          }
           const [deptsRes, empsRes] = await Promise.all([
             supabase.from('departments').select('id, department_name').eq('status', 'ACTIVE').order('department_name'),
-            supabase.from('employees').select('id, employee_name, employee_email, department_id, designation').eq('account_status', 'ACTIVE').order('employee_name')
+            empQuery
           ])
           if (isMounted) {
             setDepartmentsList(deptsRes.data || [])
@@ -70,9 +75,13 @@ export function ReportExportModal({ role, departmentId, employeeId }: ReportExpo
           }
         } else if (role === 'DEPARTMENT') {
           const activeDeptId = departmentId || user.id
+          let empQuery = supabase.from('employees').select('id, employee_name, employee_email, department_id, designation, account_status').eq('department_id', activeDeptId).order('employee_name')
+          if (!includeInactive) {
+            empQuery = empQuery.eq('account_status', 'ACTIVE')
+          }
           const [deptsRes, empsRes] = await Promise.all([
             supabase.from('departments').select('id, department_name').eq('id', activeDeptId).eq('status', 'ACTIVE').maybeSingle(),
-            supabase.from('employees').select('id, employee_name, employee_email, department_id, designation').eq('department_id', activeDeptId).eq('account_status', 'ACTIVE').order('employee_name')
+            empQuery
           ])
           if (isMounted) {
             if (deptsRes.data) setDepartmentsList([deptsRes.data])
@@ -98,7 +107,7 @@ export function ReportExportModal({ role, departmentId, employeeId }: ReportExpo
     return () => {
       isMounted = false
     }
-  }, [role, departmentId])
+  }, [role, departmentId, includeInactive])
 
   // Reset filter selection when type changes
   useEffect(() => {
@@ -221,11 +230,15 @@ export function ReportExportModal({ role, departmentId, employeeId }: ReportExpo
         generatorRole = 'Employee'
       }
 
-      // Fetch users mapping cache (Active only)
+      // Fetch users mapping cache
+      let empQuery = supabase.from('employees').select('id, employee_name, designation, department_id, employee_code, account_status')
+      if (!includeInactive) {
+        empQuery = empQuery.eq('account_status', 'ACTIVE')
+      }
       const [adminsRes, deptsRes, empsRes] = await Promise.all([
         supabase.from('admins').select('id, full_name'),
         supabase.from('departments').select('id, department_name').eq('status', 'ACTIVE'),
-        supabase.from('employees').select('id, employee_name, designation, department_id, employee_code').eq('account_status', 'ACTIVE')
+        empQuery
       ])
 
       const userNamesMap: Record<string, string> = {}
@@ -691,7 +704,18 @@ export function ReportExportModal({ role, departmentId, employeeId }: ReportExpo
         {/* Dynamic Context & Selection Filters based on Role and Type */}
         {(role === 'ADMIN' || role === 'DEPARTMENT') && (
           <div className="pt-6 border-t border-slate-100 dark:border-slate-800 space-y-4">
-            <h4 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider">Dynamic Context Filters</h4>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <h4 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider">Dynamic Context Filters</h4>
+              <label className="flex items-center gap-2 text-xs font-bold text-slate-500 dark:text-slate-400 cursor-pointer select-none">
+                <input 
+                  type="checkbox"
+                  checked={includeInactive}
+                  onChange={(e) => setIncludeInactive(e.target.checked)}
+                  className="rounded text-[#0066FF] focus:ring-[#0066FF]/20 border-slate-300 w-4 h-4 cursor-pointer"
+                />
+                <span>Include Inactive Employees</span>
+              </label>
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               
               {/* Tasks Assignment Categories */}
