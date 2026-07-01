@@ -73,7 +73,9 @@ export default async function AdminEmployeesPage() {
         onboardingCompleted: !!emp.onboarding_completed,
         productivityScore: score,
         attendanceRate: attendanceRate,
-        originalHeadId: undefined
+        originalHeadId: undefined,
+        lastSavedAt: emp.last_saved_at || emp.created_at,
+        createdAt: emp.created_at
       })
     })
   }
@@ -101,7 +103,9 @@ export default async function AdminEmployeesPage() {
         onboardingCompleted: !!dept.onboarding_completed,
         productivityScore: score,
         attendanceRate: attendanceRate,
-        originalHeadId: dept.original_head_id || dept.id
+        originalHeadId: dept.original_head_id || dept.id,
+        lastSavedAt: dept.last_saved_at || dept.created_at,
+        createdAt: dept.created_at
       })
     })
   }

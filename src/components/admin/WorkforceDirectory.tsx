@@ -50,6 +50,8 @@ interface WorkforceMember {
   productivityScore?: number
   attendanceRate?: number
   originalHeadId?: string
+  lastSavedAt?: string
+  createdAt?: string
 }
 
 interface WorkforceDirectoryProps {
@@ -59,6 +61,10 @@ interface WorkforceDirectoryProps {
 
 export function WorkforceDirectory({ initialWorkforce, departmentsList }: WorkforceDirectoryProps) {
   const router = useRouter()
+  const [workforce, setWorkforce] = useState<WorkforceMember[]>(initialWorkforce)
+  const [activeSessions, setActiveSessions] = useState<any[]>([])
+  const [selectedCardPopup, setSelectedCardPopup] = useState<"TOTAL" | "ACTIVE" | "ONLINE" | "DEPT_HEADS" | "INACTIVE" | null>(null)
+
   const [searchQuery, setSearchQuery] = useState("")
   const [filterUserType, setFilterUserType] = useState<"ALL" | "Employee" | "Department Head">("ALL")
   const [filterDepartment, setFilterDepartment] = useState<"ALL" | string>("ALL")
@@ -82,6 +88,141 @@ export function WorkforceDirectory({ initialWorkforce, departmentsList }: Workfo
   const [availableDepts, setAvailableDepts] = useState<{ id: string; department_name: string }[]>([])
   const [demotingMember, setDemotingMember] = useState<WorkforceMember | null>(null)
   const [isPromotingOrDemoting, setIsPromotingOrDemoting] = useState<boolean>(false)
+
+  const fetchFreshWorkforce = async () => {
+    const supabase = createClient()
+    
+    // Fetch employees
+    const { data: employees } = await supabase
+      .from("employees")
+      .select("*, departments!department_id(department_name)")
+      .order("created_at", { ascending: false })
+
+    // Fetch departments (representing department heads)
+    const { data: departments } = await supabase
+      .from("departments")
+      .select("*")
+      .order("created_at", { ascending: false })
+
+    // Fetch productivity scores and attendance
+    const [
+      { data: productivityScores },
+      { data: attendance }
+    ] = await Promise.all([
+      supabase.from("productivity_scores").select("employee_id, productivity_score"),
+      supabase.from("attendance").select("employee_id, attendance_status")
+    ])
+
+    const freshWorkforce: WorkforceMember[] = []
+
+    if (employees) {
+      employees.forEach((emp) => {
+        if (emp.designation === 'Department Head') return
+        if (departments?.some(d => d.id === emp.id)) return
+
+        const score = productivityScores?.find(s => s.employee_id === emp.id)?.productivity_score ?? 0
+        const attLogs = attendance?.filter(a => a.employee_id === emp.id) || []
+        const presentLogs = attLogs.filter(a => ["PRESENT", "LATE", "HALF_DAY"].includes(a.attendance_status)).length
+        const attendanceRate = attLogs.length > 0 ? Math.round((presentLogs / attLogs.length) * 100) : 85
+
+        freshWorkforce.push({
+          id: emp.id,
+          name: emp.employee_name || "Unknown Employee",
+          code: emp.employee_code || "EMP-N/A",
+          email: emp.employee_email,
+          phone: emp.phone_number || "",
+          department: emp.departments?.department_name || "Unassigned",
+          roleName: emp.designation || "Employee",
+          userType: "Employee",
+          profileCompletion: emp.profile_completion_percentage ?? 0,
+          status: emp.account_status || "Active",
+          joiningDate: emp.joining_date,
+          onboardingCompleted: !!emp.onboarding_completed,
+          productivityScore: score,
+          attendanceRate: attendanceRate,
+          originalHeadId: undefined,
+          lastSavedAt: emp.last_saved_at || emp.created_at,
+          createdAt: emp.created_at
+        })
+      })
+    }
+
+    if (departments) {
+      departments.forEach((dept) => {
+        const score = productivityScores?.find(s => s.employee_id === dept.id)?.productivity_score ?? 0
+        const attLogs = attendance?.filter(a => a.employee_id === dept.id) || []
+        const presentLogs = attLogs.filter(a => ["PRESENT", "LATE", "HALF_DAY"].includes(a.attendance_status)).length
+        const attendanceRate = attLogs.length > 0 ? Math.round((presentLogs / attLogs.length) * 100) : 85
+
+        freshWorkforce.push({
+          id: dept.id,
+          name: dept.department_head_name || "Unassigned Dept Head",
+          code: dept.department_code || "DEPT-N/A",
+          email: dept.department_email,
+          phone: dept.phone_number || "",
+          department: dept.department_name || "Department",
+          roleName: dept.leadership_role || "Department Head",
+          userType: "Department Head",
+          profileCompletion: dept.profile_completion_percentage ?? 0,
+          status: dept.status || "Active",
+          joiningDate: dept.joining_date || dept.created_at,
+          onboardingCompleted: !!dept.onboarding_completed,
+          productivityScore: score,
+          attendanceRate: attendanceRate,
+          originalHeadId: dept.original_head_id || dept.id,
+          lastSavedAt: dept.last_saved_at || dept.created_at,
+          createdAt: dept.created_at
+        })
+      })
+    }
+
+    freshWorkforce.sort((a, b) => a.name.localeCompare(b.name))
+    setWorkforce(freshWorkforce)
+  }
+
+  const fetchActiveSessions = async (supabaseClient: any) => {
+    const { data } = await supabaseClient
+      .from('work_sessions')
+      .select('*')
+      .eq('status', 'ACTIVE')
+      .is('logout_time', null)
+    if (data) {
+      setActiveSessions(data)
+    }
+  }
+
+  // Subscribe to real-time events to ensure summary cards and directory are always in sync
+  React.useEffect(() => {
+    const supabase = createClient()
+    fetchActiveSessions(supabase)
+
+    const empSub = supabase
+      .channel('realtime_directory_employees')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'employees' }, () => {
+        fetchFreshWorkforce()
+      })
+      .subscribe()
+
+    const deptSub = supabase
+      .channel('realtime_directory_departments')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'departments' }, () => {
+        fetchFreshWorkforce()
+      })
+      .subscribe()
+
+    const sessionSub = supabase
+      .channel('realtime_directory_sessions')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'work_sessions' }, () => {
+        fetchActiveSessions(supabase)
+      })
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(empSub)
+      supabase.removeChannel(deptSub)
+      supabase.removeChannel(sessionSub)
+    }
+  }, [])
 
   React.useEffect(() => {
     if (promotingMember) {
@@ -215,24 +356,47 @@ export function WorkforceDirectory({ initialWorkforce, departmentsList }: Workfo
     }
 
     return result
-  }, [initialWorkforce, searchQuery, filterUserType, filterDepartment, filterProfileStatus, filterAccountStatus, sortBy])
+  }, [workforce, searchQuery, filterUserType, filterDepartment, filterProfileStatus, filterAccountStatus, sortBy])
 
   // Summary Metrics calculations
   const metrics = useMemo(() => {
-    const totalWorkforce = initialWorkforce.length
-    const activeWorkforce = initialWorkforce.filter(m => m.status.toLowerCase() !== 'inactive').length
-    const deptHeads = initialWorkforce.filter(m => m.userType === "Department Head" && m.status.toLowerCase() !== 'inactive').length
-    const employees = initialWorkforce.filter(m => m.userType === "Employee" && m.status.toLowerCase() !== 'inactive').length
-    const inactiveMembers = initialWorkforce.filter(m => m.status.toLowerCase() === 'inactive').length
+    const totalWorkforce = workforce.length
+    const activeWorkforce = workforce.filter(m => m.status.toLowerCase() !== 'inactive').length
+    const deptHeads = workforce.filter(m => m.userType === "Department Head" && m.status.toLowerCase() !== 'inactive').length
+    const inactiveMembers = workforce.filter(m => m.status.toLowerCase() === 'inactive').length
+
+    // Online Members: active in work_sessions AND account status is active
+    const activeUserIds = new Set(activeSessions.map(s => s.user_id))
+    const onlineMembers = workforce.filter(m => activeUserIds.has(m.id) && m.status.toLowerCase() !== 'inactive').length
 
     return {
       totalWorkforce,
       activeWorkforce,
       deptHeads,
-      employees,
+      onlineMembers,
       inactiveMembers
     }
-  }, [initialWorkforce])
+  }, [workforce, activeSessions])
+
+  const popupMembersList = useMemo(() => {
+    if (!selectedCardPopup) return []
+    const activeUserIds = new Set(activeSessions.map(s => s.user_id))
+    
+    switch (selectedCardPopup) {
+      case "TOTAL":
+        return workforce
+      case "ACTIVE":
+        return workforce.filter(m => m.status.toLowerCase() !== 'inactive')
+      case "ONLINE":
+        return workforce.filter(m => activeUserIds.has(m.id) && m.status.toLowerCase() !== 'inactive')
+      case "DEPT_HEADS":
+        return workforce.filter(m => m.userType === "Department Head" && m.status.toLowerCase() !== 'inactive')
+      case "INACTIVE":
+        return workforce.filter(m => m.status.toLowerCase() === 'inactive')
+      default:
+        return []
+    }
+  }, [selectedCardPopup, workforce, activeSessions])
 
   const getStatusBadgeClass = (status: string) => {
     const s = status.toLowerCase()
@@ -246,8 +410,11 @@ export function WorkforceDirectory({ initialWorkforce, departmentsList }: Workfo
       {/* Summary Cards Panel */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         {/* Total Workforce */}
-        <Card className="px-5 py-4 rounded-2xl flex items-center gap-4 shadow-sm border-slate-200 bg-white">
-          <div className="w-12 h-12 bg-blue-50 text-[#0066FF] rounded-xl flex items-center justify-center">
+        <Card 
+          onClick={() => setSelectedCardPopup("TOTAL")}
+          className="px-5 py-4 rounded-2xl flex items-center gap-4 shadow-sm border-slate-200 bg-white cursor-pointer hover:border-blue-300 hover:shadow-md active:scale-[0.98] transition-all select-none group"
+        >
+          <div className="w-12 h-12 bg-blue-50 text-[#0066FF] rounded-xl flex items-center justify-center group-hover:scale-105 transition-transform">
             <Users className="w-6 h-6" />
           </div>
           <div>
@@ -257,8 +424,11 @@ export function WorkforceDirectory({ initialWorkforce, departmentsList }: Workfo
         </Card>
 
         {/* Active Workforce */}
-        <Card className="px-5 py-4 rounded-2xl flex items-center gap-4 shadow-sm border-slate-200 bg-white">
-          <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center">
+        <Card 
+          onClick={() => setSelectedCardPopup("ACTIVE")}
+          className="px-5 py-4 rounded-2xl flex items-center gap-4 shadow-sm border-slate-200 bg-white cursor-pointer hover:border-emerald-300 hover:shadow-md active:scale-[0.98] transition-all select-none group"
+        >
+          <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center group-hover:scale-105 transition-transform">
             <UserCheck className="w-6 h-6" />
           </div>
           <div>
@@ -268,8 +438,11 @@ export function WorkforceDirectory({ initialWorkforce, departmentsList }: Workfo
         </Card>
 
         {/* Dept Heads */}
-        <Card className="px-5 py-4 rounded-2xl flex items-center gap-4 shadow-sm border-slate-200 bg-white">
-          <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center">
+        <Card 
+          onClick={() => setSelectedCardPopup("DEPT_HEADS")}
+          className="px-5 py-4 rounded-2xl flex items-center gap-4 shadow-sm border-slate-200 bg-white cursor-pointer hover:border-indigo-300 hover:shadow-md active:scale-[0.98] transition-all select-none group"
+        >
+          <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center group-hover:scale-105 transition-transform">
             <Shield className="w-6 h-6" />
           </div>
           <div>
@@ -278,20 +451,26 @@ export function WorkforceDirectory({ initialWorkforce, departmentsList }: Workfo
           </div>
         </Card>
 
-        {/* Employees */}
-        <Card className="px-5 py-4 rounded-2xl flex items-center gap-4 shadow-sm border-slate-200 bg-white">
-          <div className="w-12 h-12 bg-teal-50 text-teal-600 rounded-xl flex items-center justify-center">
+        {/* Online Members */}
+        <Card 
+          onClick={() => setSelectedCardPopup("ONLINE")}
+          className="px-5 py-4 rounded-2xl flex items-center gap-4 shadow-sm border-slate-200 bg-white cursor-pointer hover:border-teal-300 hover:shadow-md active:scale-[0.98] transition-all select-none group"
+        >
+          <div className="w-12 h-12 bg-teal-50 text-teal-600 rounded-xl flex items-center justify-center group-hover:scale-105 transition-transform">
             <User className="w-6 h-6" />
           </div>
           <div>
-            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Employees</p>
-            <h3 className="text-2xl font-black text-slate-900">{metrics.employees}</h3>
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Online Members</p>
+            <h3 className="text-2xl font-black text-slate-900">{metrics.onlineMembers}</h3>
           </div>
         </Card>
 
         {/* Inactive Members */}
-        <Card className="px-5 py-4 rounded-2xl flex items-center gap-4 shadow-sm border-slate-200 bg-white">
-          <div className="w-12 h-12 bg-rose-50 text-rose-600 rounded-xl flex items-center justify-center">
+        <Card 
+          onClick={() => setSelectedCardPopup("INACTIVE")}
+          className="px-5 py-4 rounded-2xl flex items-center gap-4 shadow-sm border-slate-200 bg-white cursor-pointer hover:border-rose-300 hover:shadow-md active:scale-[0.98] transition-all select-none group"
+        >
+          <div className="w-12 h-12 bg-rose-50 text-rose-600 rounded-xl flex items-center justify-center group-hover:scale-105 transition-transform">
             <Lock className="w-6 h-6" />
           </div>
           <div>
@@ -819,6 +998,175 @@ export function WorkforceDirectory({ initialWorkforce, departmentsList }: Workfo
                 {isPromotingOrDemoting ? 'Demoting...' : 'Remove Role'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Summary Card Details Modal Popup */}
+      {selectedCardPopup && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white border border-slate-200 rounded-3xl p-6 max-w-4xl w-full max-h-[85vh] shadow-2xl flex flex-col space-y-6 animate-scaleUp">
+            
+            {/* Modal Header */}
+            <div className="flex justify-between items-center pb-4 border-b border-slate-100">
+              <div className="flex items-center gap-3">
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                  selectedCardPopup === "TOTAL" ? "bg-blue-50 text-[#0066FF]" :
+                  selectedCardPopup === "ACTIVE" ? "bg-emerald-50 text-emerald-600" :
+                  selectedCardPopup === "ONLINE" ? "bg-teal-50 text-teal-600" :
+                  selectedCardPopup === "DEPT_HEADS" ? "bg-indigo-50 text-indigo-600" :
+                  "bg-rose-50 text-rose-600"
+                }`}>
+                  {selectedCardPopup === "TOTAL" && <Users className="w-5 h-5" />}
+                  {selectedCardPopup === "ACTIVE" && <UserCheck className="w-5 h-5" />}
+                  {selectedCardPopup === "ONLINE" && <User className="w-5 h-5" />}
+                  {selectedCardPopup === "DEPT_HEADS" && <Shield className="w-5 h-5" />}
+                  {selectedCardPopup === "INACTIVE" && <Lock className="w-5 h-5" />}
+                </div>
+                <div>
+                  <h3 className="text-lg font-black text-slate-900">
+                    {selectedCardPopup === "TOTAL" && "Total Workforce Members"}
+                    {selectedCardPopup === "ACTIVE" && "Active Workforce Members"}
+                    {selectedCardPopup === "ONLINE" && "Online Members"}
+                    {selectedCardPopup === "DEPT_HEADS" && "Active Department Heads"}
+                    {selectedCardPopup === "INACTIVE" && "Inactive Members"}
+                  </h3>
+                  <p className="text-xs text-slate-400 font-bold uppercase tracking-wider">
+                    Total: {popupMembersList.length}
+                  </p>
+                </div>
+              </div>
+              
+              <button 
+                onClick={() => setSelectedCardPopup(null)}
+                className="w-8 h-8 rounded-xl flex items-center justify-center bg-slate-50 hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition text-sm font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Modal Body: Scrollable Members List Table */}
+            <div className="flex-1 overflow-y-auto">
+              {popupMembersList.length === 0 ? (
+                <div className="py-12 text-center text-slate-500 font-semibold">
+                  No members found in this category.
+                </div>
+              ) : (
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="border-b border-slate-100 text-[10px] text-slate-450 font-bold uppercase tracking-wider bg-slate-50/50">
+                      <th className="px-4 py-3">Name</th>
+                      {selectedCardPopup === "ONLINE" ? (
+                        <>
+                          <th className="px-4 py-3">Role</th>
+                          <th className="px-4 py-3">Department</th>
+                          <th className="px-4 py-3">Login Time</th>
+                          <th className="px-4 py-3">Status</th>
+                        </>
+                      ) : selectedCardPopup === "INACTIVE" ? (
+                        <>
+                          <th className="px-4 py-3">Role</th>
+                          <th className="px-4 py-3">Department</th>
+                          <th className="px-4 py-3">Inactive Since</th>
+                          <th className="px-4 py-3">Inactivated By</th>
+                        </>
+                      ) : (
+                        <>
+                          <th className="px-4 py-3">Role</th>
+                          <th className="px-4 py-3">Department</th>
+                          <th className="px-4 py-3">Email</th>
+                          <th className="px-4 py-3">Status</th>
+                        </>
+                      )}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {popupMembersList.map((member) => {
+                      const session = activeSessions.find(s => s.user_id === member.id)
+                      const loginTimeStr = session?.login_time
+                        ? new Date(session.login_time).toLocaleString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })
+                        : 'N/A'
+                      
+                      const inactiveSinceStr = member.lastSavedAt
+                        ? new Date(member.lastSavedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+                        : 'N/A'
+
+                      return (
+                        <tr key={member.id} className="hover:bg-slate-50/40 text-xs font-semibold text-slate-700 transition">
+                          <td className="px-4 py-3.5 flex items-center gap-3">
+                            <div className="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center text-[10px] font-black text-slate-500 uppercase">
+                              {member.name.charAt(0)}
+                            </div>
+                            <div>
+                              <p className="font-bold text-slate-900">{member.name}</p>
+                              <p className="text-[10px] text-slate-400 font-bold">{member.code}</p>
+                            </div>
+                          </td>
+                          {selectedCardPopup === "ONLINE" ? (
+                            <>
+                              <td className="px-4 py-3.5">{member.roleName}</td>
+                              <td className="px-4 py-3.5">{member.department}</td>
+                              <td className="px-4 py-3.5 font-mono text-[10px] text-slate-500">{loginTimeStr}</td>
+                              <td className="px-4 py-3.5">
+                                <span className="bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full text-[10px] font-bold border border-emerald-250/20 animate-pulse">
+                                  ONLINE
+                                </span>
+                              </td>
+                            </>
+                          ) : selectedCardPopup === "INACTIVE" ? (
+                            <>
+                              <td className="px-4 py-3.5">{member.roleName}</td>
+                              <td className="px-4 py-3.5">{member.department}</td>
+                              <td className="px-4 py-3.5 text-slate-500 font-medium">{inactiveSinceStr}</td>
+                              <td className="px-4 py-3.5">
+                                <span className="bg-slate-105 text-slate-700 px-2.5 py-0.5 rounded-full text-[10px] font-bold border border-slate-200">
+                                  Admin
+                                </span>
+                              </td>
+                            </>
+                          ) : (
+                            <>
+                              <td className="px-4 py-3.5">{member.roleName}</td>
+                              <td className="px-4 py-3.5">{member.department}</td>
+                              <td className="px-4 py-3.5 text-slate-550">{member.email}</td>
+                              <td className="px-4 py-3.5">
+                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                                  member.status.toLowerCase() === 'active' ? 'bg-emerald-50 text-emerald-700 border-emerald-250/20' : 'bg-rose-50 text-rose-700 border-rose-250/20'
+                                }`}>
+                                  {member.status}
+                                </span>
+                              </td>
+                            </>
+                          )}
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="flex justify-end items-center pt-4 border-t border-slate-100 gap-3">
+              {selectedCardPopup === "ONLINE" && (
+                <button
+                  onClick={() => {
+                    setSelectedCardPopup(null)
+                    router.push("/admin/attendance")
+                  }}
+                  className="px-5 py-2 bg-[#0066FF] hover:bg-[#0052CC] text-white rounded-xl text-xs font-bold transition shadow-md shadow-blue-500/10 cursor-pointer"
+                >
+                  Go to Attendance
+                </button>
+              )}
+              <button
+                onClick={() => setSelectedCardPopup(null)}
+                className="px-4 py-2 border border-slate-200 hover:bg-slate-50 rounded-xl text-xs font-bold text-slate-500 transition cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+            
           </div>
         </div>
       )}
