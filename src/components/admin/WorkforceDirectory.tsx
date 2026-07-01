@@ -210,18 +210,18 @@ export function WorkforceDirectory({ initialWorkforce, departmentsList }: Workfo
 
   // Summary Metrics calculations
   const metrics = useMemo(() => {
-    const total = initialWorkforce.length
-    const active = initialWorkforce.filter(m => m.status.toLowerCase() === 'active').length
-    const departmentHeads = initialWorkforce.filter(m => m.userType === "Department Head").length
-    const employees = initialWorkforce.filter(m => m.userType === "Employee").length
-    const inactive = initialWorkforce.filter(m => m.status.toLowerCase() === 'inactive').length
+    const totalWorkforce = initialWorkforce.length
+    const activeWorkforce = initialWorkforce.filter(m => m.status.toLowerCase() !== 'inactive').length
+    const deptHeads = initialWorkforce.filter(m => m.userType === "Department Head" && m.status.toLowerCase() !== 'inactive').length
+    const employees = initialWorkforce.filter(m => m.userType === "Employee" && m.status.toLowerCase() !== 'inactive').length
+    const inactiveMembers = initialWorkforce.filter(m => m.status.toLowerCase() === 'inactive').length
 
     return {
-      total,
-      active,
-      departmentHeads,
+      totalWorkforce,
+      activeWorkforce,
+      deptHeads,
       employees,
-      inactive
+      inactiveMembers
     }
   }, [initialWorkforce])
 
@@ -236,25 +236,25 @@ export function WorkforceDirectory({ initialWorkforce, departmentsList }: Workfo
     <div className="space-y-8">
       {/* Summary Cards Panel */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-        {/* Total Employees */}
+        {/* Total Workforce */}
         <Card className="px-5 py-4 rounded-2xl flex items-center gap-4 shadow-sm border-slate-200 bg-white">
           <div className="w-12 h-12 bg-blue-50 text-[#0066FF] rounded-xl flex items-center justify-center">
             <Users className="w-6 h-6" />
           </div>
           <div>
-            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Employees</p>
-            <h3 className="text-2xl font-black text-slate-900">{metrics.total}</h3>
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Workforce</p>
+            <h3 className="text-2xl font-black text-slate-900">{metrics.totalWorkforce}</h3>
           </div>
         </Card>
 
-        {/* Active Employees */}
+        {/* Active Workforce */}
         <Card className="px-5 py-4 rounded-2xl flex items-center gap-4 shadow-sm border-slate-200 bg-white">
           <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center">
             <UserCheck className="w-6 h-6" />
           </div>
           <div>
-            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Active Employees</p>
-            <h3 className="text-2xl font-black text-slate-900">{metrics.active}</h3>
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Active Workforce</p>
+            <h3 className="text-2xl font-black text-slate-900">{metrics.activeWorkforce}</h3>
           </div>
         </Card>
 
@@ -265,7 +265,7 @@ export function WorkforceDirectory({ initialWorkforce, departmentsList }: Workfo
           </div>
           <div>
             <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Dept Heads</p>
-            <h3 className="text-2xl font-black text-slate-900">{metrics.departmentHeads}</h3>
+            <h3 className="text-2xl font-black text-slate-900">{metrics.deptHeads}</h3>
           </div>
         </Card>
 
@@ -280,14 +280,14 @@ export function WorkforceDirectory({ initialWorkforce, departmentsList }: Workfo
           </div>
         </Card>
 
-        {/* Inactive Employees */}
+        {/* Inactive Members */}
         <Card className="px-5 py-4 rounded-2xl flex items-center gap-4 shadow-sm border-slate-200 bg-white">
           <div className="w-12 h-12 bg-rose-50 text-rose-600 rounded-xl flex items-center justify-center">
             <Lock className="w-6 h-6" />
           </div>
           <div>
-            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Inactive Employees</p>
-            <h3 className="text-2xl font-black text-slate-900">{metrics.inactive}</h3>
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Inactive Members</p>
+            <h3 className="text-2xl font-black text-slate-900">{metrics.inactiveMembers}</h3>
           </div>
         </Card>
       </div>
