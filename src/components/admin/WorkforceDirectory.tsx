@@ -398,11 +398,27 @@ export function WorkforceDirectory({ initialWorkforce, departmentsList }: Workfo
     }
   }, [selectedCardPopup, workforce, activeSessions])
 
-  const getStatusBadgeClass = (status: string) => {
-    const s = status.toLowerCase()
-    if (s === 'active') return 'bg-emerald-50 text-emerald-700 border-emerald-250/30'
-    if (s === 'locked') return 'bg-amber-50 text-amber-700 border-amber-250/30'
-    return 'bg-rose-50 text-rose-700 border-rose-250/30' // Inactive / others
+  const getMemberStatusInfo = (member: WorkforceMember) => {
+    const activeUserIds = new Set(activeSessions.map(s => s.user_id))
+    if (member.status.toLowerCase() === 'inactive') {
+      return {
+        label: 'Inactive',
+        badgeClass: 'bg-rose-50 text-rose-705 border-rose-200/50',
+        dotClass: 'bg-rose-500'
+      }
+    }
+    if (activeUserIds.has(member.id)) {
+      return {
+        label: 'Online',
+        badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200/50',
+        dotClass: 'bg-emerald-500 animate-pulse'
+      }
+    }
+    return {
+      label: 'Offline',
+      badgeClass: 'bg-slate-50 text-slate-500 border-slate-200/60',
+      dotClass: 'bg-slate-400'
+    }
   }
 
   return (
@@ -659,10 +675,15 @@ export function WorkforceDirectory({ initialWorkforce, departmentsList }: Workfo
 
                     {/* Account Status Badge */}
                     <td className="px-6 py-4">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${getStatusBadgeClass(member.status)}`}>
-                        <span className="w-1.5 h-1.5 rounded-full bg-current mr-1.5 shrink-0" />
-                        {member.status}
-                      </span>
+                      {(() => {
+                        const statusInfo = getMemberStatusInfo(member)
+                        return (
+                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${statusInfo.badgeClass}`}>
+                            <span className={`w-1.5 h-1.5 rounded-full mr-1.5 shrink-0 ${statusInfo.dotClass}`} />
+                            {statusInfo.label}
+                          </span>
+                        )
+                      })()}
                     </td>
 
                     {/* Productivity Score */}
@@ -1130,11 +1151,15 @@ export function WorkforceDirectory({ initialWorkforce, departmentsList }: Workfo
                               <td className="px-4 py-3.5">{member.department}</td>
                               <td className="px-4 py-3.5 text-slate-550">{member.email}</td>
                               <td className="px-4 py-3.5">
-                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
-                                  member.status.toLowerCase() === 'active' ? 'bg-emerald-50 text-emerald-700 border-emerald-250/20' : 'bg-rose-50 text-rose-700 border-rose-250/20'
-                                }`}>
-                                  {member.status}
-                                </span>
+                                {(() => {
+                                  const statusInfo = getMemberStatusInfo(member)
+                                  return (
+                                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border ${statusInfo.badgeClass}`}>
+                                      <span className={`w-1 h-1 rounded-full mr-1 shrink-0 ${statusInfo.dotClass}`} />
+                                      {statusInfo.label}
+                                    </span>
+                                  )
+                                })()}
                               </td>
                             </>
                           )}
