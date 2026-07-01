@@ -211,17 +211,17 @@ export function WorkforceDirectory({ initialWorkforce, departmentsList }: Workfo
   // Summary Metrics calculations
   const metrics = useMemo(() => {
     const total = initialWorkforce.length
-    const employees = initialWorkforce.filter(m => m.userType === "Employee").length
+    const active = initialWorkforce.filter(m => m.status.toLowerCase() === 'active').length
     const departmentHeads = initialWorkforce.filter(m => m.userType === "Department Head").length
-    const completed = initialWorkforce.filter(m => m.profileCompletion === 100).length
-    const pending = total - completed
+    const employees = initialWorkforce.filter(m => m.userType === "Employee").length
+    const inactive = initialWorkforce.filter(m => m.status.toLowerCase() === 'inactive').length
 
     return {
       total,
-      employees,
+      active,
       departmentHeads,
-      completed,
-      pending
+      employees,
+      inactive
     }
   }, [initialWorkforce])
 
@@ -236,29 +236,29 @@ export function WorkforceDirectory({ initialWorkforce, departmentsList }: Workfo
     <div className="space-y-8">
       {/* Summary Cards Panel */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-        {/* Total Workforce */}
+        {/* Total Employees */}
         <Card className="px-5 py-4 rounded-2xl flex items-center gap-4 shadow-sm border-slate-200 bg-white">
           <div className="w-12 h-12 bg-blue-50 text-[#0066FF] rounded-xl flex items-center justify-center">
             <Users className="w-6 h-6" />
           </div>
           <div>
-            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Workforce</p>
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Employees</p>
             <h3 className="text-2xl font-black text-slate-900">{metrics.total}</h3>
           </div>
         </Card>
 
-        {/* Employees */}
+        {/* Active Employees */}
         <Card className="px-5 py-4 rounded-2xl flex items-center gap-4 shadow-sm border-slate-200 bg-white">
           <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center">
-            <User className="w-6 h-6" />
+            <UserCheck className="w-6 h-6" />
           </div>
           <div>
-            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Employees</p>
-            <h3 className="text-2xl font-black text-slate-900">{metrics.employees}</h3>
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Active Employees</p>
+            <h3 className="text-2xl font-black text-slate-900">{metrics.active}</h3>
           </div>
         </Card>
 
-        {/* Department Heads */}
+        {/* Dept Heads */}
         <Card className="px-5 py-4 rounded-2xl flex items-center gap-4 shadow-sm border-slate-200 bg-white">
           <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center">
             <Shield className="w-6 h-6" />
@@ -269,25 +269,25 @@ export function WorkforceDirectory({ initialWorkforce, departmentsList }: Workfo
           </div>
         </Card>
 
-        {/* Profiles Completed */}
+        {/* Employees */}
         <Card className="px-5 py-4 rounded-2xl flex items-center gap-4 shadow-sm border-slate-200 bg-white">
           <div className="w-12 h-12 bg-teal-50 text-teal-600 rounded-xl flex items-center justify-center">
-            <UserCheck className="w-6 h-6" />
+            <User className="w-6 h-6" />
           </div>
           <div>
-            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Profiles Completed</p>
-            <h3 className="text-2xl font-black text-slate-900">{metrics.completed}</h3>
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Employees</p>
+            <h3 className="text-2xl font-black text-slate-900">{metrics.employees}</h3>
           </div>
         </Card>
 
-        {/* Profiles Pending */}
+        {/* Inactive Employees */}
         <Card className="px-5 py-4 rounded-2xl flex items-center gap-4 shadow-sm border-slate-200 bg-white">
-          <div className="w-12 h-12 bg-amber-50 text-amber-600 rounded-xl flex items-center justify-center">
-            <AlertTriangle className="w-6 h-6" />
+          <div className="w-12 h-12 bg-rose-50 text-rose-600 rounded-xl flex items-center justify-center">
+            <Lock className="w-6 h-6" />
           </div>
           <div>
-            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Profiles Pending</p>
-            <h3 className="text-2xl font-black text-slate-900">{metrics.pending}</h3>
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Inactive Employees</p>
+            <h3 className="text-2xl font-black text-slate-900">{metrics.inactive}</h3>
           </div>
         </Card>
       </div>
@@ -415,24 +415,35 @@ export function WorkforceDirectory({ initialWorkforce, departmentsList }: Workfo
                   </td>
                 </tr>
               ) : (
-                filteredWorkforce.map((member) => (
-                  <tr key={member.id} className="group hover:bg-slate-50/40 transition-colors">
-                    {/* Member profile info */}
-                    <td className="sticky left-0 bg-white dark:bg-slate-950 px-6 py-4 z-20 border-r border-slate-100/80 dark:border-slate-800/80 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.08)] group-hover:bg-slate-50 dark:group-hover:bg-slate-900 transition-colors">
-                      <div className="flex items-center gap-3">
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm shadow-sm border ${
-                          member.userType === "Department Head"
-                            ? "bg-indigo-50 border-indigo-200 text-indigo-600"
-                            : "bg-emerald-50 border-emerald-200 text-emerald-600"
-                        }`}>
-                          {member.name.charAt(0).toUpperCase()}
+                filteredWorkforce.map((member) => {
+                  const isInactive = member.status.toLowerCase() === 'inactive';
+                  return (
+                    <tr key={member.id} className={`group hover:bg-slate-50/40 transition-colors ${isInactive ? "opacity-60 bg-slate-50/40 dark:bg-slate-900/40" : ""}`}>
+                      {/* Member profile info */}
+                      <td className={`sticky left-0 px-6 py-4 z-20 border-r border-slate-100/80 dark:border-slate-800/80 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.08)] group-hover:bg-slate-50 dark:group-hover:bg-slate-900 transition-colors ${isInactive ? "bg-slate-100/70 dark:bg-slate-900/70" : "bg-white dark:bg-slate-950"}`}>
+                        <div className="flex items-center gap-3">
+                          <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm shadow-sm border ${
+                            isInactive
+                              ? "bg-slate-100 border-slate-300 text-slate-400"
+                              : member.userType === "Department Head"
+                                ? "bg-indigo-50 border-indigo-200 text-indigo-600"
+                                : "bg-emerald-50 border-emerald-200 text-emerald-600"
+                          }`}>
+                            {member.name.charAt(0).toUpperCase()}
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <div className={`font-bold text-slate-900 text-sm ${isInactive ? "text-slate-400 line-through" : ""}`}>{member.name}</div>
+                              {isInactive && (
+                                <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-rose-100 text-rose-700 uppercase tracking-wider">
+                                  Inactive
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{member.code}</div>
+                          </div>
                         </div>
-                        <div>
-                          <div className="font-bold text-slate-900 text-sm">{member.name}</div>
-                          <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{member.code}</div>
-                        </div>
-                      </div>
-                    </td>
+                      </td>
 
                     {/* User Type Badge */}
                     <td className="px-6 py-4">
@@ -545,7 +556,7 @@ export function WorkforceDirectory({ initialWorkforce, departmentsList }: Workfo
                     </td>
 
                     {/* Action buttons */}
-                    <td className="sticky right-0 bg-white dark:bg-slate-950 px-6 py-4 text-right z-20 border-l border-slate-100/80 dark:border-slate-800/80 shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.08)] group-hover:bg-slate-50 dark:group-hover:bg-slate-900 transition-colors">
+                    <td className={`sticky right-0 px-6 py-4 text-right z-20 border-l border-slate-100/80 dark:border-slate-800/80 shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.08)] group-hover:bg-slate-50 dark:group-hover:bg-slate-900 transition-colors ${isInactive ? "bg-slate-100/70 dark:bg-slate-900/70" : "bg-white dark:bg-slate-950"}`}>
                       <div className="flex items-center justify-end relative">
                         <button
                           onClick={() => setActiveDropdownId(activeDropdownId === member.id ? null : member.id)}
@@ -647,7 +658,8 @@ export function WorkforceDirectory({ initialWorkforce, departmentsList }: Workfo
                       </div>
                     </td>
                   </tr>
-                ))
+                )
+              })
               )}
             </tbody>
           </table>
