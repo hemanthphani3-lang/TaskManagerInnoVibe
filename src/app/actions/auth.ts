@@ -548,6 +548,7 @@ export async function demoteFromDepartmentHead(departmentHeadId: string) {
     }
 
     const adminClient = getSupabaseAdmin()
+    console.log("[Demote debug] Started demote action for head:", departmentHeadId)
 
     // 1. Fetch current department head's department record
     const { data: dept, error: deptErr } = await adminClient
@@ -557,8 +558,11 @@ export async function demoteFromDepartmentHead(departmentHeadId: string) {
       .maybeSingle()
 
     if (deptErr || !dept) {
+      console.error("[Demote debug] Failed to fetch department:", deptErr)
       return { success: false, error: deptErr?.message || "Department record not found." }
     }
+
+    console.log("[Demote debug] Fetched department record:", dept)
 
     // Clean up temporary tags from department_code and department_email if present due to a previous half-failed run
     let originalDeptCode = dept.department_code;
@@ -580,11 +584,14 @@ export async function demoteFromDepartmentHead(departmentHeadId: string) {
     let targetHeadPhoto: string | null = null;
 
     if (isOriginalHeadActive) {
+      console.log("[Demote debug] Original head is active. Demoting original head to create a vacant department.")
       // If we are demoting the original head, the department becomes vacant.
       // Since departments.id references auth.users(id), we must create a placeholder auth user first.
       const tempEmail = `vacant-${originalDeptCode.toLowerCase()}-${Date.now()}@innovibe.com`
       const crypto = require("crypto")
       const tempPassword = crypto.randomBytes(16).toString("hex")
+      
+      console.log("[Demote debug] Creating placeholder auth user with email:", tempEmail)
       const { data: vacantAuth, error: vacantAuthErr } = await adminClient.auth.admin.createUser({
         email: tempEmail,
         password: tempPassword,
@@ -592,6 +599,7 @@ export async function demoteFromDepartmentHead(departmentHeadId: string) {
       })
 
       if (vacantAuthErr || !vacantAuth?.user) {
+        console.error("[Demote debug] Failed to create placeholder auth user:", vacantAuthErr)
         throw new Error(`Failed to create vacant auth user placeholder: ${vacantAuthErr?.message || "Unknown error"}`)
       }
 
@@ -599,7 +607,9 @@ export async function demoteFromDepartmentHead(departmentHeadId: string) {
       targetHeadName = "Vacant"
       targetHeadEmail = tempEmail
       targetHeadPhoto = null
+      console.log("[Demote debug] Created placeholder user successfully. New ID:", targetHeadId)
     } else {
+      console.log("[Demote debug] Promoted head is active. Reverting back to original head ID:", originalHeadId)
       // Revert back to original head
       // Fetch original department head details from employees table
       const { data: origHeadEmp, error: origHeadErr } = await adminClient
@@ -609,6 +619,7 @@ export async function demoteFromDepartmentHead(departmentHeadId: string) {
         .maybeSingle()
 
       if (origHeadErr || !origHeadEmp) {
+        console.error("[Demote debug] Failed to fetch original head employee profile:", origHeadErr)
         return { success: false, error: origHeadErr?.message || "Original department head profile not found." }
       }
 
@@ -621,6 +632,8 @@ export async function demoteFromDepartmentHead(departmentHeadId: string) {
     // Rename old department code and email to temporary to avoid unique constraint violations
     const tempCode = `${originalDeptCode}-TEMP-${Date.now()}`
     const tempEmail = `temp-${Date.now()}-${originalDeptEmail}`
+    console.log("[Demote debug] Temporarily renaming old department code to:", tempCode, "and email to:", tempEmail)
+    
     const { error: renameErr } = await adminClient
       .from('departments')
       .update({ 
@@ -630,8 +643,11 @@ export async function demoteFromDepartmentHead(departmentHeadId: string) {
       .eq('id', departmentHeadId)
 
     if (renameErr) {
+      console.error("[Demote debug] Failed to rename old department:", renameErr)
       throw new Error(`Failed to temporarily rename old department: ${renameErr.message}`)
     }
+
+    console.log("[Demote debug] Renamed old department successfully. Inserting target head into departments table...")
 
     // 2. Insert original department head back into departments table
     const { error: insertDeptErr } = await adminClient
@@ -641,7 +657,7 @@ export async function demoteFromDepartmentHead(departmentHeadId: string) {
         department_name: dept.department_name,
         department_email: targetHeadEmail,
         department_head_name: targetHeadName,
-        department_code: dept.department_code,
+        department_code: originalDeptCode,
         profile_photo: targetHeadPhoto,
         created_by_admin: user.id,
         check_in_cutoff_time: dept.check_in_cutoff_time || '09:30:00',

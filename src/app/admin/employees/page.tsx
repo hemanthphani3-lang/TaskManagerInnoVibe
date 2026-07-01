@@ -51,6 +51,7 @@ export default async function AdminEmployeesPage() {
   if (employees) {
     employees.forEach((emp) => {
       if (emp.designation === 'Department Head') return
+      if (departments?.some(d => d.id === emp.id)) return
 
       const score = productivityScores?.find(s => s.employee_id === emp.id)?.productivity_score ?? 0
       const attLogs = attendance?.filter(a => a.employee_id === emp.id) || []
