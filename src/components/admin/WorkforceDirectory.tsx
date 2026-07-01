@@ -107,6 +107,9 @@ export function WorkforceDirectory({ initialWorkforce, departmentsList }: Workfo
       if (res.success) {
         toast.success(`Successfully promoted ${promotingMember.name} to Department Head`)
         router.refresh()
+        setTimeout(() => {
+          window.location.reload()
+        }, 150)
         setPromotingMember(null)
       } else {
         toast.error(res.error || "Failed to promote employee")
@@ -126,6 +129,9 @@ export function WorkforceDirectory({ initialWorkforce, departmentsList }: Workfo
       if (res.success) {
         toast.success(`Successfully removed Department Head role from ${demotingMember.name}`)
         router.refresh()
+        setTimeout(() => {
+          window.location.reload()
+        }, 150)
         setDemotingMember(null)
       } else {
         toast.error(res.error || "Failed to demote department head")
@@ -145,6 +151,9 @@ export function WorkforceDirectory({ initialWorkforce, departmentsList }: Workfo
       if (res.success) {
         toast.success(`Employee status updated to ${confirmStatusModal.targetStatus}`)
         router.refresh()
+        setTimeout(() => {
+          window.location.reload()
+        }, 150)
       } else {
         toast.error(res.error || "Failed to update employee status")
       }
