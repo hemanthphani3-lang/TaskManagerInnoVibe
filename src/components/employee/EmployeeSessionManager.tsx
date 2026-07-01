@@ -21,6 +21,16 @@ export function EmployeeSessionManager({ children, links }: { children: React.Re
     let pollInterval: NodeJS.Timeout | null = null
 
     const checkLogoutApproved = async (userId: string) => {
+      const { data: empData } = await supabase
+        .from('employees')
+        .select('account_status')
+        .eq('id', userId)
+        .maybeSingle()
+
+      if (empData?.account_status === 'Inactive' || empData?.account_status === 'INACTIVE') {
+        return
+      }
+
       const nowMs = new Date()
       const istOffset = 5.5 * 60 * 60 * 1000
       const todayIST = new Date(nowMs.getTime() + istOffset).toISOString().split('T')[0]
@@ -57,25 +67,35 @@ export function EmployeeSessionManager({ children, links }: { children: React.Re
       // Use a unique channel name to prevent Strict Mode race conditions
       const channelName = `employee_session_${user.id}_${Date.now()}`
       subscription = supabase.channel(channelName)
-        .on('postgres_changes', {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'attendance',
-          filter: `employee_id=eq.${user.id}`
-        }, async (payload: { new: { work_status?: string } }) => {
-          if (payload.new.work_status === 'LOGGED_OUT') {
-            if (typeof window !== "undefined") {
-              (window as any).__isLoggingOut = true
-            }
-            router.push('/employee/identity-check')
-            router.refresh()
-          } else if (payload.new.work_status === 'ACTIVE') {
-            setIsCheckedIn(true)
-          } else {
-            setIsCheckedIn(false)
-          }
-        })
-        .subscribe()
+         .on('postgres_changes', {
+           event: 'UPDATE',
+           schema: 'public',
+           table: 'attendance',
+           filter: `employee_id=eq.${user.id}`
+         }, async (payload: { new: { work_status?: string } }) => {
+           const { data: empData } = await supabase
+             .from('employees')
+             .select('account_status')
+             .eq('id', user.id)
+             .maybeSingle()
+
+           if (empData?.account_status === 'Inactive' || empData?.account_status === 'INACTIVE') {
+             return
+           }
+
+           if (payload.new.work_status === 'LOGGED_OUT') {
+             if (typeof window !== "undefined") {
+               (window as any).__isLoggingOut = true
+             }
+             router.push('/employee/identity-check')
+             router.refresh()
+           } else if (payload.new.work_status === 'ACTIVE') {
+             setIsCheckedIn(true)
+           } else {
+             setIsCheckedIn(false)
+           }
+         })
+         .subscribe()
 
       // Polling fallback: check every 10 seconds for approval / status
       pollInterval = setInterval(() => checkLogoutApproved(user.id), 10000)
