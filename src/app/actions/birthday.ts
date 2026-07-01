@@ -19,19 +19,28 @@ export async function getISTTodayStr(): Promise<string> {
   return new Date(now.getTime() + istOffset).toISOString().split('T')[0]
 }
 
+let lastBirthdayCheckDate = ""
+let cachedBirthdaysToday: BirthdayPerson[] = []
+let lastBirthdaysFetchDate = ""
+
 /**
  * Checks and generates birthday notifications for today's birthday celebrants.
  * Prevents duplicates by verifying if a notification was already sent today.
  */
 export async function checkAndGenerateBirthdayNotifications() {
   try {
-    const supabaseAdmin = createServiceClient()
-
-    // 1. Get today's month-day in IST (MM-DD)
     const now = new Date()
     const istOffset = 5.5 * 60 * 60 * 1000
     const todayIST = new Date(now.getTime() + istOffset)
     const todayISTStr = todayIST.toISOString().split('T')[0]
+
+    if (lastBirthdayCheckDate === todayISTStr) {
+      return { success: true, count: 0, cached: true }
+    }
+
+    const supabaseAdmin = createServiceClient()
+
+    // 1. Get today's month-day in IST (MM-DD)
     const todayMonthDay = `${String(todayIST.getMonth() + 1).padStart(2, '0')}-${String(todayIST.getDate()).padStart(2, '0')}`
 
     const startUTC = new Date(`${todayISTStr}T00:00:00+05:30`).toISOString()
@@ -177,6 +186,7 @@ export async function checkAndGenerateBirthdayNotifications() {
       revalidatePath('/employee/notifications')
     }
 
+    lastBirthdayCheckDate = todayISTStr
     return { success: true, count: notificationsCreated }
   } catch (error: any) {
     console.error("[Birthday] Error in checkAndGenerateBirthdayNotifications server action:", error)
@@ -189,12 +199,18 @@ export async function checkAndGenerateBirthdayNotifications() {
  */
 export async function getBirthdaysToday(): Promise<BirthdayPerson[]> {
   try {
-    const supabaseAdmin = createServiceClient()
-
-    // 1. Get today's month-day in IST (MM-DD)
     const now = new Date()
     const istOffset = 5.5 * 60 * 60 * 1000
     const todayIST = new Date(now.getTime() + istOffset)
+    const todayISTStr = todayIST.toISOString().split('T')[0]
+
+    if (lastBirthdaysFetchDate === todayISTStr) {
+      return cachedBirthdaysToday
+    }
+
+    const supabaseAdmin = createServiceClient()
+
+    // 1. Get today's month-day in IST (MM-DD)
     const todayMonthDay = `${String(todayIST.getMonth() + 1).padStart(2, '0')}-${String(todayIST.getDate()).padStart(2, '0')}`
 
     // 2. Fetch admins, departments, employees
@@ -264,6 +280,8 @@ export async function getBirthdaysToday(): Promise<BirthdayPerson[]> {
       }
     }
 
+    cachedBirthdaysToday = birthdayPeople
+    lastBirthdaysFetchDate = todayISTStr
     return birthdayPeople
   } catch (error) {
     console.error("[Birthday] Error in getBirthdaysToday server action:", error)
