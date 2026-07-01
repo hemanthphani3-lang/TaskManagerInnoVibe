@@ -305,11 +305,11 @@ export async function getAttendanceReport(
     const [employeesRes, targetDeptRes] = await Promise.all([
       supabase
         .from('employees')
-        .select('id, employee_name, designation, department_id, employee_code, departments!department_id(department_name)')
+        .select('id, employee_name, designation, department_id, employee_code, account_status, departments!department_id(department_name)')
         .eq('department_id', targetDepartmentId),
       supabase
         .from('departments')
-        .select('id, department_name, department_head_name')
+        .select('id, department_name, department_head_name, status')
         .eq('id', targetDepartmentId)
         .maybeSingle()
     ])
@@ -317,6 +317,9 @@ export async function getAttendanceReport(
     let headEmpRecord: any = null
     if (employeesRes.data) {
       employeesRes.data.forEach(e => {
+        if (e.account_status === 'Inactive' || e.account_status === 'INACTIVE') {
+          return
+        }
         if (e.designation === 'Department Head') {
           headEmpRecord = e
           return
@@ -333,16 +336,20 @@ export async function getAttendanceReport(
     }
 
     if (targetDeptRes.data) {
-      const headName = targetDeptRes.data.department_head_name
-      if (headName && headName !== '-') {
-        usersList.push({
-          id: targetDeptRes.data.id,
-          name: headName,
-          role: 'Department Head',
-          departmentId: targetDeptRes.data.id,
-          departmentName: targetDeptRes.data.department_name,
-          employeeCode: headEmpRecord?.employee_code || `${targetDeptRes.data.department_name.substring(0, 3).toUpperCase()}-HEAD`
-        })
+      if (targetDeptRes.data.status === 'Inactive' || targetDeptRes.data.status === 'INACTIVE') {
+        // Exclude inactive department head
+      } else {
+        const headName = targetDeptRes.data.department_head_name
+        if (headName && headName !== '-') {
+          usersList.push({
+            id: targetDeptRes.data.id,
+            name: headName,
+            role: 'Department Head',
+            departmentId: targetDeptRes.data.id,
+            departmentName: targetDeptRes.data.department_name,
+            employeeCode: headEmpRecord?.employee_code || `${targetDeptRes.data.department_name.substring(0, 3).toUpperCase()}-HEAD`
+          })
+        }
       }
     }
   } else {
@@ -350,15 +357,18 @@ export async function getAttendanceReport(
     const [employeesRes, deptsRes] = await Promise.all([
       supabase
         .from('employees')
-        .select('id, employee_name, designation, department_id, employee_code, departments!department_id(department_name)'),
+        .select('id, employee_name, designation, department_id, employee_code, account_status, departments!department_id(department_name)'),
       supabase
         .from('departments')
-        .select('id, department_name, department_head_name')
+        .select('id, department_name, department_head_name, status')
     ])
 
     const deptHeadEmployeeMap = new Map<string, any>()
     if (employeesRes.data) {
       employeesRes.data.forEach(e => {
+        if (e.account_status === 'Inactive' || e.account_status === 'INACTIVE') {
+          return
+        }
         if (e.designation === 'Department Head') {
           deptHeadEmployeeMap.set(e.id, e)
           return
@@ -376,6 +386,9 @@ export async function getAttendanceReport(
 
     if (deptsRes.data) {
       deptsRes.data.forEach(d => {
+        if (d.status === 'Inactive' || d.status === 'INACTIVE') {
+          return
+        }
         if (!d.department_head_name || d.department_head_name === '-') return
         const headEmpRecord = deptHeadEmployeeMap.get(d.id)
         usersList.push({
