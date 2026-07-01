@@ -90,7 +90,7 @@ export function DepartmentSessionManager({ children, links }: DepartmentSessionM
       if (subscription) supabase.removeChannel(subscription)
       if (pollInterval) clearInterval(pollInterval)
     }
-  }, [supabase, router])
+  }, [router])
 
   const handleLogoutClick = async () => {
     if (isCheckedIn) {

@@ -102,6 +102,10 @@ export default async function EmployeeDashboard({ params }: { params: Promise<{ 
   const departmentName = (employee?.departments as { department_name: string } | null)?.department_name || "Unassigned"
   const todayRequest = logoutRequests?.find(req => req.attendance_date === todayIST)
 
+  const isEmployeeInactive = employee?.account_status === 'Inactive' || employee?.account_status === 'INACTIVE'
+  const announcementsList = isEmployeeInactive ? [] : (announcementsRaw || [])
+  const remindersList = isEmployeeInactive ? [] : (reminders || [])
+
   // Calculate dynamic leave balances (month-locked, updates to 0 every month)
   const todayISTDate = new Date(new Date().getTime() + istOffset)
   const currentMonth = todayISTDate.getMonth()
@@ -147,11 +151,11 @@ export default async function EmployeeDashboard({ params }: { params: Promise<{ 
       productivityData={productivityData}
       rankingData={rankingData}
       kpiData={kpiData}
-      reminders={reminders || []}
+      reminders={remindersList}
       todayUserSessions={todayUserSessions || []}
       isCheckedIn={isCheckedIn}
       todayRequest={todayRequest}
-      announcements={announcementsRaw || []}
+      announcements={announcementsList}
       userActivities={userActivities || []}
       leaveBalance={leaveBalance}
       currentUserId={user.id}

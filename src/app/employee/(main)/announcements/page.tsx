@@ -15,13 +15,24 @@ export default async function EmployeeAnnouncementsPage() {
 
   if (!user) redirect("/login")
 
+  // Fetch employee account status
+  const { data: employee } = await supabase
+    .from('employees')
+    .select('account_status')
+    .eq('id', user.id)
+    .maybeSingle()
+
+  const isInactive = employee?.account_status === 'Inactive' || employee?.account_status === 'INACTIVE'
+
   // Run both queries in parallel, limit to 30 most recent announcements
   const [{ data: announcementsRaw }, { data: departments }] = await Promise.all([
-    supabase
-      .from('announcements')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(30),
+    isInactive
+      ? Promise.resolve({ data: [] })
+      : supabase
+          .from('announcements')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .limit(30),
     supabase
       .from('departments')
       .select('id, department_name')

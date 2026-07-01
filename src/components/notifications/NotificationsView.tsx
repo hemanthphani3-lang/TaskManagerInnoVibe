@@ -20,13 +20,39 @@ interface Notification {
 
 interface NotificationsViewProps {
   userId?: string
+  isInactive?: boolean
 }
 
-export function NotificationsView({ userId: userIdProp }: NotificationsViewProps = {}) {
+export function NotificationsView({ userId: userIdProp, isInactive }: NotificationsViewProps = {}) {
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const supabase = createClient()
   const router = useRouter()
+
+  if (isInactive) {
+    return (
+      <Card className="bg-white border-slate-200 overflow-hidden">
+        <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-blue-100 text-[#0066FF] rounded-lg">
+              <Bell className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-slate-900 leading-tight">Notifications</h2>
+              <p className="text-sm text-slate-500 font-medium">You have 0 unread messages</p>
+            </div>
+          </div>
+        </div>
+        <div className="p-12 text-center flex flex-col items-center">
+          <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-4">
+            <Bell className="w-8 h-8 text-slate-300" />
+          </div>
+          <h3 className="text-slate-900 font-semibold mb-1">No notifications yet</h3>
+          <p className="text-slate-500 text-sm">When you get updates, they'll show up here.</p>
+        </div>
+      </Card>
+    )
+  }
 
   useEffect(() => {
     let isMounted = true;

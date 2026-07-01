@@ -106,7 +106,7 @@ export function EmployeeSessionManager({ children, links }: { children: React.Re
       if (subscription) supabase.removeChannel(subscription)
       if (pollInterval) clearInterval(pollInterval)
     }
-  }, [supabase, router])
+  }, [router])
 
   const handleLogoutClick = async () => {
     if (isCheckedIn) {
