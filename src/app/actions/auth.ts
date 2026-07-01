@@ -458,10 +458,8 @@ export async function promoteToDepartmentHead(employeeId: string, targetDepartme
       { table: 'attendance', column: 'department_id' },
       { table: 'leave_requests', column: 'department_id' },
       { table: 'leave_requests', column: 'approved_by' },
-      { table: 'tasks', column: 'department_id' },
       { table: 'tasks', column: 'assigned_by_department' },
       { table: 'tasks', column: 'created_by' },
-      { table: 'tasks', column: 'assigned_to' },
       { table: 'logout_requests', column: 'department_id' },
       { table: 'logout_requests', column: 'approved_by_department' },
       { table: 'work_submissions', column: 'department_id' },
@@ -482,6 +480,33 @@ export async function promoteToDepartmentHead(employeeId: string, targetDepartme
       if (updateErr) {
         console.warn(`Warning during promotion: Failed to update ${table}.${column}:`, updateErr)
       }
+    }
+
+    // Explicitly update tasks department_id and assigned_to to avoid trigger overwrite conflicts
+    // Path A: Tasks assigned to the department itself as a DEPARTMENT role
+    const { error: taskErrA } = await adminClient
+      .from('tasks')
+      .update({
+        department_id: employeeId,
+        assigned_to: employeeId,
+        assigned_to_role: 'DEPARTMENT'
+      })
+      .eq('department_id', targetDepartmentId)
+      .eq('assigned_to_role', 'DEPARTMENT')
+
+    if (taskErrA) {
+      console.warn("Warning during promotion: Failed to update tasks DEPARTMENT role assignees:", taskErrA)
+    }
+
+    // Path B: Other tasks in the department (e.g. assigned to regular employees)
+    const { error: taskErrB } = await adminClient
+      .from('tasks')
+      .update({ department_id: employeeId })
+      .eq('department_id', targetDepartmentId)
+      .neq('assigned_to_role', 'DEPARTMENT')
+
+    if (taskErrB) {
+      console.warn("Warning during promotion: Failed to update department ID on other tasks:", taskErrB)
     }
 
     // 7. Delete the old department record
@@ -676,10 +701,8 @@ export async function demoteFromDepartmentHead(departmentHeadId: string) {
       { table: 'attendance', column: 'department_id' },
       { table: 'leave_requests', column: 'department_id' },
       { table: 'leave_requests', column: 'approved_by' },
-      { table: 'tasks', column: 'department_id' },
       { table: 'tasks', column: 'assigned_by_department' },
       { table: 'tasks', column: 'created_by' },
-      { table: 'tasks', column: 'assigned_to' },
       { table: 'logout_requests', column: 'department_id' },
       { table: 'logout_requests', column: 'approved_by_department' },
       { table: 'work_submissions', column: 'department_id' },
@@ -700,6 +723,33 @@ export async function demoteFromDepartmentHead(departmentHeadId: string) {
       if (updateErr) {
         console.warn(`Warning during demotion: Failed to update ${table}.${column}:`, updateErr)
       }
+    }
+
+    // Explicitly update tasks department_id and assigned_to to avoid trigger overwrite conflicts
+    // Path A: Tasks assigned to the department itself as a DEPARTMENT role
+    const { error: taskErrA } = await adminClient
+      .from('tasks')
+      .update({
+        department_id: targetHeadId,
+        assigned_to: targetHeadId,
+        assigned_to_role: 'DEPARTMENT'
+      })
+      .eq('department_id', departmentHeadId)
+      .eq('assigned_to_role', 'DEPARTMENT')
+
+    if (taskErrA) {
+      console.warn("Warning during demotion: Failed to update tasks DEPARTMENT role assignees:", taskErrA)
+    }
+
+    // Path B: Other tasks in the department (e.g. assigned to regular employees)
+    const { error: taskErrB } = await adminClient
+      .from('tasks')
+      .update({ department_id: targetHeadId })
+      .eq('department_id', departmentHeadId)
+      .neq('assigned_to_role', 'DEPARTMENT')
+
+    if (taskErrB) {
+      console.warn("Warning during demotion: Failed to update department ID on other tasks:", taskErrB)
     }
 
     // 4. Delete the demoted head's department record
